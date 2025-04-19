@@ -1,0 +1,61 @@
+/* Base styles */
+@import './base/reset.css';
+@import './base/typography.css';
+@import './base/variables.css';
+
+/* Component styles */
+@import './components/buttons.css';
+@import './components/forms.css';
+@import './components/cards.css';
+@import './components/layout.css';
+
+/* Theme styles */
+@import './themes/light.css';
+@import './themes/dark.css';
+
+/* Tailwind directives */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom utilities */
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+  
+  .scrollbar-thin {
+    scrollbar-width: thin;
+  }
+  
+  .scrollbar-thumb-gray-300 {
+    scrollbar-color: #d1d5db transparent;
+  }
+  
+  .scrollbar-track-gray-100 {
+    scrollbar-color: transparent #f3f4f6;
+  }
+}
+
+/* Custom components */
+@layer components {
+  .btn-primary {
+    @apply bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 disabled:bg-gray-400;
+  }
+  
+  .btn-secondary {
+    @apply bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600 disabled:bg-gray-400;
+  }
+  
+  .card {
+    @apply bg-white/90 rounded shadow-lg p-4;
+  }
+  
+  .form-input {
+    @apply p-2 border rounded w-full focus:outline-none focus:ring-2 focus:ring-blue-500;
+  }
+  
+  .nav-link {
+    @apply text-gray-800 hover:text-blue-600 hover:underline;
+  }
+} 

@@ -1,0 +1,168 @@
+/* Container */
+.container {
+  @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+}
+
+/* Grid */
+.grid {
+  @apply grid gap-4;
+}
+
+.grid-cols-1 {
+  @apply grid-cols-1;
+}
+
+.grid-cols-2 {
+  @apply grid-cols-1 md:grid-cols-2;
+}
+
+.grid-cols-3 {
+  @apply grid-cols-1 md:grid-cols-2 lg:grid-cols-3;
+}
+
+.grid-cols-4 {
+  @apply grid-cols-1 md:grid-cols-2 lg:grid-cols-4;
+}
+
+/* Flex */
+.flex {
+  @apply flex;
+}
+
+.flex-col {
+  @apply flex flex-col;
+}
+
+.flex-row {
+  @apply flex flex-row;
+}
+
+.flex-wrap {
+  @apply flex flex-wrap;
+}
+
+/* Spacing */
+.space-x-2 > * + * {
+  @apply ml-2;
+}
+
+.space-y-2 > * + * {
+  @apply mt-2;
+}
+
+.space-x-4 > * + * {
+  @apply ml-4;
+}
+
+.space-y-4 > * + * {
+  @apply mt-4;
+}
+
+/* Alignment */
+.items-start {
+  @apply items-start;
+}
+
+.items-center {
+  @apply items-center;
+}
+
+.items-end {
+  @apply items-end;
+}
+
+.justify-start {
+  @apply justify-start;
+}
+
+.justify-center {
+  @apply justify-center;
+}
+
+.justify-end {
+  @apply justify-end;
+}
+
+.justify-between {
+  @apply justify-between;
+}
+
+/* Position */
+.relative {
+  @apply relative;
+}
+
+.absolute {
+  @apply absolute;
+}
+
+.fixed {
+  @apply fixed;
+}
+
+.sticky {
+  @apply sticky;
+}
+
+/* Display */
+.hidden {
+  @apply hidden;
+}
+
+.block {
+  @apply block;
+}
+
+.inline-block {
+  @apply inline-block;
+}
+
+.inline {
+  @apply inline;
+}
+
+/* Overflow */
+.overflow-auto {
+  @apply overflow-auto;
+}
+
+.overflow-hidden {
+  @apply overflow-hidden;
+}
+
+.overflow-scroll {
+  @apply overflow-scroll;
+}
+
+.overflow-x-auto {
+  @apply overflow-x-auto;
+}
+
+.overflow-y-auto {
+  @apply overflow-y-auto;
+}
+
+/* Z-index */
+.z-0 {
+  @apply z-0;
+}
+
+.z-10 {
+  @apply z-10;
+}
+
+.z-20 {
+  @apply z-20;
+}
+
+.z-30 {
+  @apply z-30;
+}
+
+.z-40 {
+  @apply z-40;
+}
+
+.z-50 {
+  @apply z-50;
+} 
