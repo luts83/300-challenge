@@ -1,0 +1,224 @@
+/* client/src/styles/ui.css */
+@layer components {
+  /* ────────────────────────────── */
+  /* 🔷 Layout: 섹션 레이아웃 정리 */
+  /* ────────────────────────────── */
+  .section-container {
+    @apply max-w-xl mx-auto p-4 mt-6;
+  }
+
+  .section-title {
+    @apply text-2xl font-bold mb-6;
+  }
+
+  .sub-section-title {
+    @apply text-lg font-bold mb-4;
+  }
+
+  .wrapper-full-height {
+    @apply h-screen overflow-hidden flex flex-col justify-center max-w-xl mx-auto p-4;
+  }
+
+  .wrapper-login {
+    @apply min-h-screen flex flex-col items-center justify-center bg-gray-100 p-4;
+  }
+
+  .login-box {
+    @apply w-full max-w-xs;
+  }
+
+  /* ────────────────────────────── */
+  /* 🔷 Card: 카드 스타일 */
+  /* ────────────────────────────── */
+  .card-default {
+    @apply bg-white/90 rounded shadow-lg p-4 transition-all hover:shadow-xl;
+  }
+
+  .card-highlight {
+    @apply bg-blue-50/90 rounded shadow-lg p-4 transition-all hover:shadow-xl;
+  }
+
+  .card-bordered {
+    @apply p-3 bg-gray-50 border-l-4 border-blue-300 text-gray-600 text-sm rounded;
+  }
+
+  /* ────────────────────────────── */
+  /* 🔷 Text: 텍스트 스타일 */
+  /* ────────────────────────────── */
+  .text-title {
+    @apply text-gray-800 font-semibold;
+  }
+
+  .text-muted {
+    @apply text-gray-500 text-sm;
+  }
+
+  .text-note {
+    @apply text-xs text-gray-500;
+  }
+
+  .text-note-more {
+    @apply text-xs text-blue-500 cursor-pointer mt-2 hover:underline;
+  }
+
+  .text-center-note {
+    @apply text-center text-gray-500 mt-4;
+  }
+
+  .text-feedback-count {
+    @apply text-xs text-green-600 font-medium bg-green-100 px-2 py-1 rounded-full;
+  }
+
+  .text-ai-score {
+    @apply font-bold text-lg text-indigo-700;
+  }
+
+  .text-ai-feedback {
+    @apply text-gray-700 mt-2;
+  }
+
+  .text-label {
+    @apply text-right text-sm text-gray-500 mb-1;
+  }
+
+  .text-warning {
+    @apply text-sm text-gray-400;
+  }
+
+  .text-error {
+    @apply text-center text-red-500;
+  }
+
+  .text-info {
+    @apply text-center mt-20 text-gray-600;
+  }
+
+  /* ────────────────────────────── */
+  /* 🔷 Buttons: 버튼 스타일 */
+  /* ────────────────────────────── */
+  .btn-primary {
+    @apply bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 disabled:bg-gray-400;
+  }
+
+  .btn-submit {
+    @apply bg-blue-500 text-white px-4 py-1 rounded hover:bg-blue-600 disabled:bg-gray-400;
+  }
+
+  .btn-small {
+    @apply px-3 py-1 text-sm rounded bg-gray-200 disabled:opacity-50;
+  }
+
+  .btn-start {
+    @apply mb-4 bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600;
+  }
+
+  .btn-google {
+    @apply bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 w-full mb-4;
+  }
+
+  .btn-auth {
+    @apply bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 w-full mb-2;
+  }
+
+  .btn-more {
+    @apply text-blue-600 hover:underline;
+  }
+
+  .btn-toggle-link {
+    @apply text-sm text-gray-600 cursor-pointer text-center hover:underline;
+  }
+
+  /* ────────────────────────────── */
+  /* 🔷 Input & Textarea */
+  /* ────────────────────────────── */
+  .form-input {
+    @apply mb-2 p-2 border rounded w-full focus:outline-none focus:ring-2 focus:ring-blue-500;
+  }
+
+  .textarea-feedback {
+    @apply w-full border border-gray-300 rounded p-2 mb-2 text-sm;
+  }
+
+  .textarea-main {
+    @apply w-full h-[calc(100vh-300px)] md:h-96 p-2 border border-gray-300 rounded mb-4 overflow-y-auto bg-white/90 shadow-lg resize-y;
+  }
+
+  /* ────────────────────────────── */
+  /* 🔷 Messages: 안내 메시지들 */
+  /* ────────────────────────────── */
+  .msg-evaluating {
+    @apply flex-none mt-4 text-center animate-pulse text-indigo-600 text-lg;
+  }
+
+  .msg-auth {
+    @apply text-center mt-10 text-gray-600;
+  }
+
+  .msg-error {
+    @apply text-center mt-10 text-red-500;
+  }
+
+  .msg-submit-note {
+    @apply text-center mt-20 text-gray-600;
+  }
+
+  /* ────────────────────────────── */
+  /* 🔷 Pagination */
+  /* ────────────────────────────── */
+  .pagination-btn {
+    @apply px-3 py-1 bg-gray-200 rounded disabled:opacity-50;
+  }
+
+  .pagination-text {
+    @apply px-2 pt-1 text-gray-600;
+  }
+
+  /* ────────────────────────────── */
+  /* 🔷 Feedback Summary & Stats */
+  /* ────────────────────────────── */
+  .feedback-stats-box {
+    @apply bg-gray-100/80 p-4 rounded mb-6;
+  }
+
+  .feedback-summary-box {
+    @apply bg-white/80 shadow rounded p-4 mb-6;
+  }
+
+  .feedback-comment {
+    @apply text-sm text-gray-700 bg-blue-100 p-2 rounded;
+  }
+
+  .feedback-list {
+    @apply space-y-1 text-sm text-gray-700;
+  }
+
+  .feedback-hint {
+    @apply text-sm text-gray-400;
+  }
+
+  /* ────────────────────────────── */
+  /* 🔷 Home 전용 스타일 추가 */
+  /* ────────────────────────────── */
+  .home-message {
+    @apply text-gray-600 text-center mb-4;
+  }
+
+  .textarea-writing {
+    @apply w-full h-[calc(100vh-300px)] md:h-96 p-2 border border-gray-300 rounded mb-4 overflow-y-auto bg-white/90 shadow-lg scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 resize-y;
+  }
+
+  .ai-feedback-box {
+    @apply flex-none mt-4 p-4 bg-white/90 rounded shadow-lg w-full;
+  }
+
+  .ai-score {
+    @apply font-bold text-lg text-indigo-700;
+  }
+
+  .ai-feedback-text {
+    @apply text-gray-700 mt-2;
+  }
+  .wrapper-full-height {
+    @apply min-h-screen flex flex-col justify-center max-w-xl mx-auto p-4;
+  }
+}

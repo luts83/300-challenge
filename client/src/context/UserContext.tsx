@@ -27,9 +27,18 @@ export const UserProvider = ({ children }: { children: React.ReactNode }) => {
     }
   }, [user]);
 
+  // ✅ fallback displayName 생성
+  const enhancedUser = user
+    ? {
+        ...user,
+        displayName: user.displayName || user.email?.split("@")[0] || "사용자",
+      }
+    : null;
+
   return (
-    <UserContext.Provider value={{ user, setUser }}>
+    <UserContext.Provider value={{ user: enhancedUser, setUser }}>
       {children}
     </UserContext.Provider>
   );
 };
+

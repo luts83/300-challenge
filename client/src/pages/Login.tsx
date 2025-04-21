@@ -1,4 +1,3 @@
-// src/pages/Login.tsx
 import React, { useState } from 'react';
 import {
   createUserWithEmailAndPassword,
@@ -10,7 +9,7 @@ import { auth } from '../firebase';
 import { useUser } from '../context/UserContext';
 import { useNavigate } from 'react-router-dom';
 
-// Firebase 에러 코드에 따른 사용자 친화적 메시지 매핑
+// Firebase 에러 코드에 따른 사용자 친화적 메시지
 const getErrorMessage = (errorCode: string): string => {
   switch (errorCode) {
     case 'auth/invalid-email':
@@ -79,40 +78,34 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-100 p-4">
+    <div className="wrapper-login">
       <h2 className="text-2xl font-bold mb-4">{isNewUser ? '회원가입' : '로그인'}</h2>
-      <div className="w-full max-w-xs">
+      <div className="login-box">
         <input
           type="email"
           placeholder="이메일"
-          className="mb-2 p-2 border rounded w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="form-input"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
         />
         <input
           type="password"
           placeholder="비밀번호"
-          className="mb-2 p-2 border rounded w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="form-input"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
         />
         {error && (
-          <p className="text-red-500 mb-2 text-sm text-center">{error}</p>
+          <p className="text-error text-sm mb-2">{error}</p>
         )}
-        <button
-          onClick={handleAuth}
-          className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 w-full mb-2"
-        >
+        <button onClick={handleAuth} className="btn-auth">
           {isNewUser ? '회원가입' : '로그인'}
         </button>
-        <button
-          onClick={handleGoogleLogin}
-          className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 w-full mb-4"
-        >
+        <button onClick={handleGoogleLogin} className="btn-google">
           Google로 로그인
         </button>
         <p
-          className="text-sm text-gray-600 cursor-pointer text-center hover:underline"
+          className="btn-toggle-link"
           onClick={() => {
             setIsNewUser(!isNewUser);
             setError('');
