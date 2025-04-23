@@ -4,12 +4,14 @@ import { auth } from '../firebase';
 
 interface UserContextType {
   user: User | null;
+  loading: boolean;
   setUser: (user: User | null) => void;
   logout: () => Promise<void>;
 }
 
 const UserContext = createContext<UserContextType>({
   user: null,
+  loading: true,
   setUser: () => {},
   logout: async () => {},
 });
@@ -18,10 +20,18 @@ export const useUser = () => useContext(UserContext);
 
 export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(user => {
       setUser(user);
+      setLoading(false);
+    });
+
+    auth.onIdTokenChanged(user => {
+      if (!user) {
+        setLoading(false);
+      }
     });
 
     return () => unsubscribe();
@@ -37,7 +47,6 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // ✅ fallback displayName 생성
   const enhancedUser = user
     ? {
         ...user,
@@ -46,7 +55,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({ children
     : null;
 
   return (
-    <UserContext.Provider value={{ user: enhancedUser, setUser, logout }}>
+    <UserContext.Provider value={{ user: enhancedUser, loading, setUser, logout }}>
       {children}
     </UserContext.Provider>
   );

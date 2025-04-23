@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import axios from 'axios';
 import { useUser } from '../context/UserContext';
 import { CONFIG } from '../config';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 const AUTOSAVE_INTERVAL = 60_000; // 10초
 const INACTIVITY_THRESHOLD = 600_000; // 10분 (600초)
@@ -53,8 +53,9 @@ const axiosInstance = axios.create({
 });
 
 const Write1000 = () => {
-  const { user } = useUser();
+  const { user, loading } = useUser();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [text, setText] = useState('');
@@ -89,11 +90,15 @@ const Write1000 = () => {
   const [hasWrittenThisSession, setHasWrittenThisSession] = useState(false);
 
   useEffect(() => {
-    if (!user) {
+    // 로딩이 완료되고 user가 없을 때만 리다이렉션
+    if (!loading && !user) {
       alert('로그인이 필요합니다.');
-      navigate('/login');
+      navigate('/login', {
+        replace: true,
+        state: { from: location.pathname },
+      });
     }
-  }, [user]);
+  }, [user, loading]); // loading을 의존성 배열에 추가
 
   const fetchDraft = async () => {
     if (!user) {
