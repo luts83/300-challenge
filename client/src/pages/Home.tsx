@@ -123,14 +123,18 @@ const Home = () => {
         </div>
       ) : (
         <div className="flex flex-col flex-1">
-          <Timer />
+          <Timer
+            remainingTime={CONFIG.TIMER.DURATION_MINUTES * 60}
+            onTimeUp={handleSubmit}
+            isActive={isStarted && !submitted}
+          />
           <div className="text-label">
             {text.length} / {CONFIG.SUBMISSION.MAX_CHAR_COUNT}자
           </div>
           <textarea
             maxLength={CONFIG.SUBMISSION.MAX_CHAR_COUNT}
             value={text}
-            onChange={(e) => setText(e.target.value)}
+            onChange={e => setText(e.target.value)}
             className="textarea-main"
             placeholder={`여기에 글을 써보세요 (최대 ${CONFIG.SUBMISSION.MAX_CHAR_COUNT}자)`}
           ></textarea>
@@ -146,9 +150,7 @@ const Home = () => {
 
       {/* 평가 중 메시지 */}
       {isEvaluating && (
-        <div className="msg-evaluating">
-          🤖 두구두구... AI가 글을 평가하고 있어요!
-        </div>
+        <div className="msg-evaluating">🤖 두구두구... AI가 글을 평가하고 있어요!</div>
       )}
 
       {/* AI 평가 결과 */}

@@ -6,7 +6,7 @@ const Feedback = require("../models/Feedback");
 const mongoose = require("mongoose");
 const config = require("../config");
 
-// 피드백할 글 추천 (적게 받은 글 우선)
+// 피드백할 글 추천 (모드 동일 + 적게 받은 글 우선)
 router.get("/assignments/:uid", async (req, res) => {
   const { uid } = req.params;
 
@@ -15,6 +15,22 @@ router.get("/assignments/:uid", async (req, res) => {
   }
 
   try {
+    const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+
+    // 오늘 내가 쓴 글 중 가장 최근 글 확인
+    const todaySubmission = await Submission.findOne({
+      "user.uid": uid,
+      submissionDate: today,
+    }).sort({ createdAt: -1 });
+
+    if (!todaySubmission) {
+      return res.status(404).json({
+        message: "오늘 작성한 글이 없어 피드백 대상이 없습니다.",
+      });
+    }
+
+    const myMode = todaySubmission.mode;
+
     // 이미 피드백한 글 ID 목록
     const givenFeedbacks = await Feedback.find({ fromUid: uid }).select(
       "toSubmissionId"
@@ -32,43 +48,74 @@ router.get("/assignments/:uid", async (req, res) => {
       })
       .filter((id) => id !== null);
 
-    // 전체 제출된 글 중 본인 글 + 이미 피드백한 글 제외
-    const candidates = await Submission.aggregate([
-      {
-        $match: {
-          "user.uid": { $ne: uid },
-          _id: {
-            $nin: givenIds.map((id) => new mongoose.Types.ObjectId(id)),
-          },
-        },
-      },
-      {
-        $lookup: {
-          from: Feedback.collection.name, // 실제 컬렉션 이름 사용
-          localField: "_id",
-          foreignField: "toSubmissionId",
-          as: "feedbacks",
-        },
-      },
-      {
-        $addFields: {
-          feedbackCount: { $size: "$feedbacks" },
-        },
-      },
-      {
-        $sort: { feedbackCount: 1, createdAt: 1 }, // submittedAt → createdAt
-      },
-      {
-        $project: {
-          text: 1,
-          user: 1,
-          createdAt: 1,
-          feedbackCount: 1,
-        },
-      },
-    ]);
+    // 피드백 대상 후보 찾기
+    let candidateQuery = {
+      "user.uid": { $ne: uid },
+      _id: { $nin: givenIds },
+    };
 
-    res.json(candidates);
+    // 교차 피드백 설정에 따라 모드 조건 추가
+    if (config.FEEDBACK.CROSS_MODE_FEEDBACK.ENABLED) {
+      const allowedModes =
+        config.FEEDBACK.CROSS_MODE_FEEDBACK.RESTRICTIONS[myMode];
+      candidateQuery.mode = { $in: allowedModes };
+    } else {
+      candidateQuery.mode = myMode;
+    }
+
+    const candidates = await Submission.find(candidateQuery).sort({
+      createdAt: -1,
+    });
+
+    // 가중치 계산 및 적용
+    const weightedCandidates = candidates.map((submission) => {
+      const daysDiff = Math.floor(
+        (new Date() - new Date(submission.createdAt)) / (1000 * 60 * 60 * 24)
+      );
+      return {
+        submission,
+        weight: 1 / (daysDiff + 1),
+      };
+    });
+
+    // 가중치 기반 랜덤 선택
+    const selectedMissions = [];
+    const targetCount = Math.min(
+      config.FEEDBACK.PER_SUBMISSION,
+      weightedCandidates.length
+    );
+
+    while (
+      selectedMissions.length < targetCount &&
+      weightedCandidates.length > 0
+    ) {
+      const totalWeight = weightedCandidates.reduce(
+        (sum, item) => sum + item.weight,
+        0
+      );
+      const random = Math.random() * totalWeight;
+
+      let accumWeight = 0;
+      const selectedIndex = weightedCandidates.findIndex((item) => {
+        accumWeight += item.weight;
+        return accumWeight >= random;
+      });
+
+      if (selectedIndex !== -1) {
+        selectedMissions.push(weightedCandidates[selectedIndex].submission);
+        weightedCandidates.splice(selectedIndex, 1);
+      }
+    }
+
+    // 미션 생성
+    const missions = selectedMissions.map((target) => ({
+      fromUid: uid,
+      toSubmissionId: target._id,
+      userUid: uid,
+      isDone: false,
+    }));
+
+    res.json(missions);
   } catch (err) {
     console.error("❌ 피드백 대상 조회 실패:", err);
     res.status(500).json({ message: `서버 오류: ${err.message}` });
@@ -98,12 +145,44 @@ router.post("/", async (req, res) => {
         .json({ message: "유효하지 않은 제출물 ID입니다." });
     }
 
-    // 작성한 글 여부 확인
-    const hasSubmission = await Submission.exists({ "user.uid": fromUid });
-    if (!hasSubmission) {
+    // 작성한 글 여부 확인 및 모드 가져오기
+    const userSubmission = await Submission.findOne({
+      "user.uid": fromUid,
+      submissionDate: new Date().toISOString().slice(0, 10), // 오늘 작성한 글만
+    }).sort({ createdAt: -1 });
+
+    if (!userSubmission) {
+      return res.status(403).json({
+        message: "오늘 글을 작성한 사용자만 피드백을 남길 수 있습니다.",
+      });
+    }
+
+    // 피드백 대상 글 가져오기
+    const targetSubmission = await Submission.findById(toSubmissionId);
+    if (!targetSubmission) {
       return res
-        .status(403)
-        .json({ message: "글을 작성한 사용자만 피드백을 남길 수 있습니다." });
+        .status(404)
+        .json({ message: "피드백 대상 글을 찾을 수 없습니다." });
+    }
+
+    // 교차 피드백 검증
+    if (config.FEEDBACK.CROSS_MODE_FEEDBACK.ENABLED) {
+      const allowedModes =
+        config.FEEDBACK.CROSS_MODE_FEEDBACK.RESTRICTIONS[userSubmission.mode];
+      if (!allowedModes || !allowedModes.includes(targetSubmission.mode)) {
+        return res.status(400).json({
+          message: "현재 모드에서는 해당 글에 피드백을 줄 수 없습니다.",
+        });
+      }
+    } else {
+      // 교차 피드백이 비활성화된 경우에만 모드 검증
+      if (userSubmission.mode !== targetSubmission.mode) {
+        return res.status(400).json({
+          message: `${
+            userSubmission.mode === "mode_300" ? "300자" : "1000자"
+          } 모드로 작성한 글에만 피드백을 줄 수 있습니다.`,
+        });
+      }
     }
 
     // 중복 피드백 체크
@@ -114,9 +193,40 @@ router.post("/", async (req, res) => {
         .json({ message: "이미 이 글에 피드백을 작성했습니다." });
     }
 
-    await Feedback.create({ fromUid, toSubmissionId, content });
+    // 피드백 저장
+    const today = new Date().toISOString().slice(0, 10);
+    const savedFeedback = await Feedback.create({
+      fromUid,
+      toSubmissionId,
+      content,
+      writtenDate: today,
+    });
 
-    res.status(200).json({ message: "피드백이 저장되었습니다!" });
+    // 오늘 작성한 피드백 수 확인
+    const feedbackCount = await Feedback.countDocuments({
+      fromUid,
+      writtenDate: today,
+    });
+
+    // 피드백이 3개 이상이면 오늘 작성한 모든 글의 피드백 열람 가능
+    if (feedbackCount >= config.FEEDBACK.REQUIRED_COUNT) {
+      await Submission.updateMany(
+        {
+          "user.uid": fromUid,
+          submissionDate: today,
+        },
+        {
+          feedbackUnlocked: true,
+        }
+      );
+    }
+
+    res.json({
+      message: "피드백이 성공적으로 저장되었습니다.",
+      feedback: savedFeedback,
+      unlocked: feedbackCount >= config.FEEDBACK.REQUIRED_COUNT,
+      feedbackCount,
+    });
   } catch (err) {
     console.error("❌ 피드백 저장 실패:", err);
     res.status(500).json({ message: `서버 오류: ${err.message}` });
@@ -126,85 +236,131 @@ router.post("/", async (req, res) => {
 // 내가 받은 피드백 조회
 router.get("/received/:uid", async (req, res) => {
   const { uid } = req.params;
-
-  if (!uid || typeof uid !== "string") {
-    return res.status(400).json({ message: "유효하지 않은 UID입니다." });
-  }
+  const today = new Date().toISOString().slice(0, 10);
 
   try {
-    const feedbackCount = await Feedback.countDocuments({ fromUid: uid });
-    const mySubmissions = await Submission.find({ "user.uid": uid }).select(
-      "_id"
-    );
-    if (!mySubmissions.length) {
-      return res.json({ totalWritten: feedbackCount, groupedBySubmission: [] });
-    }
+    // 오늘의 피드백 카운트 확인
+    const todayFeedbackCount = await Feedback.countDocuments({
+      fromUid: uid,
+      createdAt: {
+        $gte: new Date(today),
+        $lt: new Date(new Date(today).getTime() + 24 * 60 * 60 * 1000),
+      },
+    });
 
-    const mySubmissionIds = mySubmissions.map((doc) => doc._id);
+    // 사용자의 제출물 조회
+    const userSubmissions = await Submission.find({
+      "user.uid": uid,
+    });
 
-    const allFeedbacks = await Feedback.find({
-      toSubmissionId: { $in: mySubmissionIds },
-    })
-      .sort({ createdAt: -1 })
-      .populate({
-        path: "toSubmissionId",
-        select: "text",
-      });
+    // 각 제출물의 피드백 조회
+    const feedbacks = await Feedback.find({
+      toSubmissionId: { $in: userSubmissions.map((s) => s._id) },
+    }).sort({ createdAt: -1 });
 
-    const groupedBySubmission = allFeedbacks
-      .filter((fb) => fb.toSubmissionId) // null 필터링
-      .map((fb) => ({
-        toSubmissionId: fb.toSubmissionId._id.toString(),
-        content: fb.content,
-        submissionText: fb.toSubmissionId.text || "",
-        createdAt: fb.createdAt,
-      }));
+    // 제출물별로 피드백 그룹화
+    const groupedFeedbacks = feedbacks.reduce((acc, feedback) => {
+      const submission = userSubmissions.find(
+        (s) => s._id.toString() === feedback.toSubmissionId.toString()
+      );
+
+      if (submission) {
+        const submissionDate = new Date(submission.createdAt)
+          .toISOString()
+          .slice(0, 10);
+        const canViewFeedback =
+          submissionDate === today
+            ? todayFeedbackCount >= config.FEEDBACK.REQUIRED_COUNT
+            : submission.feedbackUnlocked;
+
+        if (canViewFeedback) {
+          acc.push({
+            toSubmissionId: feedback.toSubmissionId,
+            content: feedback.content,
+            createdAt: feedback.createdAt,
+          });
+        }
+      }
+      return acc;
+    }, []);
 
     res.json({
-      totalWritten: feedbackCount,
-      groupedBySubmission,
+      totalWritten: todayFeedbackCount,
+      groupedBySubmission: groupedFeedbacks,
     });
   } catch (err) {
-    console.error("❌ 피드백 조회 실패:", err);
-    res.status(500).json({ message: `서버 오류: ${err.message}` });
+    console.error("받은 피드백 조회 실패:", err);
+    res.status(500).json({ message: "서버 오류" });
   }
 });
 
-// 내가 작성한 피д백 조회 (페이지네이션 포함)
+// 내가 작성한 피드백 조회 (페이지네이션 + mode 필터 + 오늘 요약 포함)
 router.get("/given/:uid", async (req, res) => {
   const { uid } = req.params;
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 10;
+  const mode = req.query.mode;
+  const today = new Date().toISOString().slice(0, 10);
 
   if (!uid || typeof uid !== "string") {
     return res.status(400).json({ message: "유효하지 않은 UID입니다." });
   }
 
   try {
-    const feedbacks = await Feedback.find({ fromUid: uid })
+    const feedbacksRaw = await Feedback.find({ fromUid: uid })
       .sort({ createdAt: -1 })
-      .skip((page - 1) * limit)
-      .limit(limit)
       .populate({
         path: "toSubmissionId",
-        select: "text",
+        select: "text mode user createdAt",
       });
 
-    const total = await Feedback.countDocuments({ fromUid: uid });
+    // ✅ mode별로 필터링
+    const feedbacks = feedbacksRaw.filter((fb) => {
+      if (!fb.toSubmissionId) return false;
+      if (mode === "mode_300" || mode === "mode_1000") {
+        return fb.toSubmissionId.mode === mode;
+      }
+      return true;
+    });
 
-    const transformed = feedbacks.map((fb) => ({
+    const total = feedbacks.length;
+    const paged = feedbacks.slice((page - 1) * limit, page * limit);
+
+    const transformed = paged.map((fb) => ({
       _id: fb._id,
       content: fb.content,
       fromUid: fb.fromUid,
       toSubmissionId: fb.toSubmissionId?._id || null,
       submissionText: fb.toSubmissionId?.text || "",
+      mode: fb.toSubmissionId?.mode || null,
       createdAt: fb.createdAt,
+      submissionAuthor: fb.toSubmissionId?.user || null,
+      submissionCreatedAt: fb.toSubmissionId?.createdAt || null,
     }));
 
-    res.json({ page, total, feedbacks: transformed });
+    // ✅ 오늘 쓴 피드백 요약
+    let todayMode_300 = 0;
+    let todayMode_1000 = 0;
+
+    feedbacksRaw.forEach((fb) => {
+      if (fb.writtenDate === today && fb.toSubmissionId) {
+        if (fb.toSubmissionId.mode === "mode_300") todayMode_300++;
+        if (fb.toSubmissionId.mode === "mode_1000") todayMode_1000++;
+      }
+    });
+
+    res.json({
+      page,
+      total,
+      feedbacks: transformed,
+      todaySummary: {
+        mode_300: todayMode_300,
+        mode_1000: todayMode_1000,
+      },
+    });
   } catch (err) {
     console.error("❌ 내가 작성한 피드백 조회 실패:", err);
-    res.status(500).json({ message: `서버 오류: ${err.message}` });
+    res.status(500).json({ message: err.message });
   }
 });
 
@@ -234,6 +390,12 @@ router.get("/all-submissions/:uid", async (req, res) => {
     ]);
     const countMap = {};
     feedbackCounts.forEach((fc) => {
+      const match = submissions.find(
+        (s) => s._id.toString() === fc._id.toString()
+      );
+      console.log("🧪 fc._id", fc._id.toString());
+      console.log("🧪 match found:", match ? "✅ Yes" : "❌ No");
+      console.log("✅ createdAt from submission:", match?.createdAt);
       countMap[fc._id.toString()] = fc.count;
     });
 
@@ -252,20 +414,135 @@ router.get("/all-submissions/:uid", async (req, res) => {
       _id: sub._id,
       text: sub.text,
       user: sub.user,
-      submittedAt: sub.createdAt, // submittedAt → createdAt
+      createdAt: sub.createdAt,
       feedbackCount: countMap[sub._id.toString()] || 0,
       hasGivenFeedback: myFeedbackSet.has(sub._id.toString()),
+      mode: sub.mode,
     }));
 
     results.sort(
-      (a, b) =>
-        a.feedbackCount - b.feedbackCount || a.submittedAt - b.submittedAt
+      (a, b) => a.feedbackCount - b.feedbackCount || a.createdAt - b.createdAt
     );
 
     res.json(results);
   } catch (err) {
     console.error("❌ 전체 글 + 피드백 수 조회 실패:", err);
     res.status(500).json({ message: `서버 오류: ${err.message}` });
+  }
+});
+
+// 유저 활동 통계 조회 (총 작성 수 / unlock 수 / 피드백 작성 수 / 받은 수 / unlock 비율 등)
+router.get("/stats/:uid", async (req, res) => {
+  const { uid } = req.params;
+
+  if (!uid || typeof uid !== "string") {
+    return res.status(400).json({ message: "유효하지 않은 UID입니다." });
+  }
+
+  try {
+    // 총 작성한 제출물
+    const submissions = await Submission.find({ "user.uid": uid });
+    const totalSubmissions = submissions.length;
+    const unlockedSubmissions = submissions.filter(
+      (s) => s.feedbackUnlocked
+    ).length;
+
+    // 내가 작성한 피드백 수
+    const feedbackGiven = await Feedback.countDocuments({ fromUid: uid });
+
+    // 내가 받은 피드백 수
+    const mySubmissionIds = submissions.map((s) => s._id);
+    const feedbackReceived = await Feedback.countDocuments({
+      toSubmissionId: { $in: mySubmissionIds },
+    });
+
+    // unlock 비율 계산
+    const unlockRate =
+      totalSubmissions === 0
+        ? 0
+        : Math.round((unlockedSubmissions / totalSubmissions) * 100);
+
+    res.json({
+      totalSubmissions,
+      unlockedSubmissions,
+      feedbackGiven,
+      feedbackReceived,
+      unlockRate,
+    });
+  } catch (err) {
+    console.error("❌ 활동 통계 조회 실패:", err);
+    res.status(500).json({ message: `서버 오류: ${err.message}` });
+  }
+});
+
+// 피드백 상태 조회 라우트 추가
+router.get("/status/:uid", async (req, res) => {
+  const { uid } = req.params;
+  const today = new Date().toISOString().slice(0, 10);
+
+  try {
+    const feedbackCount = await Feedback.countDocuments({
+      fromUid: uid,
+      writtenDate: today,
+    });
+
+    const submissions = await Submission.find({
+      "user.uid": uid,
+      submissionDate: today,
+    });
+
+    res.json({
+      feedbackCount,
+      requiredCount: config.FEEDBACK.REQUIRED_COUNT,
+      isUnlocked: feedbackCount >= config.FEEDBACK.REQUIRED_COUNT,
+      submissionsCount: submissions.length,
+    });
+  } catch (err) {
+    console.error("❌ 피드백 상태 조회 실패:", err);
+    res.status(500).json({ message: `서버 오류: ${err.message}` });
+  }
+});
+
+// 오늘의 피드백 카운트 조회
+router.get("/today/:uid", async (req, res) => {
+  const { uid } = req.params;
+  const today = new Date().toISOString().slice(0, 10);
+
+  try {
+    const count = await Feedback.countDocuments({
+      fromUid: uid,
+      createdAt: {
+        $gte: new Date(today),
+        $lt: new Date(new Date(today).getTime() + 24 * 60 * 60 * 1000),
+      },
+    });
+
+    res.json({ count });
+  } catch (err) {
+    console.error("오늘의 피드백 카운트 조회 실패:", err);
+    res.status(500).json({ message: "서버 오류" });
+  }
+});
+
+// 피드백 열람 가능 여부 확인
+router.get("/unlock-status/:uid", async (req, res) => {
+  const { uid } = req.params;
+  const today = new Date().toISOString().slice(0, 10);
+
+  try {
+    const feedbackCount = await Feedback.countDocuments({
+      fromUid: uid,
+      createdAt: {
+        $gte: new Date(today),
+        $lt: new Date(new Date(today).getTime() + 24 * 60 * 60 * 1000),
+      },
+    });
+
+    const isUnlocked = feedbackCount >= config.FEEDBACK.REQUIRED_COUNT;
+    res.json({ isUnlocked, feedbackCount });
+  } catch (err) {
+    console.error("피드백 언락 상태 조회 실패:", err);
+    res.status(500).json({ message: "서버 오류" });
   }
 });
 

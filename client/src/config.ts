@@ -18,12 +18,21 @@ export const CONFIG = {
     REQUIRED_COUNT: 3, // 받은 피드백 열람 조건
     MIN_LENGTH: 10, // 피드백 최소 길이
     PER_SUBMISSION: 3, // 피드백 미션 수
+    // 교차 피드백 설정 추가
+    CROSS_MODE_FEEDBACK: {
+      ENABLED: true, // true면 교차 피드백 가능, false면 같은 모드끼리만 가능
+      RESTRICTIONS: {
+        // 특정 모드 간의 교차 피드백 제한 설정 (향후 확장성 고려)
+        mode_300: ['mode_300', 'mode_1000'], // 300자 작성자가 피드백 가능한 모드들
+        mode_1000: ['mode_300', 'mode_1000'], // 1000자 작성자가 피드백 가능한 모드들
+      },
+    },
   },
 
   // 🤖 AI 피드백 설정
   AI: {
-    ENABLE: true,
-    DEFAULT_SCORE: 70,
+    ENABLE_300: true,
+    ENABLE_1000: true,
   },
 
   // 🧠 안내 메시지
@@ -40,7 +49,7 @@ export const CONFIG = {
 
   // 📌 주제 표시 여부
   TOPIC: {
-    SHOW_ON_HOME_300: false,
+    SHOW_ON_HOME_300: true,
     SHOW_ON_HOME_1000: true,
   },
 };

@@ -15,12 +15,18 @@ function App() {
   return (
     <UserProvider>
       <Router>
-        <div
-          className="fixed top-0 left-0 w-full h-full bg-cover bg-center bg-no-repeat z-[-1]"
-          style={{
-            backgroundImage: `url('/images/background-image.png')`,
-          }}
-        />
+        {/* 배경 전체를 감싸는 래퍼 */}
+        <div className="fixed top-0 left-0 w-full h-full z-[-1]">
+          {/* 배경 이미지 */}
+          <div
+            className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+            style={{
+              backgroundImage: `url('/images/background-image.png')`,
+            }}
+          />
+          {/* 흰색 반투명 오버레이 */}
+          <div className="absolute inset-0 bg-white bg-opacity-20" />
+        </div>
         <div className="min-h-screen bg-black/10">
           <Navbar />
           <Routes>

@@ -86,6 +86,14 @@ const Write1000 = () => {
   const MIN_LENGTH = CONFIG.SUBMISSION.MODE_1000.MIN_LENGTH;
   const MAX_LENGTH = CONFIG.SUBMISSION.MODE_1000.MAX_LENGTH;
   const isTokenDepleted = tokens !== null && tokens <= 0;
+  const [hasWrittenThisSession, setHasWrittenThisSession] = useState(false);
+
+  useEffect(() => {
+    if (!user) {
+      alert('로그인이 필요합니다.');
+      navigate('/login');
+    }
+  }, [user]);
 
   const fetchDraft = async () => {
     if (!user) {
@@ -143,6 +151,7 @@ const Write1000 = () => {
       setSaveMessage('⚠️ 로그인이 필요합니다.');
       setTimeout(() => setSaveMessage(null), 3000);
       return;
+      setHasWrittenThisSession(false); // 저장 후 다음 세션 카운팅 준비
     }
 
     if (text.trim().length === 0) {
@@ -179,6 +188,12 @@ const Write1000 = () => {
       setStartTime(null);
       setDurationNow(0);
       setIsStarted(false);
+
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+
       setLastSavedAt(Date.now());
       setSaveMessage('✅ 초안이 자동 저장되었습니다!');
       setTimeout(() => setSaveMessage(null), 3000);
@@ -248,9 +263,16 @@ const Write1000 = () => {
       setStartTime(null);
       setDurationNow(0);
       setIsStarted(false);
+
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+
       setLastInputTime(null);
       setLastSavedAt(null);
       setResetCount(prev => prev + 1);
+      setHasWrittenThisSession(false);
 
       // 3. 로컬 스토리지도 초기화
       localStorage.removeItem('write1000_draft');
@@ -308,17 +330,45 @@ const Write1000 = () => {
         duration: finalDuration,
       });
 
+      const submissionId = res.data.submissionId;
       setTokens(res.data.tokens);
+
+      // 2. AI 평가 실행 여부 확인 후 평가 요청
+      if (CONFIG.AI.ENABLE_1000 && submissionId) {
+        setIsEvaluating(true);
+        try {
+          const aiRes = await axios.post(`${import.meta.env.VITE_API_URL}/api/evaluate`, {
+            text,
+            topic: dailyTopic || '자유 주제',
+            submissionId,
+            mode: 'mode_1000',
+          });
+
+          if (aiRes.data && typeof aiRes.data.score === 'number') {
+            setScore(aiRes.data.score);
+            setFeedback(aiRes.data.feedback || 'AI 피드백을 불러오지 못했습니다.');
+          } else {
+            console.error('AI 응답 형식이 올바르지 않음:', aiRes.data);
+            setScore(CONFIG.AI.DEFAULT_SCORE);
+            setFeedback('AI 평가에 문제가 발생했습니다. 기본 점수가 부여됩니다.');
+          }
+        } catch (aiError) {
+          console.error('❌ AI 평가 중 오류 발생:', aiError);
+          setScore(CONFIG.AI.DEFAULT_SCORE);
+          setFeedback('AI 평가에 문제가 발생했습니다. 기본 점수가 부여됩니다.');
+        } finally {
+          setIsEvaluating(false);
+        }
+      }
+
       setSaveMessage('✅ 제출 완료! 초안을 정리하는 중...');
 
-      // 2. 초안 삭제
-      await axiosInstance.delete(`/api/drafts/${user.uid}`, {
-        data: {},
-      });
+      // 3. 초안 삭제
+      await axiosInstance.delete(`/api/drafts/${user.uid}`, { data: {} });
 
       setSaveMessage('✨ 모든 처리가 완료되었습니다!');
 
-      // 3. 로컬 상태 초기화
+      // 4. 상태 초기화
       setText('');
       setSessionCount(0);
       setTotalDuration(0);
@@ -327,8 +377,9 @@ const Write1000 = () => {
       setIsStarted(false);
       setLastInputTime(null);
       setLastSavedAt(null);
+      setHasWrittenThisSession(false);
 
-      // 4. 성공 메시지 표시 후 리다이렉션
+      // 5. 리다이렉션
       setTimeout(() => {
         alert(
           `제출 완료! ✨\n\n` +
@@ -336,7 +387,7 @@ const Write1000 = () => {
             `${formatDuration(finalDuration)} 동안 ${text.length}자를 작성했어요!\n\n` +
             `계속해서 도전해보세요 💪`
         );
-        navigate('/my');
+        navigate('/feedback-camp');
       }, 1000);
     } catch (error) {
       const errorMessage = handleApiError(error, '제출 중 오류가 발생했습니다');
@@ -394,43 +445,55 @@ const Write1000 = () => {
     const now = Date.now();
     setLastInputTime(now);
 
-    if (!isStarted) {
-      setIsStarted(true);
-      setStartTime(Date.now());
-      if (isPageReentered) {
-        setSessionCount(prev => prev + 1);
-        setIsPageReentered(false);
-      } else if (sessionCount === 0) {
-        setSessionCount(1);
+    // ✅ 타이핑 시작하면 무조건 타이머 시작
+    if (!startTime) {
+      setStartTime(now);
+    }
+
+    // ✅ 세션 카운트는 최초 시작 시 한 번만 증가
+    if (!hasWrittenThisSession) {
+      setSessionCount(prev => prev + 1);
+      setHasWrittenThisSession(true);
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
       }
+      setStartTime(now); // 타이핑 시작 시점에 타이머 시작
+      setIsStarted(true);
     }
   };
 
-  useEffect(() => {
-    fetchDraft();
-    fetchTopic();
-    fetchTokens();
-    fetchBestRecord();
-
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-      if (autosaveRef.current) clearInterval(autosaveRef.current);
-      if (inactivityRef.current) clearInterval(inactivityRef.current);
-      saveDraft();
-    };
-  }, [user]);
+  // 최초 시작 감지 후 startTime 보장용 useEffect
 
   useEffect(() => {
+    console.log('Timer useEffect triggered', startTime); // 추가
     if (!startTime) return;
 
     timerRef.current = setInterval(() => {
       setDurationNow(Math.floor((Date.now() - startTime) / 1000));
+      // console.log('durationNow updated:', durationNow); // 필요시 추가
     }, 1000);
 
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
   }, [startTime]);
+
+  useEffect(() => {
+    console.log('Component mounted'); // 추가
+    fetchDraft();
+    fetchTopic();
+    fetchTokens();
+    fetchBestRecord();
+
+    return () => {
+      console.log('Component unmounted, saving draft'); // 추가
+      if (timerRef.current) clearInterval(timerRef.current);
+      if (autosaveRef.current) clearInterval(autosaveRef.current);
+      if (inactivityRef.current) clearInterval(inactivityRef.current);
+      saveDraft();
+    };
+  }, [user]);
 
   useEffect(() => {
     // 토큰이 소진되었거나 사용자가 없는 경우 자동저장 중단

@@ -1,9 +1,19 @@
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
-
 const app = express();
 const PORT = process.env.PORT || 8080;
+const submitRoute = require("./routes/submit");
+const topicRoute = require("./routes/topic");
+const mongoose = require("mongoose");
+const tokenRoute = require("./routes/token");
+const evaluateRoute = require("./routes/evaluate");
+const statsRoute = require("./routes/stats");
+const feedbackRoute = require("./routes/feedback");
+const feedbackMissionRoute = require("./routes/feedbackMission");
+const writingRoutes = require("./routes/writing");
+const draftRoutes = require("./routes/drafts");
+const recordsRoutes = require("./routes/records"); // 추가
 
 app.use(
   cors({
@@ -11,26 +21,17 @@ app.use(
     credentials: true,
   })
 );
-
-app.use(cors());
 app.use(express.json());
-
-const submitRoute = require("./routes/submit");
-const topicRoute = require("./routes/topic");
 app.use("/api/topic", topicRoute);
-const mongoose = require("mongoose");
-const tokenRoute = require("./routes/token");
-
 app.use("/api/tokens", tokenRoute);
-
-const evaluateRoute = require("./routes/evaluate");
 app.use("/api/evaluate", require("./routes/evaluate"));
-const statsRoute = require("./routes/stats");
-app.use("/api/stats", statsRoute);
-const feedbackRoute = require("./routes/feedback");
-app.use("/api/feedback", feedbackRoute);
-const feedbackMissionRoute = require("./routes/feedbackMission");
+app.use("/api/records", recordsRoutes); // 추가
+app.use("/api/drafts", draftRoutes);
+app.use("/api/submit", require("./routes/submit"));
+app.use("/api/writing", writingRoutes);
 app.use("/api/feedback-missions", feedbackMissionRoute);
+app.use("/api/feedback", feedbackRoute);
+app.use("/api/stats", statsRoute);
 
 // MongoDB 연결
 mongoose
@@ -44,8 +45,6 @@ mongoose
   .catch((err) => {
     console.error("❌ MongoDB 연결 실패:", err);
   });
-
-app.use("/api/submit", require("./routes/submit"));
 
 // 루트 라우트 (테스트용)
 app.get("/", (req, res) => {

@@ -86,18 +86,16 @@ const Login = () => {
           placeholder="이메일"
           className="form-input"
           value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          onChange={e => setEmail(e.target.value)}
         />
         <input
           type="password"
           placeholder="비밀번호"
           className="form-input"
           value={password}
-          onChange={(e) => setPassword(e.target.value)}
+          onChange={e => setPassword(e.target.value)}
         />
-        {error && (
-          <p className="text-error text-sm mb-2">{error}</p>
-        )}
+        {error && <p className="text-error text-sm mb-2">{error}</p>}
         <button onClick={handleAuth} className="btn-auth">
           {isNewUser ? '회원가입' : '로그인'}
         </button>

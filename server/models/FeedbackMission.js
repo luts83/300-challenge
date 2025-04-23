@@ -2,14 +2,27 @@
 
 const mongoose = require("mongoose");
 
-const FeedbackMissionSchema = new mongoose.Schema({
-  fromUid: { type: String, required: true }, // ✅ 올바른 이름
-  toSubmissionId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "Submission",
-    required: true,
+const feedbackMissionSchema = new mongoose.Schema(
+  {
+    fromUid: {
+      type: String,
+      required: true,
+    },
+    toSubmissionId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Submission",
+      required: true,
+    },
+    isDone: {
+      type: Boolean,
+      default: false,
+    },
+    createdAt: {
+      type: Date,
+      default: Date.now,
+    },
   },
-  isDone: { type: Boolean, default: false },
-});
+  { timestamps: true }
+);
 
-module.exports = mongoose.model("FeedbackMission", FeedbackMissionSchema);
+module.exports = mongoose.model("FeedbackMission", feedbackMissionSchema);

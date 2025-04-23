@@ -1,12 +1,16 @@
+// server/routes/topic.js
 const express = require("express");
 const router = express.Router();
 const getManualTopicByDate = require("../utils/getManualTopicByDate");
 const config = require("../config");
 const axios = require("axios");
 
+// GET /api/topic/today?mode=300 또는 1000
 router.get("/today", async (req, res) => {
   try {
-    // 📆 주기 확인 로직 추가
+    const mode = req.query.mode === "1000" ? "1000" : "300"; // 기본은 300자 모드
+
+    // 📆 주기적으로 제공하는 날인지 확인
     const base = new Date(config.TOPIC.BASE_DATE);
     const today = new Date();
     const diffDays = Math.floor((today - base) / (1000 * 60 * 60 * 24));
@@ -16,25 +20,25 @@ router.get("/today", async (req, res) => {
       return res.json({ topic: null });
     }
 
-    // 📜 수동 모드일 경우
+    // 📜 수동 모드인 경우
     if (config.TOPIC.MODE === "manual") {
-      const manualTopic = getManualTopicByDate();
+      const manualTopic = getManualTopicByDate(mode); // 🔑 모드 전달
       if (manualTopic) {
         return res.json({ topic: manualTopic });
       }
-      console.log("📜 수동 주제 끝! 자동 주제로 전환됩니다.");
+      console.log("📜 수동 주제 소진! 자동 주제로 전환됩니다.");
     }
 
-    // 🤖 AI 주제 생성
+    // 🤖 AI 기반 주제 생성
     const aiRes = await axios.post(
       "https://openrouter.ai/api/v1/chat/completions",
       {
-        model: "mistralai/mixtral-8x7b-instruct", // or claude-3-haiku 등
+        model: "mistralai/mixtral-8x7b-instruct", // 또는 claude-3-haiku
         messages: [
           {
             role: "system",
             content:
-              "너는 창의적이고 따뜻한 한국어 글쓰기 주제를 만들어주는 AI야. 오늘의 트렌드를 반영하는 비즈니스나 마케팅에 관련된 글쓰기 주제 생성해줘. 응답은 한글로! 20단어 미만으로!",
+              "너는 창의적이고 따뜻한 한국어 글쓰기 주제를 만들어주는 AI야. 오늘의 트렌드를 반영하는 글쓰기 주제를 생성해줘. 응답은 한글로, 20단어 이내로!",
           },
           {
             role: "user",
