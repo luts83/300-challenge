@@ -11,5 +11,10 @@
   "description": "",
   "devDependencies": {
     "@types/react": "^19.1.2"
+  },
+  "dependencies": {
+    "@types/date-fns": "^2.5.3",
+    "@types/node": "^22.14.1",
+    "date-fns": "^4.1.0"
   }
 }

@@ -1,11 +1,16 @@
+// server/routes/submit.js
 const express = require("express");
 const router = express.Router();
-const { handleSubmit } = require("../controllers/submitController");
+const {
+  handleSubmit,
+  unlockFeedback,
+} = require("../controllers/submitController");
 const Submission = require("../models/Submission");
 const UserToken = require("../models/Token");
 
 // ✍ 글 제출
 router.post("/", handleSubmit);
+router.patch("/unlock-feedback/:id", unlockFeedback);
 
 // 🧑 유저 글 조회
 router.get("/user/:uid", async (req, res) => {
@@ -13,9 +18,9 @@ router.get("/user/:uid", async (req, res) => {
 
   try {
     const submissions = await Submission.find({ "user.uid": uid }).sort({
-      submittedAt: -1,
-    });
-    res.json(submissions);
+      createdAt: -1,
+    }); // submittedAt → createdAt로 수정
+    res.json(submissions); // 🔥 feedbackUnlocked 포함됨!
   } catch (err) {
     console.error("❌ 글 불러오기 실패:", err);
     res.status(500).json({ message: "서버 오류입니다." });

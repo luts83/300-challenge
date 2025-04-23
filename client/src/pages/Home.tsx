@@ -1,4 +1,3 @@
-// src/pages/Home.tsx
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import Timer from '../components/Timer';
@@ -87,67 +86,61 @@ const Home = () => {
     fetchTopic();
   }, [user]);
 
-  // 디버깅: 텍스트 길이 및 화면 크기 확인
-  useEffect(() => {
-    console.log('텍스트 길이:', text.length);
-    console.log('화면 높이:', window.innerHeight, '화면 폭:', window.innerWidth);
-  }, [text]);
-
   return (
-    <div className="h-screen overflow-hidden flex flex-col justify-center max-w-xl mx-auto p-4">
-  {/* 주제 및 안내 메시지 */}
-  <div className="flex flex-col items-center flex-none mb-4">
-    {CONFIG.TOPIC.SHOW_ON_HOME ? (
-      <>
-        <h1 className="text-2xl font-bold mb-2 text-center">오늘의 주제</h1>
-        <p className="mb-4 text-gray-700 text-center">
-          "{dailyTopic || '주제를 불러오는 중...'}"
-        </p>
-      </>
-    ) : (
-      <p className="text-gray-600 text-center mb-4">
-        ✍ 자유 주제입니다. 마음 가는 대로 글을 써보세요.
-      </p>
-    )}
+    <div className="wrapper-full-height">
+      {/* 주제 및 안내 메시지 */}
+      <div className="flex flex-col items-center flex-none mb-4">
+        {CONFIG.TOPIC.SHOW_ON_HOME ? (
+          <>
+            <h1 className="text-2xl font-bold mb-2 text-center">오늘의 주제</h1>
+            <p className="home-message">"{dailyTopic || '주제를 불러오는 중...'}"</p>
+          </>
+        ) : (
+          <p className="home-message">✍ 자유 주제입니다. 마음 가는 대로 글을 써보세요.</p>
+        )}
 
-    {tokens !== null && (
-      <p className="text-sm text-gray-600 mb-2 text-center">
-        남은 토큰: {tokens} / {CONFIG.TOKEN.DAILY_LIMIT}
-      </p>
-    )}
-  </div>
+        {tokens !== null && (
+          <p className="text-sm text-gray-600 mb-2 text-center">
+            남은 토큰: {tokens} / {CONFIG.TOKEN.DAILY_LIMIT}
+          </p>
+        )}
+      </div>
 
-  {/* 글쓰기 시작 버튼 */}
-  {!isStarted ? (
-    <div className="flex justify-center flex-none">
-      <button
-        onClick={() => {
-          setIsStarted(true);
-          setSubmitted(false);
-          setScore(null);
-          setFeedback(null);
-        }}
-        className="mb-4 bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
-      >
-        글쓰기 시작
-      </button>
+      {/* 글쓰기 시작 버튼 */}
+      {!isStarted ? (
+        <div className="flex justify-center flex-none">
+          <button
+            onClick={() => {
+              setIsStarted(true);
+              setSubmitted(false);
+              setScore(null);
+              setFeedback(null);
+            }}
+            className="btn-start"
+          >
+            글쓰기 시작
+          </button>
         </div>
       ) : (
         <div className="flex flex-col flex-1">
-          <Timer />
-          <div className="text-right text-sm text-gray-500 mb-1">
+          <Timer
+            remainingTime={CONFIG.TIMER.DURATION_MINUTES * 60}
+            onTimeUp={handleSubmit}
+            isActive={isStarted && !submitted}
+          />
+          <div className="text-label">
             {text.length} / {CONFIG.SUBMISSION.MAX_CHAR_COUNT}자
           </div>
           <textarea
-  maxLength={CONFIG.SUBMISSION.MAX_CHAR_COUNT}
-  value={text}
-  onChange={(e) => setText(e.target.value)}
-  className="w-full h-[calc(100vh-300px)] md:h-96 p-2 border border-gray-300 rounded mb-4 overflow-y-auto bg-white/90 shadow-lg scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 resize-y"
-  placeholder={`여기에 글을 써보세요 (최대 ${CONFIG.SUBMISSION.MAX_CHAR_COUNT}자)`}
-></textarea>
+            maxLength={CONFIG.SUBMISSION.MAX_CHAR_COUNT}
+            value={text}
+            onChange={e => setText(e.target.value)}
+            className="textarea-main"
+            placeholder={`여기에 글을 써보세요 (최대 ${CONFIG.SUBMISSION.MAX_CHAR_COUNT}자)`}
+          ></textarea>
           <button
             onClick={handleSubmit}
-            className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 disabled:bg-gray-400"
+            className="btn-primary"
             disabled={submitted || isEvaluating}
           >
             {isEvaluating ? 'AI 평가 중...' : submitted ? '제출 완료' : '제출'}
@@ -155,17 +148,16 @@ const Home = () => {
         </div>
       )}
 
-      {/* 평가 중 메시지 및 결과 */}
+      {/* 평가 중 메시지 */}
       {isEvaluating && (
-        <div className="flex-none mt-4 text-center animate-pulse text-indigo-600 text-lg">
-          🤖 두구두구... AI가 글을 평가하고 있어요!
-        </div>
+        <div className="msg-evaluating">🤖 두구두구... AI가 글을 평가하고 있어요!</div>
       )}
 
+      {/* AI 평가 결과 */}
       {score !== null && (
-        <div className="flex-none mt-4 p-4 bg-white/90 rounded shadow-lg w-full">
-          <p className="font-bold text-lg text-indigo-700">📊 AI 평가 점수: {score}점</p>
-          <p className="text-gray-700 mt-2">💬 피드백: {feedback}</p>
+        <div className="ai-feedback-box">
+          <p className="ai-score">📊 AI 평가 점수: {score}점</p>
+          <p className="ai-feedback-text">💬 피드백: {feedback}</p>
         </div>
       )}
     </div>
