@@ -5,6 +5,9 @@ import { useUser } from '../context/UserContext';
 import { CONFIG } from '../config';
 import FeedbackMissionPanel from '../components/FeedbackMissionPanel';
 import { useNavigate, useLocation } from 'react-router-dom';
+import WeeklyProgress from '../components/WeeklyProgress';
+import TokenDisplay from '../components/TokenDisplay';
+import FilterSection from '../components/FilterSection';
 
 type Submission = {
   _id: string;
@@ -41,6 +44,7 @@ type Stats = {
   };
 };
 
+// FeedbackStats 타입 정의
 type FeedbackStats = {
   totalSubmissions: number;
   unlockedSubmissions: number;
@@ -94,12 +98,19 @@ const MySubmissions = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'date' | 'score'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
-  const [feedbackStats, setFeedbackStats] = useState<{
-    totalWritten: number;
-    groupedBySubmission: FeedbackItem[];
-  }>({ totalWritten: 0, groupedBySubmission: [] });
+  const [feedbackStats, setFeedbackStats] = useState<FeedbackStats>({
+    totalSubmissions: 0,
+    unlockedSubmissions: 0,
+    feedbackGiven: 0,
+    feedbackReceived: 0,
+    unlockRate: 0,
+  });
   const [timeFilter, setTimeFilter] = useState<'all' | 'week' | 'month' | '3months'>('all');
-  const [weeklyGrowth, setWeeklyGrowth] = useState({ submissions: 0 });
+  const [weeklyGrowth, setWeeklyGrowth] = useState({
+    submissions: 0,
+    thisWeek: 0,
+    lastWeek: 0,
+  });
   const [dailyFeedbackCount, setDailyFeedbackCount] = useState(0);
   const [title, setTitle] = useState('');
   const [text, setText] = useState('');
@@ -177,6 +188,11 @@ const MySubmissions = () => {
         const res = await axios.get(
           `${import.meta.env.VITE_API_URL}/api/feedback/stats/${user.uid}`
         );
+        console.log('피드백 통계:', {
+          총제출: res.data.totalSubmissions,
+          받은피드백: res.data.feedbackReceived,
+          평균: res.data.feedbackReceived / res.data.totalSubmissions,
+        });
         setFeedbackStats(res.data);
       } catch (err) {
         console.error('📊 피드백 통계 조회 실패:', err);
@@ -202,6 +218,22 @@ const MySubmissions = () => {
     };
 
     fetchTodayFeedbackCount();
+  }, [user]);
+
+  useEffect(() => {
+    const fetchWeeklyGrowth = async () => {
+      if (!user) return;
+      try {
+        const res = await axios.get(
+          `${import.meta.env.VITE_API_URL}/api/stats/weekly-growth/${user.uid}`
+        );
+        setWeeklyGrowth(res.data);
+      } catch (err) {
+        console.error('📊 주간 성장 통계 조회 실패:', err);
+      }
+    };
+
+    fetchWeeklyGrowth();
   }, [user]);
 
   const toggleExpand = (id: string) => {
@@ -236,6 +268,12 @@ const MySubmissions = () => {
       }
     });
 
+  // 평균 계산 로직을 useMemo로 분리
+  const averageFeedback = useMemo(() => {
+    if (!feedbackStats.totalSubmissions) return '0.0';
+    return (feedbackStats.feedbackReceived / feedbackStats.totalSubmissions).toFixed(1);
+  }, [feedbackStats.feedbackReceived, feedbackStats.totalSubmissions]);
+
   if (!user) {
     return <p className="msg-auth">로그인이 필요합니다.</p>;
   }
@@ -258,13 +296,14 @@ const MySubmissions = () => {
   return (
     <ErrorBoundary>
       <div className="max-w-4xl mx-auto p-4">
-        {/* 제목 */}
         <h1 className="text-2xl sm:text-xl font-bold mb-6 text-center">📝 내가 쓴 글</h1>
 
-        {/* 🔔 알림 메시지 */}
         <div className="mb-4 p-3 bg-blue-100/80 text-blue-800 rounded-lg text-base text-center font-medium">
           ✍ 글을 쓰고 다른 사용자에게 피드백을 3개 작성하면, 내가 쓴 글의 피드백을 볼 수 있어요!
         </div>
+
+        <TokenDisplay />
+        <WeeklyProgress className="mb-6" />
 
         {/* 통계 섹션 */}
         {isLoading ? (
@@ -483,7 +522,9 @@ const MySubmissions = () => {
                     </div>
                     {/* 전주 대비 증감 표시 */}
                     <p className="text-xs text-green-600 mt-2">
-                      +{weeklyGrowth.submissions} 이번 주
+                      {weeklyGrowth.submissions >= 0 ? '+' : ''}
+                      {weeklyGrowth.submissions.toFixed(2)} 이번 주
+                      <span className="text-gray-500 ml-1">({weeklyGrowth.thisWeek}건)</span>
                     </p>
                   </div>
                   <div className="bg-white/80 rounded-lg p-3">
@@ -535,11 +576,7 @@ const MySubmissions = () => {
                         <p className="text-xs text-gray-600">받은 피드백</p>
                       </div>
                     </div>
-                    <p className="text-xs text-gray-600 mt-2">
-                      평균{' '}
-                      {(feedbackStats.feedbackReceived / feedbackStats.totalSubmissions).toFixed(1)}
-                      개/글
-                    </p>
+                    <p className="text-xs text-gray-600 mt-2">평균 {averageFeedback}개 피드백</p>
                   </div>
                 </div>
               </div>
@@ -622,11 +659,7 @@ const MySubmissions = () => {
                   </div>
                 </div>
                 <div className="flex justify-between text-xs text-gray-600">
-                  <span>
-                    글당 평균{' '}
-                    {(feedbackStats.feedbackReceived / feedbackStats.totalSubmissions).toFixed(1)}개
-                    피드백
-                  </span>
+                  <span>글당 평균 {averageFeedback}개 피드백</span>
                   <span>일일 피드백 {dailyFeedbackCount}/3</span>
                 </div>
               </div>
@@ -681,70 +714,17 @@ const MySubmissions = () => {
         </div> */}
 
         {/* 필터 및 정렬 섹션 */}
-        <div className="bg-white rounded-lg shadow-md p-3 mb-6">
-          <div className="space-y-3">
-            <div className="flex flex-wrap gap-2">
-              <button
-                className={`px-3 py-1.5 rounded-lg font-medium transition-all duration-200 text-base min-h-[36px] ${
-                  activeTab === 'all'
-                    ? 'bg-blue-500 text-white shadow-sm'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
-                onClick={() => setActiveTab('all')}
-              >
-                전체
-              </button>
-              <button
-                className={`px-3 py-1.5 rounded-lg font-medium transition-all duration-200 text-base min-h-[36px] ${
-                  activeTab === 'mode_300'
-                    ? 'bg-blue-500 text-white shadow-sm'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
-                onClick={() => setActiveTab('mode_300')}
-              >
-                300자 글쓰기
-              </button>
-              <button
-                className={`px-3 py-1.5 rounded-lg font-medium transition-all duration-200 text-base min-h-[36px] ${
-                  activeTab === 'mode_1000'
-                    ? 'bg-blue-500 text-white shadow-sm'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
-                onClick={() => setActiveTab('mode_1000')}
-              >
-                1000자 글쓰기
-              </button>
-            </div>
-
-            <div className="flex flex-col sm:flex-row gap-2">
-              <input
-                type="text"
-                placeholder="글 내용 검색..."
-                className="w-full sm:flex-1 px-3 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 text-base min-h-[36px]"
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-              />
-              <div className="flex gap-2">
-                <select
-                  className="flex-1 px-3 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 text-base min-h-[36px]"
-                  value={sortBy}
-                  onChange={e => setSortBy(e.target.value as 'date' | 'score')}
-                >
-                  <option value="date">날짜순</option>
-                  <option value="score">점수순</option>
-                </select>
-                <select
-                  className="flex-1 px-3 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 text-base min-h-[36px]"
-                  value={sortOrder}
-                  onChange={e => setSortOrder(e.target.value as 'asc' | 'desc')}
-                >
-                  <option value="desc">내림차순</option>
-                  <option value="asc">오름차순</option>
-                </select>
-              </div>
-            </div>
-          </div>
-        </div>
+        <FilterSection
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+          sortBy={sortBy}
+          setSortBy={setSortBy}
+          sortOrder={sortOrder}
+          setSortOrder={setSortOrder}
+          showSortOptions={true}
+        />
 
         {/* 글 목록 */}
         {filteredSubmissions.length === 0 ? (

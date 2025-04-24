@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useUser } from '../context/UserContext';
 import { CONFIG } from '../config';
+import FilterSection from '../components/FilterSection';
 
 interface Submission {
   _id: string;
@@ -245,43 +246,13 @@ const FeedbackCamp = () => {
       </div>
 
       {/* 필터 & 검색창 */}
-      <div className="bg-white rounded-lg shadow-md p-3 mb-6">
-        <div className="space-y-3">
-          <div className="flex flex-wrap gap-2">
-            {['all', 'mode_300', 'mode_1000'].map(mode => {
-              const availableModes = getAvailableFeedbackModes(todaySubmissionModes);
-              if (mode === 'all' || availableModes.has(mode as 'mode_300' | 'mode_1000')) {
-                return (
-                  <button
-                    key={mode}
-                    className={`px-3 py-1.5 rounded-lg font-medium text-base min-h-[36px] transition-all duration-200 ${
-                      activeTab === mode
-                        ? 'bg-blue-500 text-white shadow-sm'
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    }`}
-                    onClick={() => setActiveTab(mode as typeof activeTab)}
-                  >
-                    {mode === 'all'
-                      ? '전체'
-                      : mode === 'mode_300'
-                        ? '300자 글쓰기'
-                        : '1000자 글쓰기'}
-                  </button>
-                );
-              }
-              return null;
-            })}
-          </div>
-
-          <input
-            type="text"
-            placeholder="글 내용 검색..."
-            className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 text-base min-h-[36px]"
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-          />
-        </div>
-      </div>
+      <FilterSection
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        searchQuery={searchQuery}
+        setSearchQuery={setSearchQuery}
+        availableModes={getAvailableFeedbackModes(todaySubmissionModes)}
+      />
 
       {/* 내가 작성한 피드백 */}
       <div className="mt-8">
@@ -381,7 +352,7 @@ const FeedbackCamp = () => {
       <div className="mt-8">
         <h2 className="text-xl sm:text-lg font-semibold mb-4">📝 피드백 대상 글</h2>
         {availableSubmissions.length === 0 ? (
-          <p className="text-base text-gray-500 text-center">
+          <p className="text-base text-black-500 text-center">
             📭 아직 피드백할 수 있는 글이 없어요!
           </p>
         ) : (
