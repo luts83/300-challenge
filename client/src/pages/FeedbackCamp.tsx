@@ -171,13 +171,15 @@ const FeedbackCamp = () => {
     }
   }, [user, page, activeTab]);
 
-  if (loading) return <p className="msg-auth">로딩 중...</p>;
-  if (error) return <p className="msg-error">에러: {error}</p>;
+  // 로그인 체크를 가장 먼저 수행
   if (!user) return <p className="msg-auth">로그인이 필요합니다.</p>;
 
+  // 그 다음 로딩 상태와 에러 체크
+  if (loading) return <p className="msg-auth">로딩 중...</p>;
+  if (error) return <p className="msg-error">에러: {error}</p>;
+
+  // 글 작성 여부 체크
   if (!hasMySubmission) {
-    if (loading) return <p className="msg-auth">로딩 중...</p>;
-    if (error) return <p className="msg-error">에러: {error}</p>;
     return <p className="msg-submit-note">✍ 먼저 글을 작성해야 피드백 미션을 진행할 수 있어요!</p>;
   }
 
