@@ -87,4 +87,4 @@ The application can be configured through the `config.ts` file in the client dir
 
 ## License
 
-MIT
+Digiocean
