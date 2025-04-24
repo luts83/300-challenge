@@ -32,6 +32,7 @@ const FilterSection: React.FC<FilterSectionProps> = ({
 
     return (
       <button
+        key={mode}
         className={`px-3 py-1.5 rounded-lg font-medium transition-all duration-200 text-base min-h-[36px] ${
           activeTab === mode
             ? 'bg-blue-500 text-white shadow-sm'

@@ -14,6 +14,7 @@ const feedbackMissionRoute = require("./routes/feedbackMission");
 const writingRoutes = require("./routes/writing");
 const draftRoutes = require("./routes/drafts");
 const recordsRoutes = require("./routes/records"); // 추가
+const streakRoute = require("./routes/streak");
 
 app.use(
   cors({
@@ -32,6 +33,7 @@ app.use("/api/writing", writingRoutes);
 app.use("/api/feedback-missions", feedbackMissionRoute);
 app.use("/api/feedback", feedbackRoute);
 app.use("/api/stats", statsRoute);
+app.use("/api/streak", streakRoute);
 
 // MongoDB 연결
 mongoose

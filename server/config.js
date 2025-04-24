@@ -5,6 +5,7 @@ module.exports = {
   TOKEN: {
     DAILY_LIMIT_300: 1, // 300자 모드 하루 토큰 수
     DAILY_LIMIT_1000: 1, // 1000자 모드 하루 토큰 수
+    STREAK_BONUS: 1, // 1개의 보너스 토큰 지급으로 수정
   },
   SUBMISSION: {
     MODE_300: { MIN_LENGTH: 100, MAX_LENGTH: 300 }, // 300자 모드 글자 제한

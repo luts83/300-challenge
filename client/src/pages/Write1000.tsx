@@ -113,17 +113,26 @@ const Write1000 = () => {
 
     try {
       console.log('Fetching draft for user:', user.uid);
-      const res = await axiosInstance.get(`/api/drafts/${user.uid}`, {
-        params: {
-          _: new Date().getTime(),
-        },
-      });
+      const res = await axiosInstance.get(`/api/drafts/${user.uid}`);
       console.log('Draft fetch response:', res.data);
 
       const draft = res.data;
 
+      // 디버깅을 위한 상세 로깅 추가
+      console.log('Draft content check:', {
+        title: draft.title,
+        titleType: typeof draft.title,
+        titleLength: draft.title?.length,
+        text: draft.text,
+        textType: typeof draft.text,
+        textLength: draft.text?.length,
+        sessionCount: draft.sessionCount,
+        totalDuration: draft.totalDuration,
+        resetCount: draft.resetCount,
+      });
+
       // 초기화 후에는 데이터를 불러오지 않음
-      if (draft.resetCount > 0 && draft.text.trim() === '') {
+      if (draft.resetCount > 0 && !draft.text && !draft.title) {
         console.log('Draft has been reset and is empty, clearing local state');
         setText('');
         setTitle('');
@@ -133,23 +142,22 @@ const Write1000 = () => {
         return;
       }
 
-      console.log('Setting draft data:', {
-        title: draft.title,
-        text: draft.text,
-        sessionCount: draft.sessionCount,
-        totalDuration: draft.totalDuration,
-        resetCount: draft.resetCount,
-        lastSavedAt: draft.lastSavedAt,
-      });
-
-      setTitle(draft.title || '');
-      setText(draft.text || '');
-      setSessionCount(draft.sessionCount || 0);
-      setTotalDuration(draft.totalDuration || 0);
-      setResetCount(draft.resetCount || 0);
-      setLastSavedAt(draft.lastSavedAt || null);
+      // 명시적으로 각 필드를 처리
+      setTitle(draft.title ?? ''); // null이나 undefined면 빈 문자열
+      setText(draft.text ?? ''); // null이나 undefined면 빈 문자열
+      setSessionCount(Number(draft.sessionCount) || 0);
+      setTotalDuration(Number(draft.totalDuration) || 0);
+      setResetCount(Number(draft.resetCount) || 0);
+      setLastSavedAt(draft.lastSavedAt ? Number(draft.lastSavedAt) : null);
       setIsStarted(false);
       setIsPageReentered(true);
+
+      console.log('Draft loaded successfully:', {
+        title: draft.title,
+        textLength: draft.text?.length,
+        sessionCount: draft.sessionCount,
+        totalDuration: draft.totalDuration,
+      });
     } catch (err) {
       console.error('📭 초안 불러오기 실패:', err);
       if (err.response) {
@@ -177,7 +185,9 @@ const Write1000 = () => {
       console.log('Saving draft with data:', {
         uid: user.uid,
         title,
+        titleLength: title.length,
         text,
+        textLength: text.length,
         sessionCount,
         totalDuration: updatedTotalDuration,
         resetCount,
@@ -187,8 +197,8 @@ const Write1000 = () => {
 
       const response = await axiosInstance.post('/api/drafts/save', {
         uid: user.uid,
-        title,
-        text,
+        title: title || '',
+        text: text || '',
         sessionCount,
         totalDuration: updatedTotalDuration,
         resetCount,
@@ -199,17 +209,8 @@ const Write1000 = () => {
       console.log('Save response:', response.data);
 
       setTotalDuration(updatedTotalDuration);
-      setStartTime(null);
-      setDurationNow(0);
-      setIsStarted(false);
-
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
-      }
-
       setLastSavedAt(Date.now());
-      setSaveMessage('✅ 초안이 자동 저장되었습니다!');
+      setSaveMessage('✨ 초안이 자동 저장되었습니다!');
       setTimeout(() => setSaveMessage(null), 3000);
     } catch (err) {
       console.error('❌ 초안 저장 실패:', err);
@@ -301,22 +302,40 @@ const Write1000 = () => {
     }
   };
 
+  const handleSubmitComplete = (res, score, feedback) => {
+    setSubmissionState('complete');
+    setSubmissionProgress('✨ 글 작성이 완료되었습니다!');
+
+    setTimeout(() => {
+      const message = [
+        '✨ 글 작성이 완료되었습니다!\n',
+        score ? `🎯 AI 평가 점수: ${score}점` : '',
+        feedback ? `💬 AI 피드백: ${feedback}\n` : '',
+        '\n📝 다음은 어떤 활동을 해보시겠어요?',
+        '1. 피드백 캠프에서 다른 사람의 글에 피드백 남기기',
+        '2. 내가 작성한 글 확인하기',
+        '3. 새로운 글 작성하기',
+        `\n남은 토큰: ${res.data.data.tokens}개\n`,
+        '피드백 캠프로 이동하시겠습니까?',
+        '(확인: 피드백 캠프로 이동, 취소: 내 제출 목록으로 이동)',
+      ]
+        .filter(Boolean)
+        .join('\n');
+
+      const userChoice = window.confirm(message);
+
+      if (userChoice) {
+        navigate('/feedback-camp');
+      } else {
+        navigate('/my-submissions');
+      }
+    }, 3000);
+  };
+
   const submitFinal = async () => {
     if (!user) return;
 
-    if (text.trim().length === 0) {
-      return alert('아직 글을 작성하지 않았어요!');
-    }
-
-    if (!title.trim()) {
-      return alert('제목을 입력해주세요!');
-    }
-
-    if (text.trim().length < MIN_LENGTH) {
-      return alert(`🚫 최소 ${MIN_LENGTH}자 이상 작성해야 제출할 수 있어요.`);
-    }
-
-    // 제출 전 확인
+    // 1. 제출 전 확인
     if (
       !window.confirm(
         `정말 제출하시겠습니까?\n\n` +
@@ -334,15 +353,15 @@ const Write1000 = () => {
     setSubmissionState('submitting');
     setSubmissionProgress('글을 제출하고 있습니다...');
 
-    const finalDuration = startTime
-      ? totalDuration + Math.floor((Date.now() - startTime) / 1000)
-      : totalDuration;
-
     try {
+      const finalDuration = startTime
+        ? totalDuration + Math.floor((Date.now() - startTime) / 1000)
+        : totalDuration;
+
       const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/submit`, {
         title,
         text,
-        topic: dailyTopic || null, // 토픽 추가
+        topic: dailyTopic || null,
         mode: 'mode_1000',
         user: {
           uid: user.uid,
@@ -353,11 +372,10 @@ const Write1000 = () => {
         duration: finalDuration,
       });
 
-      const submissionId = res.data.submissionId;
-      setTokens(res.data.tokens);
+      let score = null;
+      let feedback = null;
 
-      // AI 평가
-      if (CONFIG.AI.ENABLE_1000 && submissionId) {
+      if (CONFIG.AI.ENABLE_1000) {
         setSubmissionState('evaluating');
         setSubmissionProgress('AI가 글을 평가하고 있습니다...');
 
@@ -365,27 +383,18 @@ const Write1000 = () => {
           const aiRes = await axios.post(`${import.meta.env.VITE_API_URL}/api/evaluate`, {
             text,
             topic: dailyTopic || '자유 주제',
-            submissionId,
+            submissionId: res.data.data.submissionId,
             mode: 'mode_1000',
           });
 
-          if (aiRes.data && typeof aiRes.data.score === 'number') {
-            setScore(aiRes.data.score);
-            setFeedback(aiRes.data.feedback || 'AI 피드백을 불러오지 못했습니다.');
-          } else {
-            console.error('AI 응답 형식이 올바르지 않음:', aiRes.data);
-            setScore(CONFIG.AI.DEFAULT_SCORE);
-            setFeedback('AI 평가에 문제가 발생했습니다. 기본 점수가 부여됩니다.');
-          }
+          score = aiRes.data.score;
+          feedback = aiRes.data.feedback;
         } catch (aiError) {
-          console.error('❌ AI 평가 중 오류 발생:', aiError);
-          setScore(CONFIG.AI.DEFAULT_SCORE);
-          setFeedback('AI 평가에 문제가 발생했습니다. 기본 점수가 부여됩니다.');
+          console.error('AI 평가 중 오류 발생:', aiError);
+          score = CONFIG.AI.DEFAULT_SCORE;
+          feedback = 'AI 평가에 문제가 발생했습니다. 기본 점수가 부여됩니다.';
         }
       }
-
-      setSubmissionState('complete');
-      setSubmissionProgress('✨ 글 작성이 완료되었습니다!');
 
       // 초안 삭제
       await axiosInstance.delete(`/api/drafts/${user.uid}`);
@@ -402,32 +411,10 @@ const Write1000 = () => {
       setLastSavedAt(null);
       setHasWrittenThisSession(false);
 
-      // 완료 메시지와 다음 안내
-      setTimeout(() => {
-        const message = [
-          '✨ 글 작성이 완료되었습니다!',
-          '',
-          score ? `🎯 AI 평가 점수: ${score}점` : '',
-          feedback ? `💬 AI 피드백: ${feedback}` : '',
-          '',
-          '📝 다음은 어떤 활동을 해보시겠어요?',
-          '',
-          '1. 다른 사람의 글에 피드백 남기기',
-          '2. 새로운 글 작성하기 (남은 토큰: ' + res.data.tokens + '개)',
-          '3. 내가 작성한 글 확인하기',
-        ]
-          .filter(Boolean)
-          .join('\n');
-
-        alert(message);
-
-        // 토큰이 없는 경우 피드백 캠프로 안내
-        if (res.data.tokens === 0) {
-          navigate('/feedback-camp');
-        }
-      }, 500);
+      // 제출 완료 처리
+      handleSubmitComplete(res, score, feedback);
     } catch (error) {
-      const errorMessage = handleApiError(error, '제출 중 오류가 발생했습니다');
+      const errorMessage = error.response?.data?.message || '알 수 없는 오류가 발생했습니다.';
       console.error('제출 실패:', errorMessage);
       setSubmissionState('idle');
       setSubmissionProgress('');
@@ -453,7 +440,7 @@ const Write1000 = () => {
       const res = await axios.get(
         `${import.meta.env.VITE_API_URL}/api/tokens/${user.uid}?mode=mode_1000`
       );
-      const tokenValue = res.data.tokens;
+      const tokenValue = res.data.tokens_1000;
       console.log('Fetched tokens:', tokenValue);
       setTokens(typeof tokenValue === 'number' ? tokenValue : 0);
       setIsTokensLoading(false);
@@ -762,12 +749,24 @@ const Write1000 = () => {
                   <div className="animate-bounce text-3xl">✨</div>
                 </div>
               )}
-              {submissionState === 'complete' && <div className="text-3xl mb-4">✅</div>}
-
-              <p className="text-lg font-medium text-gray-800 text-center">{submissionProgress}</p>
-
-              {submissionState === 'evaluating' && (
-                <div className="mt-4 text-sm text-gray-600">잠시만 기다려주세요...</div>
+              {submissionState === 'complete' && (
+                <>
+                  <div className="text-3xl mb-4">✅</div>
+                  <p className="text-lg font-medium text-gray-800 text-center mb-4">
+                    {submissionProgress}
+                  </p>
+                  {score !== null && (
+                    <div className="w-full bg-gray-50 rounded-lg p-4 mb-4">
+                      <p className="text-xl font-bold text-center text-blue-600 mb-2">
+                        🎯 AI 평가 점수: {score}점
+                      </p>
+                      {feedback && (
+                        <p className="text-gray-700 text-center whitespace-pre-wrap">{feedback}</p>
+                      )}
+                    </div>
+                  )}
+                  <p className="text-sm text-gray-600">잠시 후 다음 활동 안내가 표시됩니다...</p>
+                </>
               )}
             </div>
           </div>

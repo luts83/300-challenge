@@ -42,6 +42,36 @@ const Write300 = () => {
     return str.length;
   };
 
+  const handleSubmitComplete = (res, score, feedback) => {
+    setSubmissionState('complete');
+    setSubmissionProgress('✨ 글 작성이 완료되었습니다!');
+
+    setTimeout(() => {
+      const message = [
+        '✨ 글 작성이 완료되었습니다!\n',
+        score ? `🎯 AI 평가 점수: ${score}점` : '',
+        feedback ? `💬 AI 피드백: ${feedback}\n` : '',
+        '\n📝 다음은 어떤 활동을 해보시겠어요?',
+        '1. 피드백 캠프에서 다른 사람의 글에 피드백 남기기',
+        '2. 내가 작성한 글 확인하기',
+        '3. 새로운 글 작성하기',
+        `\n남은 토큰: ${res.data.data.tokens}개\n`,
+        '피드백 캠프로 이동하시겠습니까?',
+        '(확인: 피드백 캠프로 이동, 취소: 내 제출 목록으로 이동)',
+      ]
+        .filter(Boolean)
+        .join('\n');
+
+      const userChoice = window.confirm(message);
+
+      if (userChoice) {
+        navigate('/feedback-camp');
+      } else {
+        navigate('/my-submissions');
+      }
+    }, 3000);
+  };
+
   const handleSubmit = async (forceSubmit = false) => {
     if (submissionInProgress.current) return;
 
@@ -69,7 +99,7 @@ const Write300 = () => {
     submissionInProgress.current = true;
     setSubmissionState('submitting');
     setSubmissionProgress('글을 제출하고 있습니다...');
-    const finalDuration = startTime ? Math.floor((Date.now() - startTime) / 1000) : 0; // 초 단위
+    const finalDuration = startTime ? Math.floor((Date.now() - startTime) / 1000) : 0;
 
     try {
       const charCount = getCharCount(text);
@@ -92,7 +122,7 @@ const Write300 = () => {
       });
       console.log('📦 제출 응답:', res.data);
 
-      const submissionId = res.data.submissionId;
+      const submissionId = res.data.data.submissionId;
 
       // AI 평가 시작
       if (CONFIG.AI.ENABLE_300) {
@@ -109,50 +139,24 @@ const Write300 = () => {
 
           setScore(aiRes.data.score ?? CONFIG.AI.DEFAULT_SCORE);
           setFeedback(aiRes.data.feedback || 'AI 피드백을 불러오지 못했습니다.');
-        } catch (aiError: any) {
+        } catch (aiError) {
           console.error('AI 평가 중 오류 발생:', aiError);
           setScore(CONFIG.AI.DEFAULT_SCORE);
           setFeedback('AI 평가에 일시적인 문제가 발생했습니다. 기본 점수가 부여됩니다.');
         }
       }
 
-      setTokens(res.data.tokens);
+      setTokens(res.data.data.tokens);
       setText('');
       setTitle('');
       setSubmitted(true);
       setIsStarted(false);
 
       // 제출 완료 처리
-      setSubmissionState('complete');
-
-      // 완료 메시지와 다음 안내
-      setTimeout(() => {
-        const message = [
-          '✨ 글 작성이 완료되었습니다!',
-          '',
-          score ? `🎯 AI 평가 점수: ${score}점` : '',
-          feedback ? `�� AI 피드백: ${feedback}` : '',
-          '',
-          '📝 다음은 어떤 활동을 해보시겠어요?',
-          '',
-          '1. 다른 사람의 글에 피드백 남기기',
-          '2. 새로운 글 작성하기 (남은 토큰: ' + res.data.tokens + '개)',
-          '3. 내가 작성한 글 확인하기',
-        ]
-          .filter(Boolean)
-          .join('\n');
-
-        alert(message);
-
-        // 토큰이 없는 경우 피드백 캠프로 안내
-        if (res.data.tokens === 0) {
-          navigate('/feedback-camp');
-        }
-      }, 500);
-    } catch (err: any) {
-      console.error('제출 중 오류 발생:', err.response?.data || err.message || err);
+      handleSubmitComplete(res, score, feedback);
+    } catch (err) {
+      console.error('제출 중 오류 발생:', err.response?.data || err);
       alert('오류가 발생했습니다: ' + (err.response?.data?.message || err.message));
-    } finally {
       setSubmissionState('idle');
       setSubmissionProgress('');
       submissionInProgress.current = false;
@@ -189,9 +193,10 @@ const Write300 = () => {
         const res = await axios.get(
           `${import.meta.env.VITE_API_URL}/api/tokens/${user.uid}?mode=mode_300`
         );
-        setTokens(res.data.tokens);
+        setTokens(res.data.tokens_300);
       } catch (err) {
         console.error('토큰 불러오기 실패:', err);
+        setTokens(0);
       }
     };
 

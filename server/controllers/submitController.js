@@ -2,8 +2,29 @@
 const Submission = require("../models/Submission");
 const Token = require("../models/Token");
 const FeedbackMission = require("../models/FeedbackMission");
+const TokenHistory = require("../models/TokenHistory");
 const { TOKEN, SUBMISSION, FEEDBACK } = require("../config");
 const axios = require("axios");
+const WritingStreak = require("../models/WritingStreak");
+const mongoose = require("mongoose");
+
+// 1. 먼저 함수 정의를 파일 상단에 추가
+const checkFirstSubmissionOfDay = async (uid) => {
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const todayEnd = new Date();
+  todayEnd.setHours(23, 59, 59, 999);
+
+  const todaySubmission = await Submission.findOne({
+    "user.uid": uid,
+    submissionDate: {
+      $gte: todayStart.toISOString().slice(0, 10),
+      $lte: todayEnd.toISOString().slice(0, 10),
+    },
+  });
+
+  return todaySubmission;
+};
 
 // feedbackUnlocked 필드 업데이트
 const unlockFeedback = async (req, res) => {
@@ -70,32 +91,35 @@ const handleSubmit = async (req, res) => {
     const now = new Date();
     const today = now.toDateString();
     const tokenField = mode === "mode_1000" ? "tokens_1000" : "tokens_300";
-    const tokenLimit =
-      mode === "mode_1000" ? TOKEN.DAILY_LIMIT_1000 : TOKEN.DAILY_LIMIT_300;
+    let streak = null;
 
+    // 토큰 처리
     let userToken = await Token.findOne({ uid: user.uid });
-
     if (!userToken) {
       userToken = await Token.create({
         uid: user.uid,
         tokens_300: TOKEN.DAILY_LIMIT_300,
         tokens_1000: TOKEN.DAILY_LIMIT_1000,
+        bonusTokens: 0,
         lastRefreshed: now,
       });
     }
 
+    // 토큰 리셋 체크
     if (userToken.lastRefreshed?.toDateString() !== today) {
       userToken.tokens_300 = TOKEN.DAILY_LIMIT_300;
       userToken.tokens_1000 = TOKEN.DAILY_LIMIT_1000;
       userToken.lastRefreshed = now;
     }
 
+    // 토큰 체크
     if (userToken[tokenField] <= 0) {
       return res
         .status(403)
         .json({ message: "오늘의 토큰이 모두 소진되었습니다." });
     }
 
+    // 제출물 저장
     const submission = new Submission({
       text,
       title,
@@ -104,7 +128,7 @@ const handleSubmit = async (req, res) => {
       mode,
       sessionCount,
       duration,
-      submissionDate: new Date().toISOString().slice(0, 10),
+      submissionDate: now.toISOString().slice(0, 10),
     });
     await submission.save();
 
@@ -126,18 +150,152 @@ const handleSubmit = async (req, res) => {
 
     await FeedbackMission.insertMany(missions);
 
+    // 토큰 차감
     userToken[tokenField] -= 1;
     await userToken.save();
 
+    // 스트릭 처리
+    const dayOfWeek = now.getDay();
+    if (dayOfWeek >= 1 && dayOfWeek <= 5) {
+      // 당일 첫 제출인지 확인
+      const todayFirstSubmission = await checkFirstSubmissionOfDay(user.uid);
+      if (
+        !todayFirstSubmission ||
+        todayFirstSubmission._id.equals(submission._id)
+      ) {
+        streak = await WritingStreak.findOne({ uid: user.uid });
+
+        if (!streak) {
+          streak = new WritingStreak({
+            uid: user.uid,
+            weeklyProgress: Array(5).fill(false),
+            celebrationShown: false,
+            lastStreakCompletion: null,
+          });
+        }
+
+        // 월요일 체크 및 초기화
+        if (dayOfWeek === 1) {
+          const shouldReset =
+            !streak.lastStreakCompletion ||
+            now - streak.lastStreakCompletion > 24 * 60 * 60 * 1000;
+
+          if (shouldReset) {
+            streak.weeklyProgress = Array(5).fill(false);
+            streak.celebrationShown = false;
+          }
+        }
+
+        // 진행 상태 업데이트
+        const dayIndex = dayOfWeek - 1;
+        streak.weeklyProgress[dayIndex] = true;
+
+        // 스트릭 완료 체크
+        const allDaysCompleted = streak.weeklyProgress.every((day) => day);
+        if (allDaysCompleted && !streak.celebrationShown) {
+          userToken.bonusTokens =
+            (userToken.bonusTokens || 0) + TOKEN.STREAK_BONUS;
+          await userToken.save();
+
+          streak.celebrationShown = true;
+          streak.lastStreakCompletion = now;
+        }
+
+        await streak.save();
+      }
+    }
+
+    // 응답
     return res.status(200).json({
-      message: "제출 완료!",
-      submissionId: submission._id,
-      tokens: userToken[tokenField],
+      success: true,
+      data: {
+        submissionId: submission._id,
+        tokens: userToken[tokenField],
+        bonusTokens: userToken.bonusTokens,
+        streak: streak
+          ? {
+              progress: streak.weeklyProgress,
+              completed: streak.weeklyProgress.every((day) => day),
+              shouldShowCelebration:
+                streak.weeklyProgress.every((day) => day) &&
+                !streak.celebrationShown,
+            }
+          : {
+              progress: Array(5).fill(false),
+              completed: false,
+              shouldShowCelebration: false,
+            },
+      },
     });
   } catch (error) {
     console.error("❌ 서버 오류:", error);
-    return res.status(500).json({ message: "서버 오류입니다." });
+    return res.status(500).json({
+      success: false,
+      message: "서버 오류가 발생했습니다.",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
   }
+};
+
+const handleStreakCompletion = async (user, streak, userToken) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    // 보너스 토큰 지급 및 기록
+    userToken.bonusTokens += TOKEN.STREAK_BONUS;
+    await userToken.save({ session });
+
+    // 스트릭 상태 업데이트
+    streak.celebrationShown = true;
+    streak.lastStreakCompletion = new Date();
+    await streak.save({ session });
+
+    // 히스토리 기록
+    await TokenHistory.create(
+      [
+        {
+          uid: user.uid,
+          type: "STREAK_BONUS",
+          amount: TOKEN.STREAK_BONUS,
+          timestamp: new Date(),
+        },
+      ],
+      { session }
+    );
+
+    await session.commitTransaction();
+  } catch (error) {
+    await session.abortTransaction();
+    throw error;
+  } finally {
+    session.endSession();
+  }
+};
+
+// 새로운 주인지 확인하는 헬퍼 함수
+function isNewWeek(lastDate, currentDate) {
+  const lastMonday = new Date(lastDate);
+  lastMonday.setDate(lastMonday.getDate() - (lastMonday.getDay() - 1));
+
+  const currentMonday = new Date(currentDate);
+  currentMonday.setDate(currentMonday.getDate() - (currentMonday.getDay() - 1));
+
+  return lastMonday.getTime() < currentMonday.getTime();
+}
+
+// 전역 에러 핸들러 추가
+process.on("unhandledRejection", (error) => {
+  console.error("Unhandled Promise Rejection:", error);
+});
+
+// 에러 응답 표준화
+const handleError = (res, error) => {
+  console.error("서버 오류:", error);
+  return res.status(500).json({
+    message: "서버 오류가 발생했습니다.",
+    error: process.env.NODE_ENV === "development" ? error.message : undefined,
+  });
 };
 
 module.exports = {

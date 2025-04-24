@@ -81,4 +81,51 @@ router.get("/:uid", async (req, res) => {
   }
 });
 
+// 주간 성장 통계 조회
+router.get("/weekly-growth/:uid", async (req, res) => {
+  const { uid } = req.params;
+
+  try {
+    // 이번 주의 시작일과 끝일 계산
+    const now = new Date();
+    const thisWeekStart = new Date(now);
+    thisWeekStart.setDate(now.getDate() - now.getDay() + 1); // 월요일
+    thisWeekStart.setHours(0, 0, 0, 0);
+
+    const thisWeekEnd = new Date(now);
+    thisWeekEnd.setHours(23, 59, 59, 999);
+
+    // 지난 주의 시작일과 끝일 계산
+    const lastWeekStart = new Date(thisWeekStart);
+    lastWeekStart.setDate(lastWeekStart.getDate() - 7);
+    const lastWeekEnd = new Date(thisWeekStart);
+    lastWeekEnd.setHours(23, 59, 59, 999);
+
+    // 이번 주와 지난 주 제출 수 조회
+    const thisWeekSubmissions = await Submission.countDocuments({
+      "user.uid": uid,
+      createdAt: { $gte: thisWeekStart, $lte: thisWeekEnd },
+    });
+
+    const lastWeekSubmissions = await Submission.countDocuments({
+      "user.uid": uid,
+      createdAt: { $gte: lastWeekStart, $lte: lastWeekEnd },
+    });
+
+    // 성장률 계산 (소수점 둘째자리까지)
+    const growth = Number(
+      (thisWeekSubmissions - lastWeekSubmissions).toFixed(2)
+    );
+
+    res.json({
+      submissions: growth,
+      thisWeek: thisWeekSubmissions,
+      lastWeek: lastWeekSubmissions,
+    });
+  } catch (err) {
+    console.error("❌ 주간 성장 통계 조회 실패:", err);
+    res.status(500).json({ message: "서버 오류" });
+  }
+});
+
 module.exports = router;
