@@ -6,8 +6,15 @@ const Draft = require("../models/Draft");
 // 초안 저장 API
 router.post("/save", async (req, res) => {
   console.log("Received save request with data:", req.body);
-  const { uid, text, sessionCount, totalDuration, lastInputTime, lastSavedAt } =
-    req.body;
+  const {
+    uid,
+    title,
+    text,
+    sessionCount,
+    totalDuration,
+    lastInputTime,
+    lastSavedAt,
+  } = req.body;
 
   if (!uid) {
     console.error("Missing uid in save request");
@@ -16,7 +23,9 @@ router.post("/save", async (req, res) => {
 
   try {
     const updateData = {
-      text,
+      uid,
+      title: title || "",
+      text: text || "",
       sessionCount,
       totalDuration,
       lastInputTime,

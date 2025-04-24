@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 
 const draftSchema = new mongoose.Schema({
   uid: { type: String, required: true, unique: true },
+  title: { type: String, default: "" },
   text: { type: String, default: "" },
   sessionCount: { type: Number, default: 0 },
   totalDuration: { type: Number, default: 0 }, // 초 단위

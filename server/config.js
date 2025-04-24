@@ -9,6 +9,12 @@ module.exports = {
   SUBMISSION: {
     MODE_300: { MIN_LENGTH: 100, MAX_LENGTH: 300 }, // 300자 모드 글자 제한
     MODE_1000: { MIN_LENGTH: 600, MAX_LENGTH: 1000 }, // 1000자 모드 글자 제한
+    TITLE: {
+      // 제목 관련 설정 추가
+      MIN_LENGTH: 1,
+      MAX_LENGTH: 80,
+      REQUIRED: true,
+    },
   },
   FEEDBACK: {
     MIN_LENGTH: 10,

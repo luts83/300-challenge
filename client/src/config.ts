@@ -10,6 +10,12 @@ export const CONFIG = {
   SUBMISSION: {
     MODE_300: { MIN_LENGTH: 100, MAX_LENGTH: 300 },
     MODE_1000: { MIN_LENGTH: 600, MAX_LENGTH: 1000 },
+    TITLE: {
+      REQUIRED: true,
+      MIN_LENGTH: 1,
+      MAX_LENGTH: 80,
+      PLACEHOLDER: '제목을 입력해주세요 (최대 80자)',
+    },
     RESET_LIMIT_1000: 3, // 사용자가 최대 3번 초기화 가능
   },
 

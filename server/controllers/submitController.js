@@ -3,6 +3,7 @@ const Submission = require("../models/Submission");
 const Token = require("../models/Token");
 const FeedbackMission = require("../models/FeedbackMission");
 const { TOKEN, SUBMISSION, FEEDBACK } = require("../config");
+const axios = require("axios");
 
 // feedbackUnlocked 필드 업데이트
 const unlockFeedback = async (req, res) => {
@@ -32,14 +33,28 @@ const unlockFeedback = async (req, res) => {
 };
 
 const handleSubmit = async (req, res) => {
-  const { text, user, mode, sessionCount, duration } = req.body;
+  const { text, title, topic, user, mode, sessionCount, duration } = req.body;
 
-  if (!text || !user || !user.uid || !user.email || !mode) {
-    return res.status(400).json({ message: "유효하지 않은 요청입니다." });
+  if (!text || !title || !user || !user.uid || !user.email || !mode) {
+    return res.status(400).json({
+      message: "유효하지 않은 요청입니다.",
+      details: {
+        text: !text,
+        title: !title,
+        user: !user,
+        mode: !mode,
+      },
+    });
   }
 
   if (!["mode_300", "mode_1000"].includes(mode)) {
     return res.status(400).json({ message: "유효하지 않은 mode입니다." });
+  }
+
+  if (title.length > SUBMISSION.TITLE.MAX_LENGTH) {
+    return res.status(400).json({
+      message: `제목은 ${SUBMISSION.TITLE.MAX_LENGTH}자 이하로 작성해주세요.`,
+    });
   }
 
   const MIN_LENGTH = SUBMISSION[mode.toUpperCase()].MIN_LENGTH;
@@ -83,6 +98,8 @@ const handleSubmit = async (req, res) => {
 
     const submission = new Submission({
       text,
+      title,
+      topic,
       user,
       mode,
       sessionCount,

@@ -4,6 +4,17 @@ const CONFIG = require("../config");
 
 const submissionSchema = new mongoose.Schema(
   {
+    title: {
+      type: String,
+      required: CONFIG.SUBMISSION.TITLE.REQUIRED,
+      minlength: CONFIG.SUBMISSION.TITLE.MIN_LENGTH,
+      maxlength: CONFIG.SUBMISSION.TITLE.MAX_LENGTH,
+    },
+    topic: {
+      type: String,
+      required: false, // 자유주제일 수 있으므로
+      default: null,
+    },
     text: {
       type: String,
       required: true,

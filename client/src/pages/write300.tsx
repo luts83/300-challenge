@@ -6,7 +6,7 @@ import { CONFIG } from '../config';
 import { useNavigate } from 'react-router-dom';
 
 const Write300 = () => {
-  const { user } = useUser();
+  const { user, loading } = useUser();
   const navigate = useNavigate();
   const [text, setText] = useState('');
   const [title, setTitle] = useState('');
@@ -21,13 +21,21 @@ const Write300 = () => {
   const [duration, setDuration] = useState(0);
   const [remainingTime, setRemainingTime] = useState(CONFIG.TIMER.DURATION_MINUTES * 60); // 초 단위
   const submissionInProgress = useRef(false);
+  const [submissionState, setSubmissionState] = useState<
+    'idle' | 'submitting' | 'evaluating' | 'complete'
+  >('idle');
+  const [submissionProgress, setSubmissionProgress] = useState<string>('');
 
   useEffect(() => {
-    if (!user) {
+    // 로딩이 완료되고 user가 없을 때만 리다이렉션
+    if (!loading && !user) {
       alert('로그인이 필요합니다.');
-      navigate('/login');
+      navigate('/login', {
+        replace: true,
+        state: { from: location.pathname },
+      });
     }
-  }, [user]);
+  }, [user, loading]); // loading을 의존성 배열에 추가
 
   // 글자 수 계산 (공백 포함)
   const getCharCount = (str: string) => {
@@ -35,7 +43,6 @@ const Write300 = () => {
   };
 
   const handleSubmit = async (forceSubmit = false) => {
-    // 이미 제출 중이면 중복 제출 방지
     if (submissionInProgress.current) return;
 
     if (!user) return alert('로그인이 필요합니다!');
@@ -60,7 +67,8 @@ const Write300 = () => {
 
     // 제출 시작
     submissionInProgress.current = true;
-    setIsEvaluating(true);
+    setSubmissionState('submitting');
+    setSubmissionProgress('글을 제출하고 있습니다...');
     const finalDuration = startTime ? Math.floor((Date.now() - startTime) / 1000) : 0; // 초 단위
 
     try {
@@ -70,6 +78,7 @@ const Write300 = () => {
       const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/submit`, {
         title,
         text,
+        topic: dailyTopic || null,
         mode: 'mode_300',
         duration: finalDuration,
         forceSubmit: forceSubmit,
@@ -85,7 +94,11 @@ const Write300 = () => {
 
       const submissionId = res.data.submissionId;
 
+      // AI 평가 시작
       if (CONFIG.AI.ENABLE_300) {
+        setSubmissionState('evaluating');
+        setSubmissionProgress('AI가 글을 평가하고 있습니다...');
+
         try {
           const aiRes = await axios.post(`${import.meta.env.VITE_API_URL}/api/evaluate`, {
             text,
@@ -94,14 +107,8 @@ const Write300 = () => {
             mode: 'mode_300',
           });
 
-          if (aiRes.data && typeof aiRes.data.score === 'number') {
-            setScore(aiRes.data.score);
-            setFeedback(aiRes.data.feedback || 'AI 피드백을 불러오지 못했습니다.');
-          } else {
-            console.error('AI 응답 형식이 올바르지 않습니다:', aiRes.data);
-            setScore(CONFIG.AI.DEFAULT_SCORE);
-            setFeedback('AI 평가에 일시적인 문제가 발생했습니다. 기본 점수가 부여됩니다.');
-          }
+          setScore(aiRes.data.score ?? CONFIG.AI.DEFAULT_SCORE);
+          setFeedback(aiRes.data.feedback || 'AI 피드백을 불러오지 못했습니다.');
         } catch (aiError: any) {
           console.error('AI 평가 중 오류 발생:', aiError);
           setScore(CONFIG.AI.DEFAULT_SCORE);
@@ -111,28 +118,44 @@ const Write300 = () => {
 
       setTokens(res.data.tokens);
       setText('');
+      setTitle('');
       setSubmitted(true);
       setIsStarted(false);
 
-      if (res.data.tokens === 0) {
-        setTimeout(() => {
-          alert('오늘의 토큰이 모두 소진되었습니다.\n\n다른 사람들의 글에 피드백을 남겨보세요!');
+      // 제출 완료 처리
+      setSubmissionState('complete');
+
+      // 완료 메시지와 다음 안내
+      setTimeout(() => {
+        const message = [
+          '✨ 글 작성이 완료되었습니다!',
+          '',
+          score ? `🎯 AI 평가 점수: ${score}점` : '',
+          feedback ? `�� AI 피드백: ${feedback}` : '',
+          '',
+          '📝 다음은 어떤 활동을 해보시겠어요?',
+          '',
+          '1. 다른 사람의 글에 피드백 남기기',
+          '2. 새로운 글 작성하기 (남은 토큰: ' + res.data.tokens + '개)',
+          '3. 내가 작성한 글 확인하기',
+        ]
+          .filter(Boolean)
+          .join('\n');
+
+        alert(message);
+
+        // 토큰이 없는 경우 피드백 캠프로 안내
+        if (res.data.tokens === 0) {
           navigate('/feedback-camp');
-        }, 1000);
-      } else {
-        // 강제 제출이면 메시지 다르게 표시
-        if (forceSubmit && !isMinLengthMet) {
-          alert('시간이 만료되어 자동 제출되었습니다. (글자 수 부족)');
-        } else {
-          alert('제출 완료!');
         }
-      }
+      }, 500);
     } catch (err: any) {
       console.error('제출 중 오류 발생:', err.response?.data || err.message || err);
       alert('오류가 발생했습니다: ' + (err.response?.data?.message || err.message));
     } finally {
-      setIsEvaluating(false);
-      submissionInProgress.current = false; // 제출 프로세스 완료
+      setSubmissionState('idle');
+      setSubmissionProgress('');
+      submissionInProgress.current = false;
     }
   };
 
@@ -194,6 +217,15 @@ const Write300 = () => {
   return (
     <div className="max-w-2xl mx-auto p-4">
       <h1 className="text-2xl font-bold mb-6 text-center">✍️ 300자 글쓰기</h1>
+
+      {/* 토큰 현황 추가 */}
+      <div className="bg-blue-50 rounded-lg p-4 mb-6 flex items-center justify-between">
+        <span className="text-blue-800 font-medium">오늘의 토큰</span>
+        <div className="flex items-center gap-2">
+          <span className="text-2xl">🎫</span>
+          <span className="text-xl font-bold text-blue-600">{tokens ?? 0}</span>
+        </div>
+      </div>
 
       {/* 제목과 주제 영역 */}
       <div className="bg-white rounded-lg shadow-md p-4 mb-6">
@@ -287,10 +319,36 @@ const Write300 = () => {
       </div>
 
       {/* 안내 메시지 */}
-      <div className="mt-4 text-sm text-gray-600">
+      <div className="mt-4 text-sm text-black-600">
         <p>💡 제목과 내용을 모두 작성한 후 제출할 수 있습니다.</p>
         <p>⏰ 제한 시간: 5분</p>
       </div>
+
+      {/* 제출 상태 표시 */}
+      {submissionState !== 'idle' && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex flex-col items-center">
+              {submissionState === 'submitting' && (
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mb-4" />
+              )}
+              {submissionState === 'evaluating' && (
+                <div className="flex items-center space-x-2 mb-4">
+                  <div className="animate-pulse text-3xl">🤖</div>
+                  <div className="animate-bounce text-3xl">✨</div>
+                </div>
+              )}
+              {submissionState === 'complete' && <div className="text-3xl mb-4">✅</div>}
+
+              <p className="text-lg font-medium text-gray-800 text-center">{submissionProgress}</p>
+
+              {submissionState === 'evaluating' && (
+                <div className="mt-4 text-sm text-gray-600">잠시만 기다려주세요...</div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

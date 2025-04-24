@@ -4,9 +4,9 @@ const axios = require("axios");
 const { TOKEN, AI } = require("../config");
 
 const handleSubmit = async (req, res) => {
-  const { text, user, mode = "mode_300" } = req.body;
+  const { text, title, user, mode = "mode_300" } = req.body;
 
-  if (!text || !user || !user.uid || !user.email) {
+  if (!text || !title || !user || !user.uid || !user.email) {
     return res.status(400).json({ message: "유효하지 않은 요청입니다." });
   }
 
@@ -86,6 +86,8 @@ const handleSubmit = async (req, res) => {
     // ✅ 제출 저장
     const submission = new Submission({
       text,
+      title,
+      topic,
       user,
       mode,
       score,

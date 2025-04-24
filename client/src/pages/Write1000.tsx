@@ -69,7 +69,7 @@ const Write1000 = () => {
     null
   );
   const [bestRecordError, setBestRecordError] = useState<string | null>(null);
-  const [isStarted, setIsStarted] = useState(false);
+  const [isStarted, setIsStarted] = useState(true);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [resetCount, setResetCount] = useState<number>(0);
   const [isTokensLoading, setIsTokensLoading] = useState(true);
@@ -79,6 +79,11 @@ const Write1000 = () => {
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [score, setScore] = useState<number | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [title, setTitle] = useState('');
+  const [submissionState, setSubmissionState] = useState<
+    'idle' | 'submitting' | 'evaluating' | 'complete'
+  >('idle');
+  const [submissionProgress, setSubmissionProgress] = useState<string>('');
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const autosaveRef = useRef<NodeJS.Timeout | null>(null);
@@ -110,7 +115,7 @@ const Write1000 = () => {
       console.log('Fetching draft for user:', user.uid);
       const res = await axiosInstance.get(`/api/drafts/${user.uid}`, {
         params: {
-          _: new Date().getTime(), // 캐시 방지를 위한 타임스탬프
+          _: new Date().getTime(),
         },
       });
       console.log('Draft fetch response:', res.data);
@@ -121,6 +126,7 @@ const Write1000 = () => {
       if (draft.resetCount > 0 && draft.text.trim() === '') {
         console.log('Draft has been reset and is empty, clearing local state');
         setText('');
+        setTitle('');
         setSessionCount(0);
         setTotalDuration(0);
         setResetCount(draft.resetCount);
@@ -128,6 +134,7 @@ const Write1000 = () => {
       }
 
       console.log('Setting draft data:', {
+        title: draft.title,
         text: draft.text,
         sessionCount: draft.sessionCount,
         totalDuration: draft.totalDuration,
@@ -135,6 +142,7 @@ const Write1000 = () => {
         lastSavedAt: draft.lastSavedAt,
       });
 
+      setTitle(draft.title || '');
       setText(draft.text || '');
       setSessionCount(draft.sessionCount || 0);
       setTotalDuration(draft.totalDuration || 0);
@@ -156,11 +164,10 @@ const Write1000 = () => {
       setSaveMessage('⚠️ 로그인이 필요합니다.');
       setTimeout(() => setSaveMessage(null), 3000);
       return;
-      setHasWrittenThisSession(false); // 저장 후 다음 세션 카운팅 준비
     }
 
-    if (text.trim().length === 0) {
-      return; // 빈 텍스트일 때는 조용히 리턴
+    if (text.trim().length === 0 && title.trim().length === 0) {
+      return; // 제목과 내용 모두 비어있을 때는 저장하지 않음
     }
 
     const currentDuration = startTime ? Math.floor((Date.now() - startTime) / 1000) : 0;
@@ -169,6 +176,7 @@ const Write1000 = () => {
     try {
       console.log('Saving draft with data:', {
         uid: user.uid,
+        title,
         text,
         sessionCount,
         totalDuration: updatedTotalDuration,
@@ -179,6 +187,7 @@ const Write1000 = () => {
 
       const response = await axiosInstance.post('/api/drafts/save', {
         uid: user.uid,
+        title,
         text,
         sessionCount,
         totalDuration: updatedTotalDuration,
@@ -238,7 +247,7 @@ const Write1000 = () => {
   };
 
   const resetDraft = async () => {
-    if (text.trim().length === 0) {
+    if (text.trim().length === 0 && title.trim().length === 0) {
       return alert('작성한 글이 없어요! 초기화할 내용이 없습니다.');
     }
 
@@ -248,7 +257,7 @@ const Write1000 = () => {
 
     if (
       !window.confirm(
-        `⚠️ 작성 중인 글과 시간이 초기화됩니다.\n초기화는 최대 ${CONFIG.SUBMISSION.RESET_LIMIT_1000}번까지 가능합니다.\n정말 초기화하시겠습니까?`
+        `⚠️ 작성 중인 글과 제목, 시간이 초기화됩니다.\n초기화는 최대 ${CONFIG.SUBMISSION.RESET_LIMIT_1000}번까지 가능합니다.\n정말 초기화하시겠습니까?`
       )
     )
       return;
@@ -263,6 +272,7 @@ const Write1000 = () => {
 
       // 2. 클라이언트 상태 초기화
       setText('');
+      setTitle('');
       setSessionCount(0);
       setTotalDuration(0);
       setStartTime(null);
@@ -298,17 +308,22 @@ const Write1000 = () => {
       return alert('아직 글을 작성하지 않았어요!');
     }
 
+    if (!title.trim()) {
+      return alert('제목을 입력해주세요!');
+    }
+
     if (text.trim().length < MIN_LENGTH) {
       return alert(`🚫 최소 ${MIN_LENGTH}자 이상 작성해야 제출할 수 있어요.`);
     }
 
-    // 제출 전 확인 다이얼로그
+    // 제출 전 확인
     if (
       !window.confirm(
         `정말 제출하시겠습니까?\n\n` +
-          `- 작성한 글자 수: ${text.length}자\n` +
-          `- 총 세션 수: ${sessionCount}회\n` +
-          `- 소요 시간: ${formatDuration(totalDuration)}\n\n` +
+          `제목: ${title}\n` +
+          `작성한 글자 수: ${text.length}자\n` +
+          `총 세션 수: ${sessionCount}회\n` +
+          `소요 시간: ${formatDuration(totalDuration)}\n\n` +
           `제출 후에는 수정이 불가능합니다.`
       )
     ) {
@@ -316,15 +331,18 @@ const Write1000 = () => {
     }
 
     setIsSubmitting(true);
+    setSubmissionState('submitting');
+    setSubmissionProgress('글을 제출하고 있습니다...');
+
     const finalDuration = startTime
       ? totalDuration + Math.floor((Date.now() - startTime) / 1000)
       : totalDuration;
 
     try {
-      // 1. 글 제출
-      setSaveMessage('📤 글을 제출하는 중...');
       const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/submit`, {
+        title,
         text,
+        topic: dailyTopic || null, // 토픽 추가
         mode: 'mode_1000',
         user: {
           uid: user.uid,
@@ -338,9 +356,11 @@ const Write1000 = () => {
       const submissionId = res.data.submissionId;
       setTokens(res.data.tokens);
 
-      // 2. AI 평가 실행 여부 확인 후 평가 요청
+      // AI 평가
       if (CONFIG.AI.ENABLE_1000 && submissionId) {
-        setIsEvaluating(true);
+        setSubmissionState('evaluating');
+        setSubmissionProgress('AI가 글을 평가하고 있습니다...');
+
         try {
           const aiRes = await axios.post(`${import.meta.env.VITE_API_URL}/api/evaluate`, {
             text,
@@ -361,20 +381,18 @@ const Write1000 = () => {
           console.error('❌ AI 평가 중 오류 발생:', aiError);
           setScore(CONFIG.AI.DEFAULT_SCORE);
           setFeedback('AI 평가에 문제가 발생했습니다. 기본 점수가 부여됩니다.');
-        } finally {
-          setIsEvaluating(false);
         }
       }
 
-      setSaveMessage('✅ 제출 완료! 초안을 정리하는 중...');
+      setSubmissionState('complete');
+      setSubmissionProgress('✨ 글 작성이 완료되었습니다!');
 
-      // 3. 초안 삭제
-      await axiosInstance.delete(`/api/drafts/${user.uid}`, { data: {} });
+      // 초안 삭제
+      await axiosInstance.delete(`/api/drafts/${user.uid}`);
 
-      setSaveMessage('✨ 모든 처리가 완료되었습니다!');
-
-      // 4. 상태 초기화
+      // 상태 초기화
       setText('');
+      setTitle('');
       setSessionCount(0);
       setTotalDuration(0);
       setStartTime(null);
@@ -384,21 +402,36 @@ const Write1000 = () => {
       setLastSavedAt(null);
       setHasWrittenThisSession(false);
 
-      // 5. 리다이렉션
+      // 완료 메시지와 다음 안내
       setTimeout(() => {
-        alert(
-          `제출 완료! ✨\n\n` +
-            `총 ${sessionCount}회차에 걸쳐\n` +
-            `${formatDuration(finalDuration)} 동안 ${text.length}자를 작성했어요!\n\n` +
-            `계속해서 도전해보세요 💪`
-        );
-        navigate('/feedback-camp');
-      }, 1000);
+        const message = [
+          '✨ 글 작성이 완료되었습니다!',
+          '',
+          score ? `🎯 AI 평가 점수: ${score}점` : '',
+          feedback ? `💬 AI 피드백: ${feedback}` : '',
+          '',
+          '📝 다음은 어떤 활동을 해보시겠어요?',
+          '',
+          '1. 다른 사람의 글에 피드백 남기기',
+          '2. 새로운 글 작성하기 (남은 토큰: ' + res.data.tokens + '개)',
+          '3. 내가 작성한 글 확인하기',
+        ]
+          .filter(Boolean)
+          .join('\n');
+
+        alert(message);
+
+        // 토큰이 없는 경우 피드백 캠프로 안내
+        if (res.data.tokens === 0) {
+          navigate('/feedback-camp');
+        }
+      }, 500);
     } catch (error) {
       const errorMessage = handleApiError(error, '제출 중 오류가 발생했습니다');
       console.error('제출 실패:', errorMessage);
-      setSaveMessage('❌ 제출에 실패했습니다. 다시 시도해주세요.');
-      setTimeout(() => setSaveMessage(null), 3000);
+      setSubmissionState('idle');
+      setSubmissionProgress('');
+      alert(`제출 실패: ${errorMessage}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -464,6 +497,20 @@ const Write1000 = () => {
         timerRef.current = null;
       }
       setStartTime(now); // 타이핑 시작 시점에 타이머 시작
+    }
+  };
+
+  // 제목 변경 핸들러 추가
+  const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setTitle(e.target.value);
+
+    // 제목 입력 시에도 lastInputTime 업데이트
+    const now = Date.now();
+    setLastInputTime(now);
+
+    // 타이머 시작 (아직 시작하지 않은 경우)
+    if (!startTime) {
+      setStartTime(now);
       setIsStarted(true);
     }
   };
@@ -552,9 +599,6 @@ const Write1000 = () => {
         setTotalDuration(0);
         setStartTime(null);
         setDurationNow(0);
-        setIsStarted(false);
-        setLastInputTime(null);
-        setLastSavedAt(null);
       }
     };
 
@@ -562,193 +606,172 @@ const Write1000 = () => {
   }, [resetCount]);
 
   return (
-    <div className="wrapper-full-height">
-      <div className="flex flex-col items-center mb-4">
-        <h1 className="text-2xl font-bold mb-2">⏱ 1000자 글쓰기</h1>
+    <div className="max-w-2xl mx-auto p-4">
+      <h1 className="text-2xl font-bold mb-6 text-center">✍️ 1000자 글쓰기</h1>
 
-        {CONFIG.TOPIC.SHOW_ON_HOME_1000 ? (
-          <p className="text-center text-gray-700 mb-2">
-            오늘의 주제: "{dailyTopic || '불러오는 중...'}"
-          </p>
-        ) : (
-          <p className="text-center text-gray-700 mb-2">
-            ✍ 자유 주제입니다. 마음 가는 대로 글을 써보세요.
-          </p>
-        )}
-
-        {isTokensLoading ? (
-          <p className="text-sm text-gray-600 text-center mb-1">토큰 로딩 중...</p>
-        ) : (
-          <div className="flex flex-col items-center">
-            <p
-              className={`text-sm text-center mb-1 ${
-                tokens === 0 ? 'text-red-600 font-bold' : 'text-gray-600'
-              }`}
-            >
-              남은 토큰: {tokens} / {CONFIG?.TOKEN?.DAILY_LIMIT_1000 || 1}
-            </p>
-            {tokens === 0 && (
-              <div className="text-sm text-red-600 mb-2 text-center">
-                <p className="mb-1">⚠️ 토큰이 모두 소진되었습니다.</p>
-                <p className="text-xs text-gray-600">
-                  토큰은 매일 1개씩 지급되며,
-                  <br />
-                  월-금 연속으로 글을 쓰면 추가 토큰 1개가 지급됩니다.
-                </p>
-              </div>
-            )}
-          </div>
-        )}
-
-        {isTokenDepleted && (
-          <p className="text-sm text-red-500 text-center mb-1">
-            토큰이 부족합니다. 토큰을 충전해주세요!
-          </p>
-        )}
-
-        <p className="text-xs text-gray-500 text-center mb-2">
-          초기화 가능 횟수: {CONFIG.SUBMISSION.RESET_LIMIT_1000 - resetCount}회 남음
-        </p>
-
-        {bestRecord && (
-          <p className="text-sm text-blue-600 text-center mb-1">
-            🏆 최고 기록: 세션 {bestRecord.sessionCount}회, 시간{' '}
-            {formatDuration(bestRecord.duration)}
-          </p>
-        )}
-        {bestRecordError && (
-          <p className="text-sm text-red-500 text-center mb-1">{bestRecordError}</p>
-        )}
+      {/* 토큰 현황 */}
+      <div className="bg-blue-50 rounded-lg p-4 mb-6 flex items-center justify-between">
+        <span className="text-blue-800 font-medium">오늘의 토큰</span>
+        <div className="flex items-center gap-2">
+          <span className="text-2xl">🎫</span>
+          <span className="text-xl font-bold text-blue-600">{tokens ?? 0}</span>
+        </div>
       </div>
 
+      {/* 제목과 주제 영역 */}
+      <div className="bg-white rounded-lg shadow-md p-4 mb-6">
+        {/* 오늘의 주제 */}
+        <div className="mb-4">
+          <h2 className="text-lg font-medium text-gray-800 mb-2">📝 오늘의 주제</h2>
+          <p className="text-gray-700 bg-blue-50 p-3 rounded-lg">
+            {CONFIG.TOPIC.SHOW_ON_HOME_1000
+              ? dailyTopic || '주제를 불러오는 중...'
+              : '자유 주제입니다. 마음 가는 대로 글을 써보세요.'}
+          </p>
+        </div>
+
+        {/* 제목 입력 */}
+        <div className="mb-4">
+          <h2 className="text-lg font-medium text-gray-800 mb-2">✏️ 제목 작성</h2>
+          <div className="relative">
+            <input
+              type="text"
+              value={title}
+              onChange={handleTitleChange}
+              placeholder="이 글의 제목을 입력해주세요"
+              maxLength={80}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-lg"
+            />
+            <span className="absolute right-3 bottom-3 text-sm text-gray-500">
+              {title.length}/80
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* 글쓰기 영역 */}
+      <div className="bg-white rounded-lg shadow-md p-4">
+        {/* 세션 정보 */}
+        <div className="mb-4 flex justify-between text-sm text-gray-600">
+          <span>🧭 세션 {sessionCount}회차</span>
+          <span>⏱ 누적 시간: {formatDuration(totalDuration + durationNow)}</span>
+        </div>
+
+        <div className="relative mb-4">
+          <textarea
+            value={text}
+            onChange={handleTextChange}
+            placeholder="1000자 이내로 자유롭게 작성해보세요."
+            className="w-full h-64 p-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+            maxLength={MAX_LENGTH}
+            disabled={isTokenDepleted}
+          />
+          <div className="absolute right-2 bottom-2 text-sm text-gray-500">
+            {text.length}/{MAX_LENGTH}
+          </div>
+        </div>
+
+        {/* 버튼 영역 */}
+        <div className="flex justify-between items-center">
+          <div className="text-sm text-gray-600">
+            {isTokenDepleted ? (
+              <span className="text-red-600">토큰이 모두 소진되었습니다</span>
+            ) : (
+              <span>초기화 가능: {CONFIG.SUBMISSION.RESET_LIMIT_1000 - resetCount}회</span>
+            )}
+          </div>
+          <div className="space-x-2">
+            <button
+              onClick={resetDraft}
+              className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
+              disabled={
+                isSubmitting || resetCount >= CONFIG.SUBMISSION.RESET_LIMIT_1000 || isTokenDepleted
+              }
+            >
+              초기화
+            </button>
+            <button
+              onClick={saveDraft}
+              className="px-4 py-2 text-blue-600 hover:text-blue-800 transition-colors"
+              disabled={isSubmitting || text.trim().length === 0 || isTokenDepleted}
+            >
+              임시저장
+            </button>
+            <button
+              onClick={submitFinal}
+              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+              disabled={
+                isSubmitting || isTokenDepleted || text.trim().length < MIN_LENGTH || !title.trim()
+              }
+            >
+              {isSubmitting ? '제출 중...' : '제출하기'}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* 안내 메시지 */}
+      <div className="mt-4 text-sm text-black-600">
+        <p>💡 제목과 내용을 모두 작성한 후 제출할 수 있습니다.</p>
+        <p>📝 임시저장된 내용은 자동으로 불러와집니다.</p>
+      </div>
+
+      {/* 저장 메시지 */}
       {saveMessage && (
         <div
-          className={`mt-2 p-2 rounded text-center ${
+          className={`mt-4 p-3 rounded-lg text-center ${
             saveMessage.includes('❌')
-              ? 'bg-red-100 text-red-700'
+              ? 'bg-red-50 text-red-700'
               : saveMessage.includes('✨')
-                ? 'bg-green-100 text-green-700'
-                : 'bg-blue-100 text-blue-700'
+                ? 'bg-green-50 text-green-700'
+                : 'bg-blue-50 text-blue-700'
           }`}
         >
           {saveMessage}
         </div>
       )}
 
-      {!isStarted ? (
-        <div className="flex flex-col items-center gap-4">
-          <button
-            onClick={() => {
-              if (tokens === 0) {
-                alert(
-                  '토큰이 모두 소진되었습니다.\n\n' +
-                    '토큰은 매일 1개씩 지급되며,\n' +
-                    '월-금 연속으로 글을 쓰면 추가 토큰 1개가 지급됩니다.'
-                );
-                return;
-              }
-              setIsStarted(true);
-              setIsEvaluating(false);
-              setScore(null);
-              setFeedback(null);
-            }}
-            className={`btn-start ${tokens === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
-            disabled={tokens === 0}
-          >
-            {tokens === 0 ? '토큰이 필요합니다' : '글쓰기 시작'}
-          </button>
-          {tokens === 0 && (
-            <p className="text-sm text-gray-500 text-center">
-              내일 새로운 토큰이 지급됩니다.
-              <br />
-              또는 월-금 연속으로 글을 쓰면 추가 토큰을 받을 수 있습니다.
-            </p>
-          )}
+      {/* AI 평가 결과 */}
+      {isEvaluating && (
+        <div className="mt-4 p-4 bg-blue-50 rounded-lg text-center text-blue-700">
+          🤖 AI가 글을 평가하고 있어요...
         </div>
-      ) : (
-        <>
-          {isEvaluating && (
-            <div className="msg-evaluating">🤖 두구두구... AI가 글을 평가하고 있어요!</div>
-          )}
+      )}
 
-          {score !== null && (
-            <div className="ai-feedback-box">
-              <p className="text-ai-score">📊 AI 평가 점수: {score}점</p>
-              <p className="text-ai-feedback">💬 피드백: {feedback}</p>
-            </div>
-          )}
-
-          <div className="flex justify-between text-sm text-gray-500 mb-1">
-            <div>
-              🧭 세션 {sessionCount}회차 / 이번 세션 {formatDuration(durationNow)} / 누적{' '}
-              {formatDuration(totalDuration + durationNow)}
-            </div>
-            <div>
-              {text.length} / {MAX_LENGTH}자
-            </div>
+      {score !== null && (
+        <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+          <div className="text-center">
+            <p className="text-lg font-semibold mb-2">📊 AI 평가 결과</p>
+            <p className="text-3xl font-bold text-blue-600 mb-2">{score}점</p>
+            <p className="text-gray-700">{feedback}</p>
           </div>
+        </div>
+      )}
 
-          <textarea
-            className="textarea-main"
-            maxLength={MAX_LENGTH}
-            value={text}
-            onChange={handleTextChange}
-            placeholder="여기에 1000자 글을 작성해보세요..."
-            disabled={isTokenDepleted}
-          />
-
-          <div className="grid grid-cols-3 gap-2 mt-2">
-            <button
-              onClick={saveDraft}
-              className="btn-primary"
-              disabled={isSubmitting || text.trim().length === 0 || isTokenDepleted}
-            >
-              💾 저장하기
-            </button>
-            <button
-              onClick={submitFinal}
-              className="btn-primary"
-              disabled={isSubmitting || isTokenDepleted}
-            >
-              {isSubmitting ? (
-                <span className="flex items-center justify-center">
-                  <svg
-                    className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                  >
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    ></circle>
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                    ></path>
-                  </svg>
-                  제출 중...
-                </span>
-              ) : (
-                '제출하기'
+      {/* 제출 상태 표시 */}
+      {submissionState !== 'idle' && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex flex-col items-center">
+              {submissionState === 'submitting' && (
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mb-4" />
               )}
-            </button>
-            <button
-              onClick={resetDraft}
-              className="btn-secondary"
-              disabled={
-                isSubmitting || resetCount >= CONFIG.SUBMISSION.RESET_LIMIT_1000 || isTokenDepleted
-              }
-            >
-              🔄 초기화
-            </button>
+              {submissionState === 'evaluating' && (
+                <div className="flex items-center space-x-2 mb-4">
+                  <div className="animate-pulse text-3xl">🤖</div>
+                  <div className="animate-bounce text-3xl">✨</div>
+                </div>
+              )}
+              {submissionState === 'complete' && <div className="text-3xl mb-4">✅</div>}
+
+              <p className="text-lg font-medium text-gray-800 text-center">{submissionProgress}</p>
+
+              {submissionState === 'evaluating' && (
+                <div className="mt-4 text-sm text-gray-600">잠시만 기다려주세요...</div>
+              )}
+            </div>
           </div>
-        </>
+        </div>
       )}
     </div>
   );
