@@ -388,14 +388,9 @@ router.get("/all-submissions/:uid", async (req, res) => {
         },
       },
     ]);
+
     const countMap = {};
     feedbackCounts.forEach((fc) => {
-      const match = submissions.find(
-        (s) => s._id.toString() === fc._id.toString()
-      );
-      console.log("🧪 fc._id", fc._id.toString());
-      console.log("🧪 match found:", match ? "✅ Yes" : "❌ No");
-      console.log("✅ createdAt from submission:", match?.createdAt);
       countMap[fc._id.toString()] = fc.count;
     });
 
@@ -412,17 +407,16 @@ router.get("/all-submissions/:uid", async (req, res) => {
 
     const results = submissions.map((sub) => ({
       _id: sub._id,
+      title: sub.title,
+      topic: sub.topic,
       text: sub.text,
       user: sub.user,
       createdAt: sub.createdAt,
       feedbackCount: countMap[sub._id.toString()] || 0,
       hasGivenFeedback: myFeedbackSet.has(sub._id.toString()),
       mode: sub.mode,
+      submissionDate: sub.submissionDate,
     }));
-
-    results.sort(
-      (a, b) => a.feedbackCount - b.feedbackCount || a.createdAt - b.createdAt
-    );
 
     res.json(results);
   } catch (err) {
@@ -511,10 +505,7 @@ router.get("/today/:uid", async (req, res) => {
   try {
     const count = await Feedback.countDocuments({
       fromUid: uid,
-      createdAt: {
-        $gte: new Date(today),
-        $lt: new Date(new Date(today).getTime() + 24 * 60 * 60 * 1000),
-      },
+      writtenDate: today,
     });
 
     res.json({ count });

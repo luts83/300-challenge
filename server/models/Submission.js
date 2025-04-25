@@ -28,7 +28,14 @@ const submissionSchema = new mongoose.Schema(
     },
     sessionCount: { type: Number, default: 0 },
     duration: { type: Number, default: 0 },
-    score: { type: Number, default: null },
+    score: {
+      type: Number,
+      min: 0,
+      max: 100,
+    },
+    aiFeedback: {
+      type: String,
+    },
     feedback: { type: String, default: "" },
     submissionDate: {
       type: String,

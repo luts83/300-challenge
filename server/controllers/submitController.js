@@ -7,6 +7,7 @@ const { TOKEN, SUBMISSION, FEEDBACK } = require("../config");
 const axios = require("axios");
 const WritingStreak = require("../models/WritingStreak");
 const mongoose = require("mongoose");
+const logger = require("../utils/logger");
 
 // 1. 먼저 함수 정의를 파일 상단에 추가
 const checkFirstSubmissionOfDay = async (uid) => {
@@ -50,6 +51,64 @@ const unlockFeedback = async (req, res) => {
   } catch (error) {
     logger.error("❌ feedbackUnlocked 업데이트 오류:", error);
     return res.status(500).json({ message: "서버 오류입니다." });
+  }
+};
+
+// AI 평가 함수 추가
+const evaluateSubmission = async (text, mode) => {
+  const { AI } = require("../config");
+
+  try {
+    const response = await axios.post(
+      "https://openrouter.ai/api/v1/chat/completions",
+      {
+        model: AI.MODEL,
+        messages: [
+          {
+            role: "system",
+            content: AI.SYSTEM_MESSAGE,
+          },
+          {
+            role: "user",
+            content: AI.PROMPT_TEMPLATE[mode](text, ""),
+          },
+        ],
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+          "HTTP-Referer": "https://writing-challenge.com",
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    const evaluation = response.data.choices[0].message.content;
+    try {
+      const parsed = JSON.parse(evaluation);
+      return {
+        score: parsed.overall_score, // overall_score를 score로 사용
+        feedback: JSON.stringify(parsed, null, 2),
+      };
+    } catch (parseError) {
+      logger.error("AI 응답 파싱 오류:", parseError);
+      return {
+        score: null,
+        feedback: "AI 응답을 처리하는 중 오류가 발생했습니다.",
+      };
+    }
+  } catch (error) {
+    logger.error("AI 평가 오류:", error);
+    let errorMessage = "평가 중 오류가 발생했습니다.";
+    if (error.code === "ENOTFOUND") {
+      errorMessage =
+        "API 서버에 연결할 수 없습니다. 네트워크 연결을 확인해주세요.";
+    } else if (error.response?.status === 401) {
+      errorMessage = "API 인증 오류가 발생했습니다.";
+    } else if (error.response?.status === 429) {
+      errorMessage = "API 요청 한도를 초과했습니다.";
+    }
+    return { score: null, feedback: errorMessage };
   }
 };
 
@@ -130,6 +189,12 @@ const handleSubmit = async (req, res) => {
       duration,
       submissionDate: now.toISOString().slice(0, 10),
     });
+    await submission.save();
+
+    // AI 평가 실행
+    const { score, feedback } = await evaluateSubmission(text, mode);
+    submission.score = score;
+    submission.aiFeedback = feedback;
     await submission.save();
 
     // ✅ 모든 모드에서 피드백 미션 생성
