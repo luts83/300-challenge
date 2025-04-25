@@ -276,12 +276,12 @@ const Write1000 = () => {
         score ? `🎯 AI 평가 점수: ${score}점` : '',
         feedback ? `💬 AI 피드백: ${feedback}\n` : '',
         '\n📝 다음은 어떤 활동을 해보시겠어요?',
-        '1. 피드백 캠프에서 다른 사람의 글에 피드백 남기기',
+        '1. 피드백 미션에서 다른 사람의 글에 피드백 남기기',
         '2. 내가 작성한 글 확인하기',
         '3. 새로운 글 작성하기',
         `\n남은 토큰: ${res.data.data.tokens}개\n`,
-        '피드백 캠프로 이동하시겠습니까?',
-        '(확인: 피드백 캠프로 이동, 취소: 내 제출 목록으로 이동)',
+        '피드백 미션로 이동하시겠습니까?',
+        '(확인: 피드백 미션로 이동, 취소: 내 제출 목록으로 이동)',
       ]
         .filter(Boolean)
         .join('\n');
@@ -291,7 +291,7 @@ const Write1000 = () => {
       if (userChoice) {
         navigate('/feedback-camp');
       } else {
-        navigate('/my-submissions');
+        navigate('/my');
       }
     }, 3000);
   };
@@ -707,6 +707,9 @@ const Write1000 = () => {
                 <div className="flex items-center space-x-2 mb-4">
                   <div className="animate-pulse text-3xl">🤖</div>
                   <div className="animate-bounce text-3xl">✨</div>
+                  <div className="mt-4 p-4 bg-blue-50 rounded-lg text-center text-blue-700">
+                    AI가 글을 평가하고 있어요...
+                  </div>
                 </div>
               )}
               {submissionState === 'complete' && (

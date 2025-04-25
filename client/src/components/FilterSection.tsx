@@ -5,12 +5,13 @@ type FilterSectionProps = {
   setActiveTab: (tab: 'all' | 'mode_300' | 'mode_1000') => void;
   searchQuery: string;
   setSearchQuery: (query: string) => void;
-  sortBy?: 'date' | 'score';
-  setSortBy?: (sort: 'date' | 'score') => void;
+  sortBy?: 'date' | 'score' | 'feedback';
+  setSortBy?: (sort: 'date' | 'score' | 'feedback') => void;
   sortOrder?: 'asc' | 'desc';
   setSortOrder?: (order: 'asc' | 'desc') => void;
   availableModes?: Set<'mode_300' | 'mode_1000'>;
   showSortOptions?: boolean;
+  customSortOptions?: Array<{ value: string; label: string }>;
 };
 
 const FilterSection: React.FC<FilterSectionProps> = ({
@@ -24,6 +25,7 @@ const FilterSection: React.FC<FilterSectionProps> = ({
   setSortOrder,
   availableModes,
   showSortOptions = false,
+  customSortOptions,
 }) => {
   const renderModeButton = (mode: typeof activeTab, label: string) => {
     if (availableModes && mode !== 'all' && !availableModes.has(mode)) {
@@ -64,23 +66,32 @@ const FilterSection: React.FC<FilterSectionProps> = ({
           />
 
           {showSortOptions && setSortBy && setSortOrder && (
-            <div className="flex gap-2">
+            <div className="flex items-center space-x-2">
               <select
-                className="flex-1 px-3 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 text-base min-h-[36px]"
                 value={sortBy}
-                onChange={e => setSortBy(e.target.value as 'date' | 'score')}
+                onChange={e => setSortBy(e.target.value as 'date' | 'score' | 'feedback')}
+                className="px-3 py-1 border rounded-md text-sm"
               >
-                <option value="date">날짜순</option>
-                <option value="score">점수순</option>
+                {customSortOptions ? (
+                  customSortOptions.map(option => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))
+                ) : (
+                  <>
+                    <option value="date">날짜순</option>
+                    <option value="score">점수순</option>
+                  </>
+                )}
               </select>
-              <select
-                className="flex-1 px-3 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 text-base min-h-[36px]"
-                value={sortOrder}
-                onChange={e => setSortOrder(e.target.value as 'asc' | 'desc')}
+
+              <button
+                onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+                className="px-3 py-1 border rounded-md text-sm hover:bg-gray-50"
               >
-                <option value="desc">내림차순</option>
-                <option value="asc">오름차순</option>
-              </select>
+                {sortOrder === 'asc' ? '오름차순 ↑' : '내림차순 ↓'}
+              </button>
             </div>
           )}
         </div>

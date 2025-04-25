@@ -5,9 +5,11 @@ import { useUser } from '../context/UserContext';
 import { CONFIG } from '../config';
 import FilterSection from '../components/FilterSection';
 import { logger } from '../utils/logger';
+import ScrollToTop from '../components/ScrollToTop';
 
 interface Submission {
   _id: string;
+  title: string;
   text: string;
   user: { uid: string; email: string; displayName?: string };
   feedbackCount: number;
@@ -42,7 +44,7 @@ const FeedbackCamp = () => {
   const [visibleMyFeedbacks, setVisibleMyFeedbacks] = useState(3);
   const [activeTab, setActiveTab] = useState<'all' | 'mode_300' | 'mode_1000'>('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [sortBy, setSortBy] = useState<'date' | 'score'>('date');
+  const [sortBy, setSortBy] = useState<'date' | 'feedback'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
 
   const [todaySummary, setTodaySummary] = useState<{ mode_300: number; mode_1000: number }>({
@@ -78,7 +80,11 @@ const FeedbackCamp = () => {
       if (activeTab === 'all') return true;
       return item.mode === activeTab;
     })
-    .filter(item => item.text.toLowerCase().includes(searchQuery.toLowerCase()))
+    .filter(
+      item =>
+        item.text.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (item.title?.toLowerCase() || '').includes(searchQuery.toLowerCase())
+    )
     .sort((a, b) => {
       if (sortBy === 'date') {
         return sortOrder === 'desc'
@@ -226,9 +232,7 @@ const FeedbackCamp = () => {
 
   return (
     <div className="max-w-4xl mx-auto p-4">
-      <h1 className="text-2xl sm:text-xl font-bold mb-6 text-center">
-        🤝 글쓰기 캠프: 피드백 미션
-      </h1>
+      <h1 className="text-2xl sm:text-xl font-bold mb-6 text-center">🤝 피드백 미션</h1>
       <div className="mb-6 p-3 bg-blue-100/80 text-blue-800 rounded-lg text-base text-center font-medium">
         {availableSubmissions.length > 0 ? (
           getFeedbackGuidanceMessage(
@@ -252,6 +256,15 @@ const FeedbackCamp = () => {
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
         availableModes={getAvailableFeedbackModes(todaySubmissionModes)}
+        sortBy={sortBy}
+        setSortBy={setSortBy}
+        sortOrder={sortOrder}
+        setSortOrder={setSortOrder}
+        showSortOptions={true}
+        customSortOptions={[
+          { value: 'date', label: '날짜순' },
+          { value: 'feedback', label: '피드백순' },
+        ]}
       />
 
       {/* 내가 작성한 피드백 */}
@@ -357,80 +370,90 @@ const FeedbackCamp = () => {
           </p>
         ) : (
           <>
-            <ul className="space-y-3">
-              {availableSubmissions.slice(0, visibleCount).map(item => (
-                <li
-                  key={item._id}
-                  className={`bg-white rounded-lg shadow-md p-4 ${
-                    item.feedbackCount > 0 ? 'border-l-4 border-blue-500' : ''
-                  }`}
-                >
+            <div className="grid grid-cols-1 gap-4">
+              {availableSubmissions.slice(0, visibleCount).map(submission => (
+                <div key={submission._id} className="bg-white rounded-lg shadow-sm overflow-hidden">
+                  {/* 헤더 섹션 - 항상 표시 */}
                   <div
-                    className="flex items-start justify-between gap-3 cursor-pointer"
-                    onClick={() => setExpanded(prev => (prev === item._id ? null : item._id))}
+                    className="p-4 cursor-pointer hover:bg-gray-50"
+                    onClick={() => setExpanded(expanded === submission._id ? null : submission._id)}
                   >
-                    <div className="flex-1">
-                      <p className="text-lg font-medium text-gray-900">
-                        📝 {item.text.slice(0, 60)}...
-                      </p>
-                      <p className="text-sm text-gray-500 mt-1 flex items-center gap-2 flex-wrap leading-tight">
-                        <span>{item.user.displayName || item.user.email}</span>
-                        <span>
-                          |{' '}
-                          {item.createdAt
-                            ? new Date(item.createdAt).toLocaleDateString('ko-KR')
-                            : '작성일 정보 없음'}
-                        </span>
-                        <span
-                          className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                            item.mode === 'mode_300'
-                              ? 'bg-green-100 text-green-700'
-                              : 'bg-purple-100 text-purple-700'
-                          }`}
-                        >
-                          {item.mode === 'mode_300' ? '300자' : '1000자'}
-                        </span>
-                      </p>
-                    </div>
-                    {item.feedbackCount > 0 && (
-                      <span className="bg-blue-500 text-white px-2 py-1 rounded-full text-sm shadow-sm">
-                        💬 {item.feedbackCount}
+                    <div className="flex justify-between items-start mb-2">
+                      <div className="flex-1">
+                        {/* 제목 */}
+                        <h3 className="text-lg font-medium text-gray-900 mb-1">
+                          {submission.title}
+                        </h3>
+                        {/* 메타 정보 */}
+                        <div className="flex items-center text-sm text-gray-500 space-x-4">
+                          <span className="flex items-center">
+                            👤 {submission.user.displayName || '익명'}
+                          </span>
+                          <span>
+                            📅 {new Date(submission.createdAt || '').toLocaleDateString()}
+                          </span>
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-xs ${
+                              submission.mode === 'mode_300'
+                                ? 'bg-blue-100 text-blue-800'
+                                : 'bg-green-100 text-green-800'
+                            }`}
+                          >
+                            {submission.mode === 'mode_300' ? '300자' : '1000자'}
+                          </span>
+                          <span className="flex items-center">💬 {submission.feedbackCount}</span>
+                        </div>
+                      </div>
+                      {/* 확장/축소 아이콘 */}
+                      <span className="text-gray-400">
+                        {expanded === submission._id ? '▼' : '▶'}
                       </span>
-                    )}
+                    </div>
                   </div>
 
-                  {expanded === item._id && (
-                    <div className="mt-3 space-y-3">
-                      <div className="text-base text-gray-700 whitespace-pre-wrap">{item.text}</div>
-                      <p className="text-sm text-gray-500">현재 피드백 수: {item.feedbackCount}</p>
-                      <textarea
-                        placeholder={`피드백을 입력하세요 (${CONFIG.FEEDBACK.MIN_LENGTH}자 이상)`}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 text-base min-h-[100px]"
-                        rows={3}
-                        value={feedbacks[item._id] || ''}
-                        onChange={e => {
-                          e.stopPropagation();
-                          setFeedbacks(prev => ({
-                            ...prev,
-                            [item._id]: e.target.value,
-                          }));
-                        }}
-                        disabled={item.hasGivenFeedback || submittedIds.includes(item._id)}
-                      />
-                      <button
-                        onClick={e => submitFeedback(item._id, e)}
-                        className="w-full px-3 py-1.5 bg-blue-500 text-white rounded-lg font-medium transition-all duration-200 text-base min-h-[36px] hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
-                        disabled={item.hasGivenFeedback || submittedIds.includes(item._id)}
-                      >
-                        {item.hasGivenFeedback || submittedIds.includes(item._id)
-                          ? '제출 완료'
-                          : '피드백 제출'}
-                      </button>
+                  {/* 본문 및 피드백 섹션 - 확장 시에만 표시 */}
+                  {expanded === submission._id && (
+                    <div className="border-t border-gray-100 p-4">
+                      {/* 본문 */}
+                      <div className="mb-4 whitespace-pre-wrap text-gray-700">
+                        {submission.text}
+                      </div>
+
+                      {/* 피드백 입력 */}
+                      <div className="space-y-3">
+                        <textarea
+                          value={feedbacks[submission._id] || ''}
+                          onChange={e =>
+                            setFeedbacks(prev => ({
+                              ...prev,
+                              [submission._id]: e.target.value,
+                            }))
+                          }
+                          placeholder="피드백을 작성해주세요..."
+                          className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          rows={4}
+                        />
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-gray-500">
+                            최소 {CONFIG.FEEDBACK.MIN_LENGTH}자 이상 작성해주세요.
+                          </span>
+                          <button
+                            onClick={e => submitFeedback(submission._id, e)}
+                            disabled={
+                              !feedbacks[submission._id] ||
+                              feedbacks[submission._id].length < CONFIG.FEEDBACK.MIN_LENGTH
+                            }
+                            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                          >
+                            피드백 제출
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   )}
-                </li>
+                </div>
               ))}
-            </ul>
+            </div>
             {availableSubmissions.length > visibleCount && (
               <button
                 className="w-full mt-4 py-2 sm:py-3 bg-gray-100/80 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors duration-200 text-sm sm:text-base"
@@ -442,6 +465,7 @@ const FeedbackCamp = () => {
           </>
         )}
       </div>
+      <ScrollToTop />
     </div>
   );
 };

@@ -9,6 +9,8 @@ import WeeklyProgress from '../components/WeeklyProgress';
 import TokenDisplay from '../components/TokenDisplay';
 import FilterSection from '../components/FilterSection';
 import { logger } from '../utils/logger';
+import AIFeedback from '../components/AIFeedback';
+import ScrollToTop from '../components/ScrollToTop';
 
 type Submission = {
   _id: string;
@@ -19,6 +21,7 @@ type Submission = {
   createdAt: string;
   mode: 'mode_300' | 'mode_1000';
   feedbackUnlocked?: boolean;
+  aiFeedback?: string;
 };
 
 type FeedbackItem = {
@@ -97,7 +100,7 @@ const MySubmissions = () => {
   const [noSubmissions, setNoSubmissions] = useState(false);
   const [activeTab, setActiveTab] = useState<'all' | 'mode_300' | 'mode_1000'>('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [sortBy, setSortBy] = useState<'date' | 'score'>('date');
+  const [sortBy, setSortBy] = useState<'date' | 'score' | 'feedback'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [feedbackStats, setFeedbackStats] = useState<FeedbackStats>({
     totalSubmissions: 0,
@@ -118,6 +121,7 @@ const MySubmissions = () => {
   const [mode, setMode] = useState<'mode_300' | 'mode_1000'>('mode_300');
   const [isStarted, setIsStarted] = useState(false);
   const [todayFeedbackCount, setTodayFeedbackCount] = useState(0);
+  const [isFeedbackStatsExpanded, setIsFeedbackStatsExpanded] = useState(false);
 
   const canSubmit = useMemo(() => {
     return (
@@ -207,7 +211,8 @@ const MySubmissions = () => {
         const res = await axios.get(
           `${import.meta.env.VITE_API_URL}/api/feedback/today/${user.uid}`
         );
-        setTodayFeedbackCount(res.data.count);
+        setDailyFeedbackCount(res.data.count);
+        console.log('오늘의 피드백 카운트:', res.data.count); // 디버깅용 로그 추가
       } catch (err) {
         logger.error('오늘의 피드백 개수 불러오기 실패:', err);
       }
@@ -257,10 +262,16 @@ const MySubmissions = () => {
         return sortOrder === 'desc'
           ? new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
           : new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-      } else {
+      } else if (sortBy === 'score') {
         return sortOrder === 'desc'
           ? (b.score || 0) - (a.score || 0)
           : (a.score || 0) - (b.score || 0);
+      } else {
+        const feedbackCountA = getFeedbacksForSubmission(a._id).length;
+        const feedbackCountB = getFeedbacksForSubmission(b._id).length;
+        return sortOrder === 'desc'
+          ? feedbackCountB - feedbackCountA
+          : feedbackCountA - feedbackCountB;
       }
     });
 
@@ -301,32 +312,8 @@ const MySubmissions = () => {
         <TokenDisplay />
         <WeeklyProgress className="mb-6" />
 
-        {/* 통계 섹션 */}
-        {isLoading ? (
-          <div className="bg-white rounded-lg shadow-md p-4 mb-6">
-            <div className="animate-pulse space-y-4">
-              <div className="h-8 bg-gray-200 rounded w-1/3"></div>
-              <div className="flex flex-col sm:flex-row gap-4">
-                <div className="flex-1 bg-gray-50 rounded-lg p-4">
-                  <div className="h-6 bg-gray-200 rounded w-1/4 mb-3"></div>
-                  <div className="space-y-3">
-                    <div className="h-6 bg-gray-200 rounded w-3/4"></div>
-                    <div className="h-6 bg-gray-200 rounded w-2/3"></div>
-                    <div className="h-6 bg-gray-200 rounded w-1/2"></div>
-                  </div>
-                </div>
-                <div className="flex-1 bg-gray-50 rounded-lg p-4">
-                  <div className="h-6 bg-gray-200 rounded w-1/4 mb-3"></div>
-                  <div className="space-y-3">
-                    <div className="h-6 bg-gray-200 rounded w-3/4"></div>
-                    <div className="h-6 bg-gray-200 rounded w-2/3"></div>
-                    <div className="h-6 bg-gray-200 rounded w-1/2"></div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        ) : stats ? (
+        {/* 통계 섹션 - 접었다 폈다 가능한 버전 유지 */}
+        {stats && (
           <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
             <div
               className="flex items-center justify-between cursor-pointer"
@@ -335,331 +322,346 @@ const MySubmissions = () => {
               <h2 className="text-lg font-semibold flex items-center gap-2">
                 <span>📊</span> 작성한 글 통계
               </h2>
-              <button className="sm:hidden p-2 hover:bg-gray-50 rounded-full transition-colors">
-                {isStatsExpanded ? '▲' : '▼'}
+              <button className="p-2 hover:bg-gray-50 rounded-full transition-colors">
+                {isStatsExpanded ? '▼' : '▶'}
               </button>
             </div>
 
-            <div className={`${isStatsExpanded ? 'block' : 'hidden'} sm:block mt-6`}>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                {/* 300자 통계 카드 */}
-                <div className="bg-gradient-to-br from-blue-50 to-white rounded-xl p-5 border border-blue-100">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-bold text-blue-900">300자 글쓰기</h3>
-                    <span className="text-sm font-medium text-blue-600 bg-blue-50 px-3 py-1 rounded-full">
-                      총 {stats.mode_300?.count || 0}개
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    {/* 점수 섹션 */}
-                    <div className="text-center p-3 bg-white rounded-lg shadow-sm">
-                      <div className="mb-2">
-                        <div className="inline-block p-2 bg-blue-50 rounded-full">
-                          <span className="text-blue-600 text-xl">
-                            {(stats.mode_300?.averageScore || 0).toFixed(1)}
-                          </span>
-                        </div>
-                      </div>
-                      <p className="text-sm text-gray-600">평균 점수</p>
-                    </div>
-
-                    {/* 최고 점수 섹션 */}
-                    <div className="text-center p-3 bg-white rounded-lg shadow-sm">
-                      <div className="mb-2">
-                        <div className="inline-block p-2 bg-green-50 rounded-full">
-                          <span className="text-green-600 text-xl">
-                            {stats.mode_300?.maxScore || 0}
-                          </span>
-                        </div>
-                      </div>
-                      <p className="text-sm text-gray-600">최고 점수</p>
-                    </div>
-                  </div>
-
-                  {/* 추가 정보 */}
-                  <div className="mt-4 space-y-2">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-gray-600">평균 작성 시간</span>
-                      <span className="font-medium">
-                        {Math.floor((stats.mode_300?.averageDuration || 0) / 60)}분{' '}
-                        {Math.floor((stats.mode_300?.averageDuration || 0) % 60)}초
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-gray-600">최근 작성일</span>
-                      <span className="font-medium">
-                        {stats.mode_300?.recentDate
-                          ? new Date(stats.mode_300.recentDate).toLocaleDateString('ko-KR')
-                          : '-'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 1000자 통계 카드 */}
-                <div className="bg-gradient-to-br from-purple-50 to-white rounded-xl p-5 border border-purple-100">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-bold text-purple-900">1000자 글쓰기</h3>
-                    <span className="text-sm font-medium text-purple-600 bg-purple-50 px-3 py-1 rounded-full">
-                      총 {stats.mode_1000?.count || 0}개
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    {/* 점수 섹션 */}
-                    <div className="text-center p-3 bg-white rounded-lg shadow-sm">
-                      <div className="mb-2">
-                        <div className="inline-block p-2 bg-purple-50 rounded-full">
-                          <span className="text-purple-600 text-xl">
-                            {(stats.mode_1000?.averageScore || 0).toFixed(1)}
-                          </span>
-                        </div>
-                      </div>
-                      <p className="text-sm text-gray-600">평균 점수</p>
-                    </div>
-
-                    {/* 최고 점수 섹션 */}
-                    <div className="text-center p-3 bg-white rounded-lg shadow-sm">
-                      <div className="mb-2">
-                        <div className="inline-block p-2 bg-green-50 rounded-full">
-                          <span className="text-green-600 text-xl">
-                            {stats.mode_1000?.maxScore || 0}
-                          </span>
-                        </div>
-                      </div>
-                      <p className="text-sm text-gray-600">최고 점수</p>
-                    </div>
-                  </div>
-
-                  {/* 추가 정보 */}
-                  <div className="mt-4 space-y-2">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-gray-600">평균 작성 시간</span>
-                      <span className="font-medium">
-                        {Math.floor((stats.mode_1000?.averageDuration || 0) / 60)}분{' '}
-                        {Math.floor((stats.mode_1000?.averageDuration || 0) % 60)}초
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-gray-600">평균 완성 횟수</span>
-                      <span className="font-medium">
-                        {stats.mode_1000?.averageSessionCount || 0}회
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-gray-600">최근 작성일</span>
-                      <span className="font-medium">
-                        {stats.mode_1000?.recentDate
-                          ? new Date(stats.mode_1000.recentDate).toLocaleDateString('ko-KR')
-                          : '-'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* 모바일에서 접혀있을 때 보여주는 간단한 통계 */}
-            <div className={`${!isStatsExpanded ? 'block' : 'hidden'} sm:hidden mt-4`}>
-              <div className="flex justify-between items-center">
-                <div className="text-center p-3 bg-blue-50 rounded-lg">
-                  <p className="text-sm text-blue-900 mb-1">300자</p>
-                  <p className="text-lg font-semibold text-blue-600">
+            {/* 접혀있을 때 보여줄 간단한 요약 */}
+            {!isStatsExpanded && (
+              <div className="mt-4 grid grid-cols-2 gap-4">
+                <div className="bg-blue-50 rounded-lg p-3">
+                  <p className="text-sm text-gray-600">300자 평균</p>
+                  <p className="text-xl font-bold text-blue-600">
                     {(stats.mode_300?.averageScore || 0).toFixed(1)}
-                    <span className="text-sm">점</span>
+                    <span className="text-sm ml-1">점</span>
                   </p>
                 </div>
-                <div className="text-center p-3 bg-purple-50 rounded-lg">
-                  <p className="text-sm text-purple-900 mb-1">1000자</p>
-                  <p className="text-lg font-semibold text-purple-600">
+                <div className="bg-purple-50 rounded-lg p-3">
+                  <p className="text-sm text-gray-600">1000자 평균</p>
+                  <p className="text-xl font-bold text-purple-600">
                     {(stats.mode_1000?.averageScore || 0).toFixed(1)}
-                    <span className="text-sm">점</span>
+                    <span className="text-sm ml-1">점</span>
                   </p>
                 </div>
               </div>
-            </div>
-          </div>
-        ) : null}
+            )}
 
-        {/* 📈 피드백 활동 통계 */}
+            {/* 펼쳐져 있을 때 보여줄 상세 내용 */}
+            {isStatsExpanded && (
+              <div className="mt-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                  {/* 300자 통계 카드 */}
+                  <div className="bg-gradient-to-br from-blue-50 to-white rounded-xl p-5 border border-blue-100">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-bold text-blue-900">300자 글쓰기</h3>
+                      <span className="text-sm font-medium text-blue-600 bg-blue-50 px-3 py-1 rounded-full">
+                        총 {stats.mode_300?.count || 0}개
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      {/* 점수 섹션 */}
+                      <div className="text-center p-3 bg-white rounded-lg shadow-sm">
+                        <div className="mb-2">
+                          <div className="inline-block p-2 bg-blue-50 rounded-full">
+                            <span className="text-blue-600 text-xl">
+                              {(stats.mode_300?.averageScore || 0).toFixed(1)}
+                            </span>
+                          </div>
+                        </div>
+                        <p className="text-sm text-gray-600">평균 점수</p>
+                      </div>
+
+                      {/* 최고 점수 섹션 */}
+                      <div className="text-center p-3 bg-white rounded-lg shadow-sm">
+                        <div className="mb-2">
+                          <div className="inline-block p-2 bg-green-50 rounded-full">
+                            <span className="text-green-600 text-xl">
+                              {stats.mode_300?.maxScore || 0}
+                            </span>
+                          </div>
+                        </div>
+                        <p className="text-sm text-gray-600">최고 점수</p>
+                      </div>
+                    </div>
+
+                    {/* 추가 정보 */}
+                    <div className="mt-4 space-y-2">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-gray-600">평균 작성 시간</span>
+                        <span className="font-medium">
+                          {Math.floor((stats.mode_300?.averageDuration || 0) / 60)}분{' '}
+                          {Math.floor((stats.mode_300?.averageDuration || 0) % 60)}초
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-gray-600">최근 작성일</span>
+                        <span className="font-medium">
+                          {stats.mode_300?.recentDate
+                            ? new Date(stats.mode_300.recentDate).toLocaleDateString('ko-KR')
+                            : '-'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 1000자 통계 카드 */}
+                  <div className="bg-gradient-to-br from-purple-50 to-white rounded-xl p-5 border border-purple-100">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-bold text-purple-900">1000자 글쓰기</h3>
+                      <span className="text-sm font-medium text-purple-600 bg-purple-50 px-3 py-1 rounded-full">
+                        총 {stats.mode_1000?.count || 0}개
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      {/* 점수 섹션 */}
+                      <div className="text-center p-3 bg-white rounded-lg shadow-sm">
+                        <div className="mb-2">
+                          <div className="inline-block p-2 bg-purple-50 rounded-full">
+                            <span className="text-purple-600 text-xl">
+                              {(stats.mode_1000?.averageScore || 0).toFixed(1)}
+                            </span>
+                          </div>
+                        </div>
+                        <p className="text-sm text-gray-600">평균 점수</p>
+                      </div>
+
+                      {/* 최고 점수 섹션 */}
+                      <div className="text-center p-3 bg-white rounded-lg shadow-sm">
+                        <div className="mb-2">
+                          <div className="inline-block p-2 bg-green-50 rounded-full">
+                            <span className="text-green-600 text-xl">
+                              {stats.mode_1000?.maxScore || 0}
+                            </span>
+                          </div>
+                        </div>
+                        <p className="text-sm text-gray-600">최고 점수</p>
+                      </div>
+                    </div>
+
+                    {/* 추가 정보 */}
+                    <div className="mt-4 space-y-2">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-gray-600">평균 작성 시간</span>
+                        <span className="font-medium">
+                          {Math.floor((stats.mode_1000?.averageDuration || 0) / 60)}분{' '}
+                          {Math.floor((stats.mode_1000?.averageDuration || 0) % 60)}초
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-gray-600">평균 완성 횟수</span>
+                        <span className="font-medium">
+                          {stats.mode_1000?.averageSessionCount || 0}회
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-gray-600">최근 작성일</span>
+                        <span className="font-medium">
+                          {stats.mode_1000?.recentDate
+                            ? new Date(stats.mode_1000.recentDate).toLocaleDateString('ko-KR')
+                            : '-'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 피드백 활동 통계 - 개선된 버전 */}
         {feedbackStats && (
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-gray-800">📊 피드백 활동</h2>
-              {/* 기간 선택 필터 추가 */}
-              <select
-                className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
-                onChange={e => setTimeFilter(e.target.value)}
-                defaultValue="all"
-              >
-                <option value="all">전체 기간</option>
-                <option value="week">이번 주</option>
-                <option value="month">이번 달</option>
-                <option value="3months">최근 3개월</option>
-              </select>
-            </div>
-
-            {/* 데스크탑 뷰 - 관계성 있는 지표 그룹화 */}
-            <div className="hidden sm:grid grid-cols-2 gap-4 mb-4">
-              {/* 글 작성 현황 그룹 */}
-              <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4">
-                <h3 className="text-sm font-medium text-gray-600 mb-3">글 작성 현황</h3>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-white/80 rounded-lg p-3">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xl">📝</span>
-                      <div>
-                        <p className="text-2xl font-bold text-blue-600">
-                          {feedbackStats.totalSubmissions}
-                        </p>
-                        <p className="text-xs text-gray-600">작성한 글</p>
-                      </div>
-                    </div>
-                    {/* 전주 대비 증감 표시 */}
-                    <p className="text-xs text-green-600 mt-2">
-                      {weeklyGrowth.submissions >= 0 ? '+' : ''}
-                      {weeklyGrowth.submissions.toFixed(2)} 이번 주
-                      <span className="text-gray-500 ml-1">({weeklyGrowth.thisWeek}건)</span>
-                    </p>
-                  </div>
-                  <div className="bg-white/80 rounded-lg p-3">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xl">🔓</span>
-                      <div>
-                        <p className="text-2xl font-bold text-green-600">
-                          {feedbackStats.unlockedSubmissions}
-                        </p>
-                        <p className="text-xs text-gray-600">언락된 글</p>
-                      </div>
-                    </div>
-                    <div className="mt-2 h-1 bg-gray-200 rounded-full">
-                      <div
-                        className="h-1 bg-green-500 rounded-full"
-                        style={{
-                          width: `${(feedbackStats.unlockedSubmissions / feedbackStats.totalSubmissions) * 100}%`,
-                        }}
-                      ></div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* 피드백 교류 현황 그룹 */}
-              <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-4">
-                <h3 className="text-sm font-medium text-gray-600 mb-3">피드백 교류 현황</h3>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-white/80 rounded-lg p-3">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xl">✍️</span>
-                      <div>
-                        <p className="text-2xl font-bold text-purple-600">
-                          {feedbackStats.feedbackGiven}
-                        </p>
-                        <p className="text-xs text-gray-600">작성한 피드백</p>
-                      </div>
-                    </div>
-                    {/* 일일 목표 달성률 */}
-                    <p className="text-xs text-purple-600 mt-2">오늘 {dailyFeedbackCount}/3 완료</p>
-                  </div>
-                  <div className="bg-white/80 rounded-lg p-3">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xl">💬</span>
-                      <div>
-                        <p className="text-2xl font-bold text-red-600">
-                          {feedbackStats.feedbackReceived}
-                        </p>
-                        <p className="text-xs text-gray-600">받은 피드백</p>
-                      </div>
-                    </div>
-                    <p className="text-xs text-gray-600 mt-2">평균 {averageFeedback}개 피드백</p>
-                  </div>
-                </div>
+            {/* 헤더 섹션 */}
+            <div
+              className="flex items-center justify-between cursor-pointer"
+              onClick={() => setIsFeedbackStatsExpanded(!isFeedbackStatsExpanded)}
+            >
+              <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                <span className="text-xl">💫</span>
+                피드백 활동
+              </h2>
+              <div className="flex items-center gap-2">
+                {isFeedbackStatsExpanded && (
+                  <select
+                    className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm bg-white"
+                    onChange={e =>
+                      setTimeFilter(e.target.value as 'all' | 'week' | 'month' | '3months')
+                    }
+                    defaultValue="all"
+                    onClick={e => e.stopPropagation()}
+                  >
+                    <option value="all">전체 기간</option>
+                    <option value="week">이번 주</option>
+                    <option value="month">이번 달</option>
+                    <option value="3months">최근 3개월</option>
+                  </select>
+                )}
+                <button className="p-2 hover:bg-gray-50 rounded-full transition-colors">
+                  {isFeedbackStatsExpanded ? '▼' : '▶'}
+                </button>
               </div>
             </div>
 
-            {/* 모바일 뷰 - 컴팩트한 카드 형태 유지하되 관계성 표시 */}
-            <div className="sm:hidden space-y-3">
-              {/* 글 작성 현황 그룹 */}
-              <div className="bg-blue-50 rounded-lg p-3">
-                <h3 className="text-xs font-medium text-gray-600 mb-2">글 작성 현황</h3>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="bg-white rounded-lg p-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm">📝</span>
-                      <div>
-                        <p className="text-base font-bold text-blue-600">
-                          {feedbackStats.totalSubmissions}
-                        </p>
-                        <p className="text-xs text-gray-600">작성한 글</p>
-                      </div>
-                    </div>
+            {/* 접혀있을 때의 요약 뷰 */}
+            {!isFeedbackStatsExpanded && (
+              <div className="mt-4">
+                {/* 진행 상태 표시 바 */}
+                <div className="mb-4">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-sm font-medium text-gray-600">오늘의 피드백 진행률</span>
+                    <span className="text-sm font-medium text-blue-600">
+                      {dailyFeedbackCount}/3
+                    </span>
                   </div>
-                  <div className="bg-white rounded-lg p-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm">🔓</span>
-                      <div>
-                        <p className="text-base font-bold text-green-600">
-                          {feedbackStats.unlockedSubmissions}
-                        </p>
-                        <p className="text-xs text-gray-600">언락된 글</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* 피드백 교류 현황 그룹 */}
-              <div className="bg-purple-50 rounded-lg p-3">
-                <h3 className="text-xs font-medium text-gray-600 mb-2">피드백 교류 현황</h3>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="bg-white rounded-lg p-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm">✍️</span>
-                      <div>
-                        <p className="text-base font-bold text-purple-600">
-                          {feedbackStats.feedbackGiven}
-                        </p>
-                        <p className="text-xs text-gray-600">작성한 피드백</p>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="bg-white rounded-lg p-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm">💬</span>
-                      <div>
-                        <p className="text-base font-bold text-red-600">
-                          {feedbackStats.feedbackReceived}
-                        </p>
-                        <p className="text-xs text-gray-600">받은 피드백</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* 전체 활동 요약 - 공통 */}
-            <div className="mt-4 bg-yellow-50 rounded-lg p-3">
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="text-sm font-medium text-gray-600">전체 활동 요약</h3>
-                <span className="text-xs text-gray-500">달성률 {feedbackStats.unlockRate}%</span>
-              </div>
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+                  <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
                     <div
-                      className="h-full bg-gradient-to-r from-yellow-400 to-yellow-500 rounded-full"
-                      style={{ width: `${feedbackStats.unlockRate}%` }}
-                    ></div>
+                      className="h-full bg-gradient-to-r from-blue-500 to-purple-500 transition-all duration-300"
+                      style={{ width: `${Math.min((dailyFeedbackCount / 3) * 100, 100)}%` }}
+                    />
                   </div>
                 </div>
-                <div className="flex justify-between text-xs text-gray-600">
-                  <span>글당 평균 {averageFeedback}개 피드백</span>
-                  <span>일일 피드백 {dailyFeedbackCount}/3</span>
+
+                {/* 핵심 지표 요약 */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-gradient-to-br from-blue-50 to-blue-100/50 rounded-lg p-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-gray-600 mb-1">작성한 피드백</p>
+                        <p className="text-xl font-bold text-blue-600">
+                          {feedbackStats.feedbackGiven}
+                        </p>
+                      </div>
+                      <span className="text-2xl">✍️</span>
+                    </div>
+                  </div>
+                  <div className="bg-gradient-to-br from-purple-50 to-purple-100/50 rounded-lg p-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-gray-600 mb-1">받은 피드백</p>
+                        <p className="text-xl font-bold text-purple-600">
+                          {feedbackStats.feedbackReceived}
+                        </p>
+                      </div>
+                      <span className="text-2xl">💬</span>
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
+
+            {/* 펼쳐졌을 때의 상세 뷰 */}
+            {isFeedbackStatsExpanded && (
+              <div className="mt-6 space-y-6">
+                {/* 데스크탑 뷰 - 피드백 통계 카드 */}
+                <div className="hidden sm:grid grid-cols-2 gap-4">
+                  {/* 글 작성 현황 그룹 */}
+                  <div className="bg-gradient-to-br from-blue-50 via-blue-100/30 to-white rounded-xl p-4">
+                    <h3 className="text-sm font-medium text-gray-600 mb-3">글 작성 현황</h3>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="bg-white/80 backdrop-blur rounded-lg p-3 shadow-sm">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xl">📝</span>
+                          <div>
+                            <p className="text-2xl font-bold text-blue-600">
+                              {feedbackStats.totalSubmissions}
+                            </p>
+                            <p className="text-xs text-gray-600">작성한 글</p>
+                          </div>
+                        </div>
+                        <p className="text-xs text-green-600 mt-2">
+                          {weeklyGrowth.submissions >= 0 ? '+' : ''}
+                          {weeklyGrowth.submissions} 이번 주
+                        </p>
+                      </div>
+                      <div className="bg-white/80 backdrop-blur rounded-lg p-3 shadow-sm">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xl">🔓</span>
+                          <div>
+                            <p className="text-2xl font-bold text-green-600">
+                              {feedbackStats.unlockedSubmissions}
+                            </p>
+                            <p className="text-xs text-gray-600">언락된 글</p>
+                          </div>
+                        </div>
+                        <div className="mt-2 h-1 bg-gray-200 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-green-500 rounded-full"
+                            style={{
+                              width: `${(feedbackStats.unlockedSubmissions / feedbackStats.totalSubmissions) * 100}%`,
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 피드백 교류 현황 그룹 */}
+                  <div className="bg-gradient-to-br from-purple-50 via-purple-100/30 to-white rounded-xl p-4">
+                    <h3 className="text-sm font-medium text-gray-600 mb-3">피드백 교류 현황</h3>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="bg-white/80 backdrop-blur rounded-lg p-3 shadow-sm">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xl">✍️</span>
+                          <div>
+                            <p className="text-2xl font-bold text-purple-600">
+                              {feedbackStats.feedbackGiven}
+                            </p>
+                            <p className="text-xs text-gray-600">작성한 피드백</p>
+                          </div>
+                        </div>
+                        <div className="mt-2 flex items-center gap-1">
+                          <div className="flex-1 h-1 bg-gray-200 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-purple-500 rounded-full"
+                              style={{ width: `${(dailyFeedbackCount / 3) * 100}%` }}
+                            />
+                          </div>
+                          <span className="text-xs text-purple-600">{dailyFeedbackCount}/3</span>
+                        </div>
+                      </div>
+                      <div className="bg-white/80 backdrop-blur rounded-lg p-3 shadow-sm">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xl">💬</span>
+                          <div>
+                            <p className="text-2xl font-bold text-red-600">
+                              {feedbackStats.feedbackReceived}
+                            </p>
+                            <p className="text-xs text-gray-600">받은 피드백</p>
+                          </div>
+                        </div>
+                        <p className="text-xs text-gray-600 mt-2">평균 {averageFeedback}개/글</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 전체 활동 요약 */}
+                <div className="bg-gradient-to-r from-yellow-50 to-orange-50 rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-sm font-medium text-gray-700">전체 활동 요약</h3>
+                    <span className="text-sm text-orange-600 font-medium">
+                      달성률 {feedbackStats.unlockRate}%
+                    </span>
+                  </div>
+                  <div className="space-y-3">
+                    <div className="h-2 bg-gray-200/50 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-yellow-400 to-orange-400 rounded-full"
+                        style={{ width: `${feedbackStats.unlockRate}%` }}
+                      />
+                    </div>
+                    <div className="flex justify-between text-xs text-gray-600">
+                      <span>글당 평균 {averageFeedback}개 피드백</span>
+                      <span>일일 피드백 {dailyFeedbackCount}/3</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -706,7 +708,7 @@ const MySubmissions = () => {
             {filteredSubmissions.map(submission => (
               <SubmissionItem key={submission._id} submission={submission} />
             ))}
-          </div>
+        </div>
         </div> */}
 
         {/* 필터 및 정렬 섹션 */}
@@ -720,6 +722,11 @@ const MySubmissions = () => {
           sortOrder={sortOrder}
           setSortOrder={setSortOrder}
           showSortOptions={true}
+          customSortOptions={[
+            { value: 'date', label: '날짜순' },
+            { value: 'score', label: '점수순' },
+            { value: 'feedback', label: '피드백순' },
+          ]}
         />
 
         {/* 글 목록 */}
@@ -801,14 +808,14 @@ const MySubmissions = () => {
                       </div>
 
                       {/* AI 피드백 */}
-                      {item.feedback && (
+                      {item.aiFeedback && (
                         <div className="p-4 border-t border-gray-100">
                           <div className="flex items-center gap-2 mb-2">
                             <span aria-label="AI">{ICONS.AI}</span>
                             <h4 className="text-sm font-medium text-gray-900">AI 피드백</h4>
                           </div>
-                          <div className="bg-purple-50 rounded-lg p-3">
-                            <p className="text-gray-800">{item.feedback}</p>
+                          <div className="mt-6">
+                            <AIFeedback feedback={item.aiFeedback} />
                           </div>
                         </div>
                       )}
@@ -867,6 +874,7 @@ const MySubmissions = () => {
             )}
           </div>
         )}
+        <ScrollToTop />
       </div>
     </ErrorBoundary>
   );

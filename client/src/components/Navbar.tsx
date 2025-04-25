@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useUser } from '../context/UserContext';
 import { toast } from 'react-hot-toast';
@@ -87,6 +87,18 @@ const Navbar = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { isMenuOpen, isClosing, toggleMenu, closeMenu } = useMenuState();
+  const [scrolled, setScrolled] = useState(false);
+
+  // 스크롤 이벤트 핸들러 추가
+  useEffect(() => {
+    const handleScroll = () => {
+      const isScrolled = window.scrollY > 0;
+      setScrolled(isScrolled);
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   const navItems = useMemo(
     () => [
@@ -135,118 +147,128 @@ const Navbar = () => {
   };
 
   return (
-    <nav className={STYLES.nav.wrapper} role="navigation" aria-label="메인 메뉴">
-      <div className={STYLES.nav.container}>
-        <div className={STYLES.nav.content}>
-          {/* 로고 */}
-          <div className={STYLES.logo.wrapper}>
-            <Link to="/" className="flex items-center">
-              <img
-                src="/images/logo.png"
-                alt="글쓰기 연습 로고"
-                className={STYLES.logo.image}
-                onError={e => {
-                  const target = e.target as HTMLImageElement;
-                  target.style.display = 'none';
-                  target.parentElement!.innerHTML = `<span class="${STYLES.logo.fallback}">글쓰기 연습</span>`;
-                }}
-              />
-            </Link>
+    <>
+      <nav
+        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
+          scrolled ? 'bg-white/90 backdrop-blur-sm shadow-md' : 'bg-white shadow-md'
+        }`}
+        role="navigation"
+        aria-label="메인 메뉴"
+      >
+        <div className={STYLES.nav.container}>
+          <div className={STYLES.nav.content}>
+            {/* 로고 */}
+            <div className={STYLES.logo.wrapper}>
+              <Link to="/" className="flex items-center">
+                <img
+                  src="/images/logo.png"
+                  alt="글쓰기 연습 로고"
+                  className={STYLES.logo.image}
+                  onError={e => {
+                    const target = e.target as HTMLImageElement;
+                    target.style.display = 'none';
+                    target.parentElement!.innerHTML = `<span class="${STYLES.logo.fallback}">글쓰기 연습</span>`;
+                  }}
+                />
+              </Link>
+            </div>
+
+            {/* 데스크톱 메뉴 */}
+            <div className={STYLES.desktop.menu}>
+              <ul className={STYLES.desktop.list}>
+                {navItems.map(item => (
+                  <li key={item.path}>
+                    <NavLink item={item} />
+                  </li>
+                ))}
+              </ul>
+
+              {/* 사용자 메뉴 */}
+              <div className={STYLES.user.wrapper}>
+                {user ? (
+                  <div className="flex items-center space-x-4">
+                    <span className={STYLES.user.name}>{user.displayName}님</span>
+                    <button onClick={handleLogout} className={STYLES.user.button.logout}>
+                      로그아웃
+                    </button>
+                  </div>
+                ) : (
+                  <Link to="/login" className={STYLES.user.button.login}>
+                    로그인
+                  </Link>
+                )}
+              </div>
+            </div>
+
+            {/* 모바일 메뉴 버튼 */}
+            <button
+              onClick={toggleMenu}
+              className={STYLES.mobile.button}
+              aria-label="메뉴 열기"
+              aria-expanded={isMenuOpen}
+              aria-controls="mobile-menu"
+            >
+              <span className="sr-only">메뉴 열기</span>
+              <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                {isMenuOpen ? (
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                ) : (
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M4 6h16M4 12h16M4 18h16"
+                  />
+                )}
+              </svg>
+            </button>
           </div>
+        </div>
 
-          {/* 데스크톱 메뉴 */}
-          <div className={STYLES.desktop.menu}>
-            <ul className={STYLES.desktop.list}>
-              {navItems.map(item => (
-                <li key={item.path}>
-                  <NavLink item={item} />
-                </li>
-              ))}
-            </ul>
+        {/* 모바일 메뉴 */}
+        <div id="mobile-menu" className={STYLES.mobile.menu(isMenuOpen, isClosing)}>
+          <div className="px-2 pt-2 pb-3 space-y-1">
+            {navItems.map(item => (
+              <NavLink key={item.path} item={item} isMobile />
+            ))}
 
-            {/* 사용자 메뉴 */}
-            <div className={STYLES.user.wrapper}>
-              {user ? (
-                <div className="flex items-center space-x-4">
-                  <span className={STYLES.user.name}>{user.displayName}님</span>
-                  <button onClick={handleLogout} className={STYLES.user.button.logout}>
+            {user ? (
+              <div className="pt-4 pb-3 border-t border-gray-200">
+                <div className="px-3">
+                  <div className="text-base font-medium text-gray-800">{user.displayName}님</div>
+                </div>
+                <div className="mt-3">
+                  <button
+                    onClick={() => {
+                      handleLogout();
+                      closeMenu();
+                    }}
+                    className="block w-full text-left px-3 py-2 text-base font-medium text-red-600 hover:bg-red-50 rounded-lg"
+                  >
                     로그아웃
                   </button>
                 </div>
-              ) : (
-                <Link to="/login" className={STYLES.user.button.login}>
-                  로그인
-                </Link>
-              )}
-            </div>
+              </div>
+            ) : (
+              <Link
+                to="/login"
+                onClick={closeMenu}
+                className="block px-3 py-2 text-base font-medium text-blue-600 hover:bg-blue-50 rounded-lg"
+              >
+                로그인
+              </Link>
+            )}
           </div>
-
-          {/* 모바일 메뉴 버튼 */}
-          <button
-            onClick={toggleMenu}
-            className={STYLES.mobile.button}
-            aria-label="메뉴 열기"
-            aria-expanded={isMenuOpen}
-            aria-controls="mobile-menu"
-          >
-            <span className="sr-only">메뉴 열기</span>
-            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              {isMenuOpen ? (
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              ) : (
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M4 6h16M4 12h16M4 18h16"
-                />
-              )}
-            </svg>
-          </button>
         </div>
-      </div>
-
-      {/* 모바일 메뉴 */}
-      <div id="mobile-menu" className={STYLES.mobile.menu(isMenuOpen, isClosing)}>
-        <div className="px-2 pt-2 pb-3 space-y-1">
-          {navItems.map(item => (
-            <NavLink key={item.path} item={item} isMobile />
-          ))}
-
-          {user ? (
-            <div className="pt-4 pb-3 border-t border-gray-200">
-              <div className="px-3">
-                <div className="text-base font-medium text-gray-800">{user.displayName}님</div>
-              </div>
-              <div className="mt-3">
-                <button
-                  onClick={() => {
-                    handleLogout();
-                    closeMenu();
-                  }}
-                  className="block w-full text-left px-3 py-2 text-base font-medium text-red-600 hover:bg-red-50 rounded-lg"
-                >
-                  로그아웃
-                </button>
-              </div>
-            </div>
-          ) : (
-            <Link
-              to="/login"
-              onClick={closeMenu}
-              className="block px-3 py-2 text-base font-medium text-blue-600 hover:bg-blue-50 rounded-lg"
-            >
-              로그인
-            </Link>
-          )}
-        </div>
-      </div>
-    </nav>
+      </nav>
+      {/* 네비게이션 바 높이만큼 여백 추가 */}
+      <div className="h-16"></div>
+    </>
   );
 };
 
