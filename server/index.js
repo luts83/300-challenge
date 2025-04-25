@@ -15,6 +15,7 @@ const writingRoutes = require("./routes/writing");
 const draftRoutes = require("./routes/drafts");
 const recordsRoutes = require("./routes/records"); // 추가
 const streakRoute = require("./routes/streak");
+const logger = require("./utils/logger");
 
 app.use(
   cors({
@@ -45,7 +46,7 @@ mongoose
     console.log("✅ MongoDB 연결 완료");
   })
   .catch((err) => {
-    console.error("❌ MongoDB 연결 실패:", err);
+    logger.error("❌ MongoDB 연결 실패:", err);
   });
 
 // 루트 라우트 (테스트용)

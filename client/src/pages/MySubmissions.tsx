@@ -3,11 +3,12 @@ import React, { useEffect, useState, Component, ErrorInfo, useMemo } from 'react
 import axios from 'axios';
 import { useUser } from '../context/UserContext';
 import { CONFIG } from '../config';
-import FeedbackMissionPanel from '../components/FeedbackMissionPanel';
+// import FeedbackMissionPanel from '../components/FeedbackMissionPanel';
 import { useNavigate, useLocation } from 'react-router-dom';
 import WeeklyProgress from '../components/WeeklyProgress';
 import TokenDisplay from '../components/TokenDisplay';
 import FilterSection from '../components/FilterSection';
+import { logger } from '../utils/logger';
 
 type Submission = {
   _id: string;
@@ -68,7 +69,7 @@ class ErrorBoundary extends Component<{ children: React.ReactNode }, { hasError:
     return { hasError: true };
   }
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('에러 바운더리:', error, errorInfo);
+    logger.error('에러 바운더리:', error, errorInfo);
   }
   render() {
     if (this.state.hasError) {
@@ -141,7 +142,7 @@ const MySubmissions = () => {
     try {
       // ... 제출 로직
     } catch (err) {
-      console.error('제출 실패:', err);
+      logger.error('제출 실패:', err);
       alert('제출에 실패했습니다.');
     }
   };
@@ -164,7 +165,7 @@ const MySubmissions = () => {
           setSubmissions(subRes.data);
         }
       } catch (err) {
-        console.error('📭 작성한 글 조회 실패:', err);
+        logger.error('📭 작성한 글 조회 실패:', err);
         setNoSubmissions(true);
       }
 
@@ -172,7 +173,7 @@ const MySubmissions = () => {
         const statRes = await axios.get(`${import.meta.env.VITE_API_URL}/api/stats/${user.uid}`);
         setStats(statRes.data);
       } catch (err) {
-        console.error('📉 통계 조회 실패:', err);
+        logger.error('📉 통계 조회 실패:', err);
       }
 
       try {
@@ -181,21 +182,16 @@ const MySubmissions = () => {
         );
         setReceivedFeedbackData(fbRes.data);
       } catch (err) {
-        console.error(' 💬피드백 조회 실패:', err);
+        logger.error(' 💬피드백 조회 실패:', err);
       }
 
       try {
         const res = await axios.get(
           `${import.meta.env.VITE_API_URL}/api/feedback/stats/${user.uid}`
         );
-        console.log('피드백 통계:', {
-          총제출: res.data.totalSubmissions,
-          받은피드백: res.data.feedbackReceived,
-          평균: res.data.feedbackReceived / res.data.totalSubmissions,
-        });
         setFeedbackStats(res.data);
       } catch (err) {
-        console.error('📊 피드백 통계 조회 실패:', err);
+        logger.error('📊 피드백 통계 조회 실패:', err);
       }
 
       setIsLoading(false);
@@ -213,7 +209,7 @@ const MySubmissions = () => {
         );
         setTodayFeedbackCount(res.data.count);
       } catch (err) {
-        console.error('오늘의 피드백 개수 불러오기 실패:', err);
+        logger.error('오늘의 피드백 개수 불러오기 실패:', err);
       }
     };
 
@@ -229,7 +225,7 @@ const MySubmissions = () => {
         );
         setWeeklyGrowth(res.data);
       } catch (err) {
-        console.error('📊 주간 성장 통계 조회 실패:', err);
+        logger.error('📊 주간 성장 통계 조회 실패:', err);
       }
     };
 
@@ -336,7 +332,7 @@ const MySubmissions = () => {
               className="flex items-center justify-between cursor-pointer"
               onClick={() => setIsStatsExpanded(!isStatsExpanded)}
             >
-              <h2 className="text-xl font-semibold flex items-center gap-2">
+              <h2 className="text-lg font-semibold flex items-center gap-2">
                 <span>📊</span> 작성한 글 통계
               </h2>
               <button className="sm:hidden p-2 hover:bg-gray-50 rounded-full transition-colors">

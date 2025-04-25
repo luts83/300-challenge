@@ -2,6 +2,7 @@
 const axios = require("axios");
 const Submission = require("../models/Submission");
 const { AI } = require("../config"); // AI 설정 import
+const logger = require("../utils/logger");
 
 const evaluateAI = async (req, res) => {
   const { text, topic, submissionId, mode } = req.body;
@@ -17,11 +18,11 @@ const evaluateAI = async (req, res) => {
   try {
     submission = await Submission.findById(submissionId);
     if (!submission) {
-      console.error(`❌ 제출물을 찾을 수 없음: ID ${submissionId}`);
+      logger.error(`❌ 제출물을 찾을 수 없음: ID ${submissionId}`);
       return res.status(404).json({ message: "제출물을 찾을 수 없습니다." });
     }
   } catch (err) {
-    console.error("❌ 제출물 조회 중 오류:", err);
+    logger.error("❌ 제출물 조회 중 오류:", err);
     return res.status(500).json({ message: "데이터베이스 조회 오류" });
   }
 
@@ -42,7 +43,7 @@ const evaluateAI = async (req, res) => {
       await submission.save();
       console.log(`✅ 기본 점수 저장 완료: ${submission._id}`);
     } catch (err) {
-      console.error("❌ 기본 점수 저장 중 오류:", err);
+      logger.error("❌ 기본 점수 저장 중 오류:", err);
       return res.status(500).json({ message: "데이터베이스 저장 오류" });
     }
 
@@ -90,7 +91,7 @@ const evaluateAI = async (req, res) => {
         .trim();
       parsed = JSON.parse(cleanedContent);
     } catch (parseErr) {
-      console.error("❌ JSON 파싱 실패:", parseErr, "원본:", content);
+      logger.error("❌ JSON 파싱 실패:", parseErr, "원본:", content);
       // 응급 복구: 정규식으로 score와 feedback 추출 시도
       const scoreMatch = content.match(/"score"\s*:\s*(\d+)/);
       const feedbackMatch = content.match(/"feedback"\s*:\s*"([^"]+)"/);
@@ -130,13 +131,13 @@ const evaluateAI = async (req, res) => {
         `✅ AI 평가 저장 성공: ${submissionId}, 점수: ${parsed.score}`
       );
     } catch (saveErr) {
-      console.error("❌ 데이터베이스 저장 중 오류:", saveErr);
+      logger.error("❌ 데이터베이스 저장 중 오류:", saveErr);
       return res.status(500).json({ message: "데이터베이스 저장 오류" });
     }
 
     res.json(parsed);
   } catch (err) {
-    console.error("❌ AI 평가 실패:", err.response?.data || err.message || err);
+    logger.error("❌ AI 평가 실패:", err.response?.data || err.message || err);
 
     // 기본값 저장 시도
     try {
@@ -146,7 +147,7 @@ const evaluateAI = async (req, res) => {
       await submission.save();
       console.log(`⚠️ 오류 발생으로 기본 점수 저장: ${submissionId}`);
     } catch (saveErr) {
-      console.error("❌ 기본값 저장 중 오류:", saveErr);
+      logger.error("❌ 기본값 저장 중 오류:", saveErr);
     }
 
     res.status(500).json({

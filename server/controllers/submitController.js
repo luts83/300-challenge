@@ -48,7 +48,7 @@ const unlockFeedback = async (req, res) => {
 
     return res.status(200).json({ message: "피드백 열람이 해제되었습니다." });
   } catch (error) {
-    console.error("❌ feedbackUnlocked 업데이트 오류:", error);
+    logger.error("❌ feedbackUnlocked 업데이트 오류:", error);
     return res.status(500).json({ message: "서버 오류입니다." });
   }
 };
@@ -228,7 +228,7 @@ const handleSubmit = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("❌ 서버 오류:", error);
+    logger.error("❌ 서버 오류:", error);
     return res.status(500).json({
       success: false,
       message: "서버 오류가 발생했습니다.",
@@ -286,12 +286,12 @@ function isNewWeek(lastDate, currentDate) {
 
 // 전역 에러 핸들러 추가
 process.on("unhandledRejection", (error) => {
-  console.error("Unhandled Promise Rejection:", error);
+  logger.error("Unhandled Promise Rejection:", error);
 });
 
 // 에러 응답 표준화
 const handleError = (res, error) => {
-  console.error("서버 오류:", error);
+  logger.error("서버 오류:", error);
   return res.status(500).json({
     message: "서버 오류가 발생했습니다.",
     error: process.env.NODE_ENV === "development" ? error.message : undefined,

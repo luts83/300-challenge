@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useUser } from '../context/UserContext';
+import { toast } from 'react-hot-toast';
 
 interface TokenData {
   tokens_300: number;
@@ -22,15 +23,13 @@ const TokenDisplay = () => {
 
   const fetchTokens = async () => {
     if (!user) return;
+
     try {
       setLoading(true);
-      console.log('토큰 정보 요청 시작:', user.uid);
       const response = await axios.get<TokenData>(
         `${import.meta.env.VITE_API_URL}/api/tokens/${user.uid}`
       );
-      console.log('받은 토큰 데이터:', response.data);
 
-      // 명시적으로 각 필드를 설정
       setTokens({
         tokens_300: Number(response.data.tokens_300) || 0,
         tokens_1000: Number(response.data.tokens_1000) || 0,
@@ -38,24 +37,45 @@ const TokenDisplay = () => {
       });
       setError(null);
     } catch (error) {
-      console.error('토큰 정보 조회 실패:', error);
-      setError('토큰 정보를 불러오는데 실패했습니다.');
+      const errorMessage = '토큰 정보를 불러오는데 실패했습니다.';
+      setError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
   };
 
+  // 컴포넌트 마운트 시 한 번만 실행
   useEffect(() => {
     fetchTokens();
-
-    // 1분마다 토큰 정보 갱신
-    const interval = setInterval(fetchTokens, 180000);
-    return () => clearInterval(interval);
   }, [user]);
+
+  // 새로고침 버튼 컴포넌트
+  const RefreshButton = () => (
+    <button
+      onClick={fetchTokens}
+      disabled={loading}
+      className="absolute top-4 right-4 p-2 text-gray-500 hover:text-gray-700 transition-colors"
+      aria-label="토큰 정보 새로고침"
+    >
+      <svg
+        className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`}
+        fill="none"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+      >
+        <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+      </svg>
+    </button>
+  );
 
   if (loading) {
     return (
-      <div className="bg-white rounded-lg p-4 shadow-md mb-6">
+      <div className="bg-white rounded-lg p-4 shadow-md mb-6 relative">
+        <RefreshButton />
         <h3 className="text-lg font-semibold mb-3">보유 토큰</h3>
         <div className="grid grid-cols-3 gap-4">
           {[1, 2, 3].map(i => (
@@ -71,14 +91,16 @@ const TokenDisplay = () => {
 
   if (error) {
     return (
-      <div className="bg-white rounded-lg p-4 shadow-md mb-6">
+      <div className="bg-white rounded-lg p-4 shadow-md mb-6 relative">
+        <RefreshButton />
         <div className="text-red-500 text-center">{error}</div>
       </div>
     );
   }
 
   return (
-    <div className="bg-white rounded-lg p-4 shadow-md mb-6">
+    <div className="bg-white rounded-lg p-4 shadow-md mb-6 relative">
+      <RefreshButton />
       <h3 className="text-lg font-semibold mb-3">보유 토큰</h3>
       <div className="grid grid-cols-3 gap-4">
         <div className="text-center p-3 bg-blue-50 rounded-lg">

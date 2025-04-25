@@ -3,27 +3,90 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useUser } from '../context/UserContext';
 import { toast } from 'react-hot-toast';
 
+// 스타일 상수
+const STYLES = {
+  nav: {
+    wrapper: 'bg-white shadow-md',
+    container: 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8',
+    content: 'flex justify-between h-16',
+  },
+  logo: {
+    wrapper: 'flex-shrink-0 flex items-center',
+    image:
+      'h-12 w-auto transition-transform duration-300 hover:scale-110 hover:rotate-3 active:scale-90 active:rotate-0',
+    fallback:
+      'text-xl font-bold text-gray-800 transition-transform duration-300 hover:scale-110 hover:rotate-3 active:scale-95 active:rotate-0',
+  },
+  desktop: {
+    menu: 'hidden sm:flex sm:items-center sm:space-x-4 md:space-x-6',
+    list: 'flex space-x-4 md:space-x-6',
+    link: (isActive: boolean) => `
+      flex items-center space-x-2 px-3 py-2 rounded-lg transition-all duration-200
+      ${isActive ? 'bg-blue-500 text-white shadow-sm' : 'text-gray-700 hover:bg-gray-100'}
+    `,
+  },
+  mobile: {
+    button:
+      'sm:hidden p-2 rounded-lg hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500',
+    menu: (isOpen: boolean, isClosing: boolean) => `
+      sm:hidden transition-all duration-300 ease-in-out
+      ${
+        isOpen
+          ? 'opacity-100 max-h-screen pointer-events-auto'
+          : 'opacity-0 max-h-0 pointer-events-none'
+      }
+      ${isClosing ? 'transition-opacity duration-300 opacity-0' : ''}
+    `,
+    link: (isActive: boolean) => `
+      block px-3 py-2 rounded-lg text-base font-medium
+      ${isActive ? 'bg-blue-500 text-white' : 'text-gray-700 hover:bg-gray-100'}
+    `,
+  },
+  user: {
+    wrapper: 'ml-4 flex items-center',
+    name: 'text-gray-700',
+    button: {
+      login:
+        'px-4 py-2 text-sm font-medium text-white bg-blue-500 rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200',
+      logout:
+        'px-4 py-2 text-sm font-medium text-white bg-red-500 rounded-lg hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors duration-200',
+    },
+  },
+} as const;
+
 // 커스텀 훅: 메뉴 상태 관리
 const useMenuState = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isClosing, setIsClosing] = useState(false);
 
   const toggleMenu = useCallback(() => {
-    setIsMenuOpen(prev => !prev);
-  }, []);
+    if (isMenuOpen) {
+      setIsClosing(true);
+      setTimeout(() => {
+        setIsMenuOpen(false);
+        setIsClosing(false);
+      }, 300);
+    } else {
+      setIsMenuOpen(true);
+    }
+  }, [isMenuOpen]);
 
   const closeMenu = useCallback(() => {
-    setIsMenuOpen(false);
+    setIsClosing(true);
+    setTimeout(() => {
+      setIsMenuOpen(false);
+      setIsClosing(false);
+    }, 300);
   }, []);
 
-  return { isMenuOpen, toggleMenu, closeMenu };
+  return { isMenuOpen, isClosing, toggleMenu, closeMenu };
 };
 
 const Navbar = () => {
   const { user, logout } = useUser();
   const navigate = useNavigate();
   const location = useLocation();
-  const { isMenuOpen, toggleMenu, closeMenu } = useMenuState();
-  const [error, setError] = useState<string | null>(null);
+  const { isMenuOpen, isClosing, toggleMenu, closeMenu } = useMenuState();
 
   const navItems = useMemo(
     () => [
@@ -41,72 +104,77 @@ const Navbar = () => {
         navigate('/');
         toast.success('로그아웃 되었습니다');
       } catch (error) {
-        console.error('로그아웃 실패:', error);
-        setError('로그아웃 중 문제가 발생했습니다. 다시 시도해주세요.');
         toast.error('로그아웃에 실패했습니다');
       }
     }
   }, [logout, navigate]);
 
+  const NavLink = ({
+    item,
+    isMobile = false,
+  }: {
+    item: (typeof navItems)[0];
+    isMobile?: boolean;
+  }) => {
+    const isActive = location.pathname === item.path;
+    const className = isMobile ? STYLES.mobile.link(isActive) : STYLES.desktop.link(isActive);
+
+    return (
+      <Link
+        to={item.path}
+        onClick={isMobile ? closeMenu : undefined}
+        className={className}
+        aria-current={isActive ? 'page' : undefined}
+      >
+        <span className="flex items-center">
+          <span className={isMobile ? 'mr-2' : ''}>{item.icon}</span>
+          <span>{item.label}</span>
+        </span>
+      </Link>
+    );
+  };
+
   return (
-    <nav className="bg-white shadow-md" role="navigation" aria-label="메인 메뉴">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between h-16">
+    <nav className={STYLES.nav.wrapper} role="navigation" aria-label="메인 메뉴">
+      <div className={STYLES.nav.container}>
+        <div className={STYLES.nav.content}>
           {/* 로고 */}
-          <div className="flex-shrink-0 flex items-center">
+          <div className={STYLES.logo.wrapper}>
             <Link to="/" className="flex items-center">
               <img
                 src="/images/logo.png"
                 alt="글쓰기 연습 로고"
-                className="h-12 w-auto transition-transform duration-300 hover:scale-110 hover:rotate-3 active:scale-90 active:rotate-0"
+                className={STYLES.logo.image}
                 onError={e => {
                   const target = e.target as HTMLImageElement;
                   target.style.display = 'none';
-                  target.parentElement!.innerHTML =
-                    '<span class="text-xl font-bold text-gray-800 transition-transform duration-300 hover:scale-110 hover:rotate-3 active:scale-95 active:rotate-0">글쓰기 연습</span>';
+                  target.parentElement!.innerHTML = `<span class="${STYLES.logo.fallback}">글쓰기 연습</span>`;
                 }}
               />
             </Link>
           </div>
 
           {/* 데스크톱 메뉴 */}
-          <div className="hidden sm:flex sm:items-center sm:space-x-4 md:space-x-6">
-            <ul className="flex space-x-4 md:space-x-6">
+          <div className={STYLES.desktop.menu}>
+            <ul className={STYLES.desktop.list}>
               {navItems.map(item => (
                 <li key={item.path}>
-                  <Link
-                    to={item.path}
-                    className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-all duration-200 ${
-                      location.pathname === item.path
-                        ? 'bg-blue-500 text-white shadow-sm'
-                        : 'text-gray-700 hover:bg-gray-100'
-                    }`}
-                    aria-current={location.pathname === item.path ? 'page' : undefined}
-                  >
-                    <span>{item.icon}</span>
-                    <span>{item.label}</span>
-                  </Link>
+                  <NavLink item={item} />
                 </li>
               ))}
             </ul>
 
             {/* 사용자 메뉴 */}
-            <div className="ml-4 flex items-center">
+            <div className={STYLES.user.wrapper}>
               {user ? (
                 <div className="flex items-center space-x-4">
-                  <span className="text-gray-700">{user.displayName}님</span>
-                  <button
-                    onClick={handleLogout}
-                    className="px-4 py-2 text-sm font-medium text-white bg-red-500 rounded-lg hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors duration-200"
-                  >
+                  <span className={STYLES.user.name}>{user.displayName}님</span>
+                  <button onClick={handleLogout} className={STYLES.user.button.logout}>
                     로그아웃
                   </button>
                 </div>
               ) : (
-                <Link
-                  to="/login"
-                  className="px-4 py-2 text-sm font-medium text-white bg-blue-500 rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors duration-200"
-                >
+                <Link to="/login" className={STYLES.user.button.login}>
                   로그인
                 </Link>
               )}
@@ -114,62 +182,40 @@ const Navbar = () => {
           </div>
 
           {/* 모바일 메뉴 버튼 */}
-          <div className="sm:hidden flex items-center">
-            <button
-              onClick={toggleMenu}
-              className="p-2 rounded-lg hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              aria-label="메뉴 열기"
-              aria-expanded={isMenuOpen}
-              aria-controls="mobile-menu"
-            >
-              <span className="sr-only">메뉴 열기</span>
-              <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                {isMenuOpen ? (
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M6 18L18 6M6 6l12 12"
-                  />
-                ) : (
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M4 6h16M4 12h16M4 18h16"
-                  />
-                )}
-              </svg>
-            </button>
-          </div>
+          <button
+            onClick={toggleMenu}
+            className={STYLES.mobile.button}
+            aria-label="메뉴 열기"
+            aria-expanded={isMenuOpen}
+            aria-controls="mobile-menu"
+          >
+            <span className="sr-only">메뉴 열기</span>
+            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              {isMenuOpen ? (
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              ) : (
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M4 6h16M4 12h16M4 18h16"
+                />
+              )}
+            </svg>
+          </button>
         </div>
       </div>
 
       {/* 모바일 메뉴 */}
-      <div
-        id="mobile-menu"
-        className={`sm:hidden transition-all duration-300 ease-in-out
-    ${isMenuOpen ? 'opacity-100 max-h-screen pointer-events-auto' : 'opacity-0 max-h-0 pointer-events-none'}
-  `}
-      >
+      <div id="mobile-menu" className={STYLES.mobile.menu(isMenuOpen, isClosing)}>
         <div className="px-2 pt-2 pb-3 space-y-1">
           {navItems.map(item => (
-            <Link
-              key={item.path}
-              to={item.path}
-              onClick={closeMenu}
-              className={`block px-3 py-2 rounded-lg text-base font-medium ${
-                location.pathname === item.path
-                  ? 'bg-blue-500 text-white'
-                  : 'text-gray-700 hover:bg-gray-100'
-              }`}
-              aria-current={location.pathname === item.path ? 'page' : undefined}
-            >
-              <span className="flex items-center">
-                <span className="mr-2">{item.icon}</span>
-                {item.label}
-              </span>
-            </Link>
+            <NavLink key={item.path} item={item} isMobile />
           ))}
 
           {user ? (
@@ -181,7 +227,7 @@ const Navbar = () => {
                 <button
                   onClick={() => {
                     handleLogout();
-                    closeMenu(); // 로그아웃 시도 시 메뉴도 닫음
+                    closeMenu();
                   }}
                   className="block w-full text-left px-3 py-2 text-base font-medium text-red-600 hover:bg-red-50 rounded-lg"
                 >
@@ -200,26 +246,6 @@ const Navbar = () => {
           )}
         </div>
       </div>
-
-      {/* 에러 메시지 */}
-      {error && (
-        <div className="bg-red-50 border-l-4 border-red-500 p-4">
-          <div className="flex">
-            <div className="flex-shrink-0">
-              <svg className="h-5 w-5 text-red-500" viewBox="0 0 20 20" fill="currentColor">
-                <path
-                  fillRule="evenodd"
-                  d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
-                  clipRule="evenodd"
-                />
-              </svg>
-            </div>
-            <div className="ml-3">
-              <p className="text-sm text-red-700">{error}</p>
-            </div>
-          </div>
-        </div>
-      )}
     </nav>
   );
 };

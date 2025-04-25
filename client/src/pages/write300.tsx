@@ -120,7 +120,6 @@ const Write300 = () => {
           displayName: user.displayName || '익명',
         },
       });
-      console.log('📦 제출 응답:', res.data);
 
       const submissionId = res.data.data.submissionId;
 
@@ -140,7 +139,7 @@ const Write300 = () => {
           setScore(aiRes.data.score ?? CONFIG.AI.DEFAULT_SCORE);
           setFeedback(aiRes.data.feedback || 'AI 피드백을 불러오지 못했습니다.');
         } catch (aiError) {
-          console.error('AI 평가 중 오류 발생:', aiError);
+          logger.error('AI 평가 중 오류 발생:', aiError);
           setScore(CONFIG.AI.DEFAULT_SCORE);
           setFeedback('AI 평가에 일시적인 문제가 발생했습니다. 기본 점수가 부여됩니다.');
         }
@@ -155,7 +154,7 @@ const Write300 = () => {
       // 제출 완료 처리
       handleSubmitComplete(res, score, feedback);
     } catch (err) {
-      console.error('제출 중 오류 발생:', err.response?.data || err);
+      logger.error('제출 중 오류 발생:', err.response?.data || err);
       alert('오류가 발생했습니다: ' + (err.response?.data?.message || err.message));
       setSubmissionState('idle');
       setSubmissionProgress('');
@@ -174,7 +173,7 @@ const Write300 = () => {
 
       if (remaining <= 0) {
         clearInterval(interval);
-        console.log('시간 만료: 자동 제출 실행');
+
         // setTimeout으로 약간의 지연을 주어 상태 업데이트가 완료되도록 함
         setTimeout(() => {
           handleSubmit(true); // 강제 제출
@@ -195,7 +194,7 @@ const Write300 = () => {
         );
         setTokens(res.data.tokens_300);
       } catch (err) {
-        console.error('토큰 불러오기 실패:', err);
+        logger.error('토큰 불러오기 실패:', err);
         setTokens(0);
       }
     };
@@ -208,7 +207,7 @@ const Write300 = () => {
         );
         setDailyTopic(res.data.topic);
       } catch (err) {
-        console.error('주제 불러오기 실패:', err);
+        logger.error('주제 불러오기 실패:', err);
       }
     };
 
@@ -279,7 +278,12 @@ const Write300 = () => {
 
         {/* 타이머 및 버튼 영역 */}
         <div className="flex justify-between items-center">
-          <Timer remainingTime={remainingTime} isActive={isStarted} />
+          <Timer
+            remainingTime={remainingTime}
+            isActive={isStarted}
+            mode="300"
+            onTimeUp={() => handleSubmit(true)}
+          />
           <div className="space-x-2">
             <button
               onClick={() => {

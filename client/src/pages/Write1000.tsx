@@ -3,6 +3,7 @@ import axios from 'axios';
 import { useUser } from '../context/UserContext';
 import { CONFIG } from '../config';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { logger } from '../utils/logger';
 
 const AUTOSAVE_INTERVAL = 60_000; // 10초
 const INACTIVITY_THRESHOLD = 600_000; // 10분 (600초)
@@ -107,33 +108,18 @@ const Write1000 = () => {
 
   const fetchDraft = async () => {
     if (!user) {
-      console.log('No user found, skipping draft fetch');
       return;
     }
 
     try {
-      console.log('Fetching draft for user:', user.uid);
       const res = await axiosInstance.get(`/api/drafts/${user.uid}`);
-      console.log('Draft fetch response:', res.data);
 
       const draft = res.data;
 
       // 디버깅을 위한 상세 로깅 추가
-      console.log('Draft content check:', {
-        title: draft.title,
-        titleType: typeof draft.title,
-        titleLength: draft.title?.length,
-        text: draft.text,
-        textType: typeof draft.text,
-        textLength: draft.text?.length,
-        sessionCount: draft.sessionCount,
-        totalDuration: draft.totalDuration,
-        resetCount: draft.resetCount,
-      });
 
       // 초기화 후에는 데이터를 불러오지 않음
       if (draft.resetCount > 0 && !draft.text && !draft.title) {
-        console.log('Draft has been reset and is empty, clearing local state');
         setText('');
         setTitle('');
         setSessionCount(0);
@@ -151,17 +137,10 @@ const Write1000 = () => {
       setLastSavedAt(draft.lastSavedAt ? Number(draft.lastSavedAt) : null);
       setIsStarted(false);
       setIsPageReentered(true);
-
-      console.log('Draft loaded successfully:', {
-        title: draft.title,
-        textLength: draft.text?.length,
-        sessionCount: draft.sessionCount,
-        totalDuration: draft.totalDuration,
-      });
     } catch (err) {
-      console.error('📭 초안 불러오기 실패:', err);
+      logger.error('📭 초안 불러오기 실패:', err);
       if (err.response) {
-        console.error('서버 응답:', err.response.data);
+        logger.error('서버 응답:', err.response.data);
       }
       setIsPageReentered(true);
     }
@@ -182,19 +161,6 @@ const Write1000 = () => {
     const updatedTotalDuration = totalDuration + currentDuration;
 
     try {
-      console.log('Saving draft with data:', {
-        uid: user.uid,
-        title,
-        titleLength: title.length,
-        text,
-        textLength: text.length,
-        sessionCount,
-        totalDuration: updatedTotalDuration,
-        resetCount,
-        lastInputTime: lastInputTime || Date.now(),
-        lastSavedAt: Date.now(),
-      });
-
       const response = await axiosInstance.post('/api/drafts/save', {
         uid: user.uid,
         title: title || '',
@@ -206,16 +172,14 @@ const Write1000 = () => {
         lastSavedAt: Date.now(),
       });
 
-      console.log('Save response:', response.data);
-
       setTotalDuration(updatedTotalDuration);
       setLastSavedAt(Date.now());
       setSaveMessage('✨ 초안이 자동 저장되었습니다!');
       setTimeout(() => setSaveMessage(null), 3000);
     } catch (err) {
-      console.error('❌ 초안 저장 실패:', err);
+      logger.error('❌ 초안 저장 실패:', err);
       if (err.response) {
-        console.error('서버 응답:', err.response.data);
+        logger.error('서버 응답:', err.response.data);
       }
       setSaveMessage('❌ 초안 저장에 실패했습니다.');
       setTimeout(() => setSaveMessage(null), 3000);
@@ -227,7 +191,7 @@ const Write1000 = () => {
     try {
       await axios.delete(`${import.meta.env.VITE_API_URL}/api/drafts/${user.uid}`);
     } catch (err) {
-      console.error('❌ 초안 삭제 실패:', err);
+      logger.error('❌ 초안 삭제 실패:', err);
     }
   };
 
@@ -241,7 +205,7 @@ const Write1000 = () => {
       setTokens(res.data.tokens);
       setIsTokensLoading(false);
     } catch (err) {
-      console.error('❌ 토큰 업데이트 실패:', err);
+      logger.error('❌ 토큰 업데이트 실패:', err);
       setTokens(0);
       setIsTokensLoading(false);
     }
@@ -297,7 +261,7 @@ const Write1000 = () => {
       alert('초기화되었습니다! 다시 글쓰기를 시작할 수 있습니다.');
     } catch (error) {
       const errorMessage = handleApiError(error, '초기화 중 오류가 발생했습니다');
-      console.error('초기화 실패:', errorMessage);
+      logger.error('초기화 실패:', errorMessage);
       alert(`초기화 실패: ${errorMessage}`);
     }
   };
@@ -390,7 +354,7 @@ const Write1000 = () => {
           score = aiRes.data.score;
           feedback = aiRes.data.feedback;
         } catch (aiError) {
-          console.error('AI 평가 중 오류 발생:', aiError);
+          logger.error('AI 평가 중 오류 발생:', aiError);
           score = CONFIG.AI.DEFAULT_SCORE;
           feedback = 'AI 평가에 문제가 발생했습니다. 기본 점수가 부여됩니다.';
         }
@@ -415,7 +379,7 @@ const Write1000 = () => {
       handleSubmitComplete(res, score, feedback);
     } catch (error) {
       const errorMessage = error.response?.data?.message || '알 수 없는 오류가 발생했습니다.';
-      console.error('제출 실패:', errorMessage);
+      logger.error('제출 실패:', errorMessage);
       setSubmissionState('idle');
       setSubmissionProgress('');
       alert(`제출 실패: ${errorMessage}`);
@@ -430,7 +394,7 @@ const Write1000 = () => {
       const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/topic/today?mode=mode_1000`);
       setDailyTopic(res.data.topic);
     } catch (err) {
-      console.error('주제 불러오기 실패:', err);
+      logger.error('주제 불러오기 실패:', err);
     }
   };
 
@@ -441,11 +405,11 @@ const Write1000 = () => {
         `${import.meta.env.VITE_API_URL}/api/tokens/${user.uid}?mode=mode_1000`
       );
       const tokenValue = res.data.tokens_1000;
-      console.log('Fetched tokens:', tokenValue);
+
       setTokens(typeof tokenValue === 'number' ? tokenValue : 0);
       setIsTokensLoading(false);
     } catch (err) {
-      console.error('토큰 불러오기 실패:', err);
+      logger.error('토큰 불러오기 실패:', err);
       setTokens(0);
       setIsTokensLoading(false);
     }
@@ -505,12 +469,10 @@ const Write1000 = () => {
   // 최초 시작 감지 후 startTime 보장용 useEffect
 
   useEffect(() => {
-    console.log('Timer useEffect triggered', startTime); // 추가
     if (!startTime) return;
 
     timerRef.current = setInterval(() => {
       setDurationNow(Math.floor((Date.now() - startTime) / 1000));
-      // console.log('durationNow updated:', durationNow); // 필요시 추가
     }, 1000);
 
     return () => {
@@ -519,14 +481,12 @@ const Write1000 = () => {
   }, [startTime]);
 
   useEffect(() => {
-    console.log('Component mounted'); // 추가
     fetchDraft();
     fetchTopic();
     fetchTokens();
     fetchBestRecord();
 
     return () => {
-      console.log('Component unmounted, saving draft'); // 추가
       if (timerRef.current) clearInterval(timerRef.current);
       if (autosaveRef.current) clearInterval(autosaveRef.current);
       if (inactivityRef.current) clearInterval(inactivityRef.current);

@@ -2,6 +2,40 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useUser } from '../context/UserContext';
+import { toast } from 'react-hot-toast';
+
+// 상수 정의
+const CELEBRATION_DURATION = 5000; // 축하 화면 표시 시간 (5초)
+const DAYS = ['월', '화', '수', '목', '금'] as const;
+const TOTAL_DAYS = DAYS.length;
+
+// 스타일 상수
+const STYLES = {
+  container: 'bg-white rounded-lg p-4 shadow-md',
+  header: {
+    wrapper: 'flex items-center justify-between mb-3',
+    title: 'text-lg font-semibold',
+    counter: 'text-sm text-gray-500',
+  },
+  daysGrid: 'grid grid-cols-5 gap-4',
+  dayItem: {
+    base: 'flex flex-col items-center p-3 rounded-lg transition-all transform hover:shadow-md',
+    completed: 'bg-green-100 text-green-800 scale-105',
+    incomplete: 'bg-gray-50 text-gray-500',
+    label: 'text-sm font-medium mb-1',
+    icon: 'text-xl',
+  },
+  remainingMessage: 'mt-4 text-center text-sm text-gray-600',
+  celebration: {
+    overlay: 'fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50',
+    modal: 'bg-white rounded-lg p-8 text-center transform shadow-xl max-w-md mx-4',
+    emoji: 'text-4xl mb-4',
+    title: 'text-2xl font-bold mb-4',
+    message: 'text-lg mb-4',
+    bonus: 'text-blue-600 font-semibold mb-6',
+    button: 'px-6 py-2 bg-blue-500 text-white rounded-full hover:bg-blue-600 transition-colors',
+  },
+} as const;
 
 interface WeeklyProgressProps {
   className?: string;
@@ -15,9 +49,20 @@ interface StreakData {
 
 const WeeklyProgress: React.FC<WeeklyProgressProps> = ({ className = '' }) => {
   const { user } = useUser();
-  const [progress, setProgress] = useState<boolean[]>([false, false, false, false, false]);
+  const [progress, setProgress] = useState<boolean[]>(Array(TOTAL_DAYS).fill(false));
   const [showCelebration, setShowCelebration] = useState(false);
-  const days = ['월', '화', '수', '목', '금'];
+
+  const handleStreakCompletion = async () => {
+    if (!user) return;
+    try {
+      await axios.post(`${import.meta.env.VITE_API_URL}/api/streak/celebration/${user.uid}`);
+      setTimeout(() => {
+        setShowCelebration(false);
+      }, CELEBRATION_DURATION);
+    } catch (error) {
+      toast.error('축하 상태 업데이트에 실패했습니다.');
+    }
+  };
 
   useEffect(() => {
     const fetchStreak = async () => {
@@ -29,72 +74,63 @@ const WeeklyProgress: React.FC<WeeklyProgressProps> = ({ className = '' }) => {
         const { weeklyProgress, celebrationShown } = response.data;
         setProgress(weeklyProgress);
 
-        // 모든 요일이 완료되었고 아직 celebration이 표시되지 않은 경우에만 축하화면 표시
         const allCompleted = weeklyProgress.every(Boolean);
         if (allCompleted && !celebrationShown) {
           setShowCelebration(true);
-          // 서버에 celebration 상태 업데이트
-          await axios.post(`${import.meta.env.VITE_API_URL}/api/streak/celebration/${user.uid}`);
-
-          // 5초 후에 자동으로 축하 화면 닫기
-          setTimeout(() => {
-            setShowCelebration(false);
-          }, 5000);
+          handleStreakCompletion();
         }
       } catch (error) {
-        console.error('연속 작성 현황 조회 실패:', error);
+        toast.error('연속 작성 현황 조회에 실패했습니다.');
       }
     };
 
     fetchStreak();
   }, [user]);
 
+  const completedDays = progress.filter(Boolean).length;
+  const remainingDays = TOTAL_DAYS - completedDays;
+
   return (
     <>
       {showCelebration && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-          <div className="bg-white rounded-lg p-8 text-center transform shadow-xl max-w-md mx-4">
-            <div className="text-4xl mb-4">🎉</div>
-            <h2 className="text-2xl font-bold mb-4">축하합니다!</h2>
-            <p className="text-lg mb-4">이번 주 연속 작성 목표를 달성하셨어요!</p>
-            <div className="text-blue-600 font-semibold mb-6">
-              보너스 토큰 1개가 지급되었습니다! ✨
-            </div>
-            <button
-              onClick={() => setShowCelebration(false)}
-              className="px-6 py-2 bg-blue-500 text-white rounded-full hover:bg-blue-600 transition-colors"
-            >
+        <div className={STYLES.celebration.overlay}>
+          <div className={STYLES.celebration.modal}>
+            <div className={STYLES.celebration.emoji}>🎉</div>
+            <h2 className={STYLES.celebration.title}>축하합니다!</h2>
+            <p className={STYLES.celebration.message}>이번 주 연속 작성 목표를 달성하셨어요!</p>
+            <div className={STYLES.celebration.bonus}>보너스 토큰 1개가 지급되었습니다! ✨</div>
+            <button onClick={() => setShowCelebration(false)} className={STYLES.celebration.button}>
               확인
             </button>
           </div>
         </div>
       )}
 
-      <div className={`bg-white rounded-lg p-4 shadow-md ${className}`}>
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-lg font-semibold">이번 주 작성 현황</h3>
-          <div className="text-sm text-gray-500">{progress.filter(Boolean).length}/5일</div>
+      <div className={`${STYLES.container} ${className}`}>
+        <div className={STYLES.header.wrapper}>
+          <h3 className={STYLES.header.title}>이번 주 작성 현황</h3>
+          <div className={STYLES.header.counter}>
+            {completedDays}/{TOTAL_DAYS}일
+          </div>
         </div>
-        <div className="grid grid-cols-5 gap-4">
-          {days.map((day, index) => (
+
+        <div className={STYLES.daysGrid}>
+          {DAYS.map((day, index) => (
             <div
               key={day}
-              className={`flex flex-col items-center p-3 rounded-lg transition-all transform
-                ${
-                  progress[index]
-                    ? 'bg-green-100 text-green-800 scale-105'
-                    : 'bg-gray-50 text-gray-500'
-                }
-                hover:shadow-md`}
+              className={`${STYLES.dayItem.base} ${
+                progress[index] ? STYLES.dayItem.completed : STYLES.dayItem.incomplete
+              }`}
             >
-              <span className="text-sm font-medium mb-1">{day}</span>
-              <span className="text-xl">{progress[index] ? '✅' : '○'}</span>
+              <span className={STYLES.dayItem.label}>{day}</span>
+              <span className={STYLES.dayItem.icon}>{progress[index] ? '✅' : '○'}</span>
             </div>
           ))}
         </div>
-        {progress.filter(Boolean).length < 5 && (
-          <div className="mt-4 text-center text-sm text-gray-600">
-            {5 - progress.filter(Boolean).length}일만 더 작성하면 보너스 토큰이 지급됩니다!
+
+        {remainingDays > 0 && (
+          <div className={STYLES.remainingMessage}>
+            {remainingDays}일만 더 작성하면 보너스 토큰이 지급됩니다!
           </div>
         )}
       </div>

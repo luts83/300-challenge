@@ -4,6 +4,7 @@ import axios from 'axios';
 import { useUser } from '../context/UserContext';
 import { CONFIG } from '../config';
 import FilterSection from '../components/FilterSection';
+import { logger } from '../utils/logger';
 
 interface Submission {
   _id: string;
@@ -102,7 +103,7 @@ const FeedbackCamp = () => {
       setTotalFeedbacks(res.data.total);
       setTodaySummary(res.data.todaySummary); // ✅ 요약 저장
     } catch (err) {
-      console.error('내가 작성한 피드백 조회 실패:', err);
+      logger.error('내가 작성한 피드백 조회 실패:', err);
     }
   };
 
@@ -112,10 +113,9 @@ const FeedbackCamp = () => {
       const res = await axios.get(
         `${import.meta.env.VITE_API_URL}/api/feedback/all-submissions/${user.uid}`
       );
-      console.log('📦 submission 데이터', res.data);
       setAllSubmissions(res.data);
     } catch (err) {
-      console.error('❌ 전체 글 목록 불러오기 실패:', err);
+      logger.error('❌ 전체 글 목록 불러오기 실패:', err);
       setError('글 목록을 불러오지 못했습니다.');
     }
   };
@@ -136,7 +136,7 @@ const FeedbackCamp = () => {
       const modes = new Set(todaySubmissions.map((sub: any) => sub.mode));
       setTodaySubmissionModes(modes);
     } catch (err) {
-      console.error('내 글 존재 여부 확인 실패:', err);
+      logger.error('내 글 존재 여부 확인 실패:', err);
     } finally {
       setLoading(false);
     }
@@ -161,7 +161,7 @@ const FeedbackCamp = () => {
       setFeedbacks(prev => ({ ...prev, [submissionId]: '' }));
       await Promise.all([fetchGivenFeedbacks(), fetchAllSubmissions()]);
     } catch (err: any) {
-      console.error('피드백 제출 실패:', err);
+      logger.error('피드백 제출 실패:', err);
       alert(err.response?.data?.message || '오류 발생');
     }
   };

@@ -1,6 +1,7 @@
 const CONFIG = require("../config");
 const Submission = require("../models/Submission");
 const Feedback = require("../models/Feedback");
+const logger = require("../utils/logger");
 
 // 피드백 가능 여부 확인 함수
 const canGiveFeedback = async (userUid, targetSubmission) => {
@@ -71,7 +72,7 @@ exports.getAvailableSubmissions = async (req, res) => {
 
     res.json(submissions);
   } catch (err) {
-    console.error("피드백 대상 조회 실패:", err);
+    logger.error("피드백 대상 조회 실패:", err);
     res.status(500).json({ message: "서버 오류" });
   }
 };
@@ -109,7 +110,7 @@ exports.submitFeedback = async (req, res) => {
     await feedback.save();
     res.status(200).json({ message: "피드백이 저장되었습니다!" });
   } catch (err) {
-    console.error("피드백 저장 실패:", err);
+    logger.error("피드백 저장 실패:", err);
     res.status(500).json({ message: `서버 오류: ${err.message}` });
   }
 };
@@ -144,7 +145,7 @@ exports.assignFeedbackMissions = async (req, res) => {
 
     res.json(missions);
   } catch (err) {
-    console.error("미션 할당 실패:", err);
+    logger.error("미션 할당 실패:", err);
     res.status(500).json({ message: "서버 오류" });
   }
 };
