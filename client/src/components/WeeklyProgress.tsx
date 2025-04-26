@@ -108,7 +108,7 @@ const WeeklyProgress: React.FC<WeeklyProgressProps> = ({ className = '' }) => {
 
       <div className={`${STYLES.container} ${className}`}>
         <div className={STYLES.header.wrapper}>
-          <h3 className={STYLES.header.title}>이번 주 작성 현황</h3>
+          <h3 className={STYLES.header.title}>📅 이번 주 작성 현황</h3>
           <div className={STYLES.header.counter}>
             {completedDays}/{TOTAL_DAYS}일
           </div>

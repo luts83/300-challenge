@@ -56,6 +56,10 @@ const FeedbackCamp = () => {
     new Set()
   );
 
+  const [isGuideExpanded, setIsGuideExpanded] = useState(false);
+
+  const [dailyFeedbackCount, setDailyFeedbackCount] = useState(0);
+
   const getAvailableFeedbackModes = (userModes: Set<'mode_300' | 'mode_1000'>) => {
     if (!CONFIG.FEEDBACK.CROSS_MODE_FEEDBACK.ENABLED) {
       return userModes;
@@ -178,6 +182,22 @@ const FeedbackCamp = () => {
     }
   }, [user, page, activeTab]);
 
+  useEffect(() => {
+    const fetchTodayFeedbackCount = async () => {
+      if (!user) return;
+      try {
+        const res = await axios.get(
+          `${import.meta.env.VITE_API_URL}/api/feedback/today/${user.uid}`
+        );
+        setDailyFeedbackCount(res.data.count);
+      } catch (err) {
+        logger.error('오늘의 피드백 개수 불러오기 실패:', err);
+      }
+    };
+
+    fetchTodayFeedbackCount();
+  }, [user]);
+
   // 로그인 체크를 가장 먼저 수행
   if (!user) return <p className="msg-auth">로그인이 필요합니다.</p>;
 
@@ -208,24 +228,101 @@ const FeedbackCamp = () => {
     ));
 
     return (
-      <div>
-        <p className="text-base text-gray-700 mb-2">
-          ✍ 아래 {availableCount}개의 글 중 원하시는 글에 피드백을 남겨보세요. 피드백 3개를
-          완료하면 내가 받은 피드백을 확인할 수 있어요!
-        </p>
-        <p className="text-sm text-gray-600">
-          {isCrossEnabled ? (
-            <>
-              현재 작성 가능한 피드백: {modeMessages}
-              <br />
-              <span className="text-xs text-blue-600 mt-1">
-                🔄 교차 피드백이 허용되어 있어 다른 모드의 글에도 피드백을 남길 수 있습니다.
-              </span>
-            </>
-          ) : (
-            <>오늘 작성한 {modeMessages} 모드의 글에만 피드백을 남길 수 있습니다.</>
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+        {/* 모바일 뷰 */}
+        <div className="sm:hidden">
+          <div
+            className="flex items-center justify-between cursor-pointer"
+            onClick={() => setIsGuideExpanded(!isGuideExpanded)}
+          >
+            <div className="flex items-center gap-2">
+              <span className="text-lg">✨</span>
+              <div>
+                <h3 className="text-base font-medium text-gray-800">피드백 미션</h3>
+                <p className="text-sm text-gray-500">{dailyFeedbackCount}/3 완료</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {/* 피드백 진행률 표시 */}
+              <div className="flex items-center gap-1.5">
+                <div className="w-12 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-blue-500 rounded-full transition-all duration-300"
+                    style={{ width: `${Math.min((dailyFeedbackCount / 3) * 100, 100)}%` }}
+                  />
+                </div>
+              </div>
+              <button className="text-gray-400">{isGuideExpanded ? '▼' : '▶'}</button>
+            </div>
+          </div>
+
+          {isGuideExpanded && (
+            <div className="mt-3 pt-3 border-t border-gray-100">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-blue-500">•</span>
+                  <p className="text-sm text-gray-600">
+                    {availableCount}개의 글이 피드백을 기다리고 있어요
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-blue-500">•</span>
+                  <p className="text-sm text-gray-600">
+                    {isCrossEnabled ? (
+                      <span>
+                        {modeMessages} 모드 모두 가능 <span className="text-blue-500">🔄</span>
+                      </span>
+                    ) : (
+                      <span>{modeMessages} 모드만 가능</span>
+                    )}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-blue-500">•</span>
+                  <p className="text-sm text-gray-600">3개 작성 시 내 피드백 확인 가능</p>
+                </div>
+              </div>
+            </div>
           )}
-        </p>
+        </div>
+
+        {/* 데스크탑 뷰 */}
+        <div className="hidden sm:block">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <span className="text-xl">✨</span>
+              <h3 className="text-lg font-medium text-gray-800">오늘의 피드백 미션</h3>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-gray-600">진행률</span>
+              <div className="w-20 h-2 bg-gray-100 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-blue-500 rounded-full transition-all duration-300"
+                  style={{ width: `${Math.min((dailyFeedbackCount / 3) * 100, 100)}%` }}
+                />
+              </div>
+              <span className="text-sm font-medium text-blue-600">{dailyFeedbackCount}/3</span>
+            </div>
+          </div>
+          <div className="space-y-2">
+            <p className="text-base text-gray-700">
+              ✍ {availableCount}개의 글이 새로운 피드백을 기다리고 있어요!
+            </p>
+            <p className="text-sm text-gray-600">
+              {isCrossEnabled ? (
+                <span>
+                  {modeMessages} 모드 모두 작성 가능{' '}
+                  <span className="inline-flex items-center gap-1 text-blue-600">
+                    <span className="text-sm">🔄</span>
+                    교차 피드백 활성화
+                  </span>
+                </span>
+              ) : (
+                <span>오늘 작성한 {modeMessages} 모드의 글에만 피드백을 남길 수 있어요.</span>
+              )}
+            </p>
+          </div>
+        </div>
       </div>
     );
   };

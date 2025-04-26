@@ -126,7 +126,7 @@ const Write300 = () => {
       // AI 평가 시작
       if (CONFIG.AI.ENABLE_300) {
         setSubmissionState('evaluating');
-        setSubmissionProgress(' 평가하고 있습니다...');
+        setSubmissionProgress('AI가 평가하고 있습니다...');
 
         try {
           const aiRes = await axios.post(`${import.meta.env.VITE_API_URL}/api/evaluate`, {

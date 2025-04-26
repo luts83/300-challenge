@@ -253,15 +253,30 @@ router.get("/received/:uid", async (req, res) => {
       "user.uid": uid,
     });
 
-    // 각 제출물의 피드백 조회
+    // 각 제출물의 피드백 조회 및 작성자 정보 포함
     const feedbacks = await Feedback.find({
       toSubmissionId: { $in: userSubmissions.map((s) => s._id) },
-    }).sort({ createdAt: -1 });
+    })
+      .populate({
+        path: "toSubmissionId",
+        select: "user",
+      })
+      .sort({ createdAt: -1 });
+
+    // 피드백 작성자 정보 매핑
+    const feedbackWriters = await Submission.find({
+      "user.uid": { $in: feedbacks.map((f) => f.fromUid) },
+    }).select("user");
+
+    const writerMap = feedbackWriters.reduce((acc, writer) => {
+      acc[writer.user.uid] = writer.user;
+      return acc;
+    }, {});
 
     // 제출물별로 피드백 그룹화
     const groupedFeedbacks = feedbacks.reduce((acc, feedback) => {
       const submission = userSubmissions.find(
-        (s) => s._id.toString() === feedback.toSubmissionId.toString()
+        (s) => s._id.toString() === feedback.toSubmissionId._id.toString()
       );
 
       if (submission) {
@@ -275,9 +290,10 @@ router.get("/received/:uid", async (req, res) => {
 
         if (canViewFeedback) {
           acc.push({
-            toSubmissionId: feedback.toSubmissionId,
+            toSubmissionId: feedback.toSubmissionId._id,
             content: feedback.content,
             createdAt: feedback.createdAt,
+            writer: writerMap[feedback.fromUid] || { displayName: "익명" },
           });
         }
       }

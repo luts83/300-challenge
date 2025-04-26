@@ -76,7 +76,7 @@ const TokenDisplay = () => {
     return (
       <div className="bg-white rounded-lg p-4 shadow-md mb-6 relative">
         <RefreshButton />
-        <h3 className="text-lg font-semibold mb-3">보유 토큰</h3>
+        <h3 className="text-lg font-semibold mb-3">🎫 보유 토큰</h3>
         <div className="grid grid-cols-3 gap-4">
           {[1, 2, 3].map(i => (
             <div key={i} className="text-center p-3 bg-gray-50 rounded-lg animate-pulse">
@@ -101,7 +101,7 @@ const TokenDisplay = () => {
   return (
     <div className="bg-white rounded-lg p-4 shadow-md mb-6 relative">
       <RefreshButton />
-      <h3 className="text-lg font-semibold mb-3">보유 토큰</h3>
+      <h3 className="text-lg font-semibold mb-3">🎫 보유 토큰</h3>
       <div className="grid grid-cols-3 gap-4">
         <div className="text-center p-3 bg-blue-50 rounded-lg">
           <div className="text-sm text-gray-600">300자</div>
