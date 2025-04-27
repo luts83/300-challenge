@@ -200,6 +200,7 @@ router.post("/", async (req, res) => {
       toSubmissionId,
       content,
       writtenDate: today,
+      submissionTitle: targetSubmission.title,
     });
 
     // 오늘 작성한 피드백 수 확인
@@ -327,7 +328,7 @@ router.get("/given/:uid", async (req, res) => {
       .sort({ createdAt: -1 })
       .populate({
         path: "toSubmissionId",
-        select: "text mode user createdAt",
+        select: "text mode user createdAt title",
       });
 
     // ✅ mode별로 필터링
@@ -347,6 +348,7 @@ router.get("/given/:uid", async (req, res) => {
       content: fb.content,
       fromUid: fb.fromUid,
       toSubmissionId: fb.toSubmissionId?._id || null,
+      submissionTitle: fb.toSubmissionId?.title || "",
       submissionText: fb.toSubmissionId?.text || "",
       mode: fb.toSubmissionId?.mode || null,
       createdAt: fb.createdAt,
@@ -441,13 +443,9 @@ router.get("/all-submissions/:uid", async (req, res) => {
   }
 });
 
-// 유저 활동 통계 조회 (총 작성 수 / unlock 수 / 피드백 작성 수 / 받은 수 / unlock 비율 등)
+// 유저 활동 통계 조회
 router.get("/stats/:uid", async (req, res) => {
   const { uid } = req.params;
-
-  if (!uid || typeof uid !== "string") {
-    return res.status(400).json({ message: "유효하지 않은 UID입니다." });
-  }
 
   try {
     // 총 작성한 제출물
@@ -460,7 +458,7 @@ router.get("/stats/:uid", async (req, res) => {
     // 내가 작성한 피드백 수
     const feedbackGiven = await Feedback.countDocuments({ fromUid: uid });
 
-    // 내가 받은 피드백 수
+    // 내가 받은 피드백 수 (전체)
     const mySubmissionIds = submissions.map((s) => s._id);
     const feedbackReceived = await Feedback.countDocuments({
       toSubmissionId: { $in: mySubmissionIds },
@@ -476,7 +474,7 @@ router.get("/stats/:uid", async (req, res) => {
       totalSubmissions,
       unlockedSubmissions,
       feedbackGiven,
-      feedbackReceived,
+      feedbackReceived, // 전체 피드백 수
       unlockRate,
     });
   } catch (err) {

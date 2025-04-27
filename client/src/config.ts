@@ -4,6 +4,7 @@ export const CONFIG = {
   TOKEN: {
     DAILY_LIMIT_300: 1, // 300자 글쓰기 하루 횟수
     DAILY_LIMIT_1000: 1, // 1000자 글쓰기 하루 횟수
+    STREAK_BONUS: 1, // 주간 목표 달성 시 보너스 토큰 수
   },
 
   // ✍ 글자 수 제한
@@ -26,7 +27,7 @@ export const CONFIG = {
     PER_SUBMISSION: 3, // 피드백 미션 수
     // 교차 피드백 설정 추가
     CROSS_MODE_FEEDBACK: {
-      ENABLED: true, // true면 교차 피드백 가능, false면 같은 모드끼리만 가능
+      ENABLED: false, // true면 교차 피드백 가능, false면 같은 모드끼리만 가능
       RESTRICTIONS: {
         // 특정 모드 간의 교차 피드백 제한 설정 (향후 확장성 고려)
         mode_300: ['mode_300', 'mode_1000'], // 300자 작성자가 피드백 가능한 모드들

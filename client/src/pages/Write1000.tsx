@@ -107,13 +107,23 @@ const Write1000 = () => {
   }, [user, loading]); // loading을 의존성 배열에 추가
 
   const fetchDraft = async () => {
-    if (!user) {
-      return;
-    }
+    if (!user) return;
 
     try {
-      const res = await axiosInstance.get(`/api/drafts/${user.uid}`);
+      // 먼저 제출 여부 확인
+      const isSubmitted = localStorage.getItem('write1000_submitted');
+      if (isSubmitted) {
+        // 제출된 상태면 draft를 불러오지 않고 초기화
+        setText('');
+        setTitle('');
+        setSessionCount(0);
+        setTotalDuration(0);
+        setIsStarted(false);
+        localStorage.removeItem('write1000_submitted');
+        return;
+      }
 
+      const res = await axiosInstance.get(`/api/drafts/${user.uid}`);
       const draft = res.data;
 
       // 디버깅을 위한 상세 로깅 추가
@@ -153,8 +163,14 @@ const Write1000 = () => {
       return;
     }
 
+    // 제출 상태 확인 추가
+    const isSubmitted = localStorage.getItem('write1000_submitted');
+    if (isSubmitted) {
+      return;
+    }
+
     if (text.trim().length === 0 && title.trim().length === 0) {
-      return; // 제목과 내용 모두 비어있을 때는 저장하지 않음
+      return;
     }
 
     const currentDuration = startTime ? Math.floor((Date.now() - startTime) / 1000) : 0;
@@ -270,6 +286,25 @@ const Write1000 = () => {
     setSubmissionState('complete');
     setSubmissionProgress('✨ 글 작성이 완료되었습니다!');
 
+    // 제출 상태 저장
+    localStorage.setItem('write1000_submitted', 'true');
+
+    // 즉시 localStorage 초기화
+    localStorage.removeItem('write1000_draft');
+    localStorage.removeItem('write1000_session');
+
+    // 상태 초기화를 즉시 수행
+    setText('');
+    setTitle('');
+    setSessionCount(0);
+    setTotalDuration(0);
+    setStartTime(null);
+    setDurationNow(0);
+    setIsStarted(false);
+    setLastInputTime(null);
+    setLastSavedAt(null);
+    setHasWrittenThisSession(false);
+
     setTimeout(() => {
       const message = [
         '✨ 글 작성이 완료되었습니다!\n',
@@ -336,6 +371,17 @@ const Write1000 = () => {
         duration: finalDuration,
       });
 
+      // draft 삭제를 먼저 수행하고 성공 여부 확인
+      try {
+        await axiosInstance.delete(`/api/drafts/${user.uid}`);
+        // localStorage도 함께 정리
+        localStorage.removeItem('write1000_draft');
+        localStorage.removeItem('write1000_session');
+      } catch (deleteError) {
+        logger.error('Draft 삭제 실패:', deleteError);
+        // draft 삭제 실패 시에도 계속 진행
+      }
+
       let score = null;
       let feedback = null;
 
@@ -359,9 +405,6 @@ const Write1000 = () => {
           feedback = 'AI 평가에 문제가 발생했습니다. 기본 점수가 부여됩니다.';
         }
       }
-
-      // 초안 삭제
-      await axiosInstance.delete(`/api/drafts/${user.uid}`);
 
       // 상태 초기화
       setText('');
@@ -495,8 +538,9 @@ const Write1000 = () => {
   }, [user]);
 
   useEffect(() => {
-    // 토큰이 소진되었거나 사용자가 없는 경우 자동저장 중단
-    if (isTokenDepleted || !user) {
+    // 제출 상태나 토큰 소진 시 자동저장 중단
+    const isSubmitted = localStorage.getItem('write1000_submitted');
+    if (isTokenDepleted || !user || isSubmitted) {
       if (autosaveRef.current) {
         clearInterval(autosaveRef.current);
         autosaveRef.current = null;
@@ -504,22 +548,19 @@ const Write1000 = () => {
       return;
     }
 
-    // 자동저장 인터벌 설정
     autosaveRef.current = setInterval(() => {
       if (text.trim().length > 0) {
-        // 텍스트가 있을 때만 저장
         saveDraft();
       }
     }, AUTOSAVE_INTERVAL);
 
-    // cleanup
     return () => {
       if (autosaveRef.current) {
         clearInterval(autosaveRef.current);
         autosaveRef.current = null;
       }
     };
-  }, [text, isTokenDepleted, user]); // 의존성 배열에 isTokenDepleted와 user 추가
+  }, [text, isTokenDepleted, user]);
 
   useEffect(() => {
     if (!lastInputTime) return;

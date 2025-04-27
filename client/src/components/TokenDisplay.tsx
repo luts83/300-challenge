@@ -55,11 +55,11 @@ const TokenDisplay = () => {
     <button
       onClick={fetchTokens}
       disabled={loading}
-      className="absolute top-4 right-4 p-2 text-gray-500 hover:text-gray-700 transition-colors"
+      className="absolute top-2 sm:top-4 right-2 sm:right-4 p-1.5 sm:p-2 text-gray-500 hover:text-gray-700 transition-colors"
       aria-label="토큰 정보 새로고침"
     >
       <svg
-        className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`}
+        className={`w-4 h-4 sm:w-5 sm:h-5 ${loading ? 'animate-spin' : ''}`}
         fill="none"
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -74,14 +74,17 @@ const TokenDisplay = () => {
 
   if (loading) {
     return (
-      <div className="bg-white rounded-lg p-4 shadow-md mb-6 relative">
+      <div className="bg-white rounded-lg p-3 sm:p-4 shadow-sm mb-4 sm:mb-6 relative">
         <RefreshButton />
-        <h3 className="text-lg font-semibold mb-3">🎫 보유 토큰</h3>
-        <div className="grid grid-cols-3 gap-4">
+        <h3 className="text-base sm:text-lg font-semibold mb-2 sm:mb-3 flex items-center gap-1.5">
+          <span>🎫</span>
+          <span>보유 토큰</span>
+        </h3>
+        <div className="grid grid-cols-3 gap-2 sm:gap-4">
           {[1, 2, 3].map(i => (
-            <div key={i} className="text-center p-3 bg-gray-50 rounded-lg animate-pulse">
-              <div className="h-4 bg-gray-200 rounded w-16 mx-auto mb-2"></div>
-              <div className="h-6 bg-gray-200 rounded w-8 mx-auto"></div>
+            <div key={i} className="text-center p-2 sm:p-3 bg-gray-50 rounded-lg animate-pulse">
+              <div className="h-3 sm:h-4 bg-gray-200 rounded w-12 sm:w-16 mx-auto mb-1.5 sm:mb-2"></div>
+              <div className="h-5 sm:h-6 bg-gray-200 rounded w-6 sm:w-8 mx-auto"></div>
             </div>
           ))}
         </div>
@@ -91,30 +94,50 @@ const TokenDisplay = () => {
 
   if (error) {
     return (
-      <div className="bg-white rounded-lg p-4 shadow-md mb-6 relative">
+      <div className="bg-white rounded-lg p-3 sm:p-4 shadow-sm mb-4 sm:mb-6 relative">
         <RefreshButton />
-        <div className="text-red-500 text-center">{error}</div>
+        <div className="text-sm sm:text-base text-red-500 text-center">{error}</div>
       </div>
     );
   }
 
   return (
-    <div className="bg-white rounded-lg p-4 shadow-md mb-6 relative">
+    <div className="bg-white rounded-lg p-3 sm:p-4 shadow-sm mb-4 sm:mb-6 relative">
       <RefreshButton />
-      <h3 className="text-lg font-semibold mb-3">🎫 보유 토큰</h3>
-      <div className="grid grid-cols-3 gap-4">
-        <div className="text-center p-3 bg-blue-50 rounded-lg">
-          <div className="text-sm text-gray-600">300자</div>
-          <div className="text-xl font-bold text-blue-600">{tokens.tokens_300}</div>
+      <h3 className="text-base sm:text-lg font-semibold mb-2 sm:mb-3 flex items-center gap-1.5">
+        <span>🎫</span>
+        <span>보유 토큰</span>
+      </h3>
+      <div className="grid grid-cols-3 gap-2 sm:gap-4">
+        <div className="text-center p-2 sm:p-3 bg-blue-50 rounded-lg">
+          <div className="text-xs sm:text-sm text-gray-600 mb-0.5 sm:mb-1">300자</div>
+          <div className="text-lg sm:text-xl font-bold text-blue-600 leading-none">
+            {tokens.tokens_300}
+          </div>
         </div>
-        <div className="text-center p-3 bg-purple-50 rounded-lg">
-          <div className="text-sm text-gray-600">1000자</div>
-          <div className="text-xl font-bold text-purple-600">{tokens.tokens_1000}</div>
+        <div className="text-center p-2 sm:p-3 bg-purple-50 rounded-lg">
+          <div className="text-xs sm:text-sm text-gray-600 mb-0.5 sm:mb-1">1000자</div>
+          <div className="text-lg sm:text-xl font-bold text-purple-600 leading-none">
+            {tokens.tokens_1000}
+          </div>
         </div>
-        <div className="text-center p-3 bg-yellow-50 rounded-lg">
-          <div className="text-sm text-gray-600">보너스</div>
-          <div className="text-xl font-bold text-yellow-600">{tokens.bonusTokens}</div>
+        <div className="text-center p-2 sm:p-3 bg-yellow-50 rounded-lg">
+          <div className="text-xs sm:text-sm text-gray-600 mb-0.5 sm:mb-1">보너스</div>
+          <div className="text-lg sm:text-xl font-bold text-yellow-600 leading-none">
+            {tokens.bonusTokens}
+          </div>
         </div>
+      </div>
+
+      <div className="hidden sm:block mt-3 text-xs text-gray-500 space-y-1">
+        <p className="flex items-center gap-1.5">
+          <span>ℹ️</span>
+          매일 자정에 300자/1000자 토큰이 1개씩 지급됩니다
+        </p>
+        <p className="flex items-center gap-1.5">
+          <span>✨</span>
+          보너스 토큰은 주간 목표 달성 시 지급됩니다
+        </p>
       </div>
     </div>
   );

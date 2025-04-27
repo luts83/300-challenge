@@ -1,32 +1,23 @@
 // src/pages/FeedbackCamp.tsx
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import axios from 'axios';
 import { useUser } from '../context/UserContext';
 import { CONFIG } from '../config';
-import FilterSection from '../components/FilterSection';
+import { FilterSection } from '../components/FilterSection/FilterSection';
+import { FeedbackForm } from '../components/FeedbackCamp/FeedbackForm';
+import {
+  FeedbackList,
+  FeedbackGuidance,
+  FeedbackStats,
+  MyFeedbacks,
+  Submission,
+  Feedback,
+  TodaySummary,
+} from '../components/FeedbackCamp';
+import useFilteredSubmissions from '../hooks/useFilteredSubmissions';
 import { logger } from '../utils/logger';
 import ScrollToTop from '../components/ScrollToTop';
-
-interface Submission {
-  _id: string;
-  title: string;
-  text: string;
-  user: { uid: string; email: string; displayName?: string };
-  feedbackCount: number;
-  hasGivenFeedback: boolean;
-  createdAt?: string;
-  mode: 'mode_300' | 'mode_1000';
-}
-
-interface Feedback {
-  _id: string;
-  content: string;
-  submissionText?: string;
-  createdAt: string;
-  mode?: 'mode_300' | 'mode_1000';
-  submissionAuthor?: { uid: string; email: string; displayName?: string };
-  submissionCreatedAt?: string;
-}
+import { FeedbackFilterSection } from '../components/FeedbackCamp/FeedbackFilterSection';
 
 const FeedbackCamp = () => {
   const { user } = useUser();
@@ -44,10 +35,11 @@ const FeedbackCamp = () => {
   const [visibleMyFeedbacks, setVisibleMyFeedbacks] = useState(3);
   const [activeTab, setActiveTab] = useState<'all' | 'mode_300' | 'mode_1000'>('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [sortBy, setSortBy] = useState<'date' | 'feedback'>('date');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [sortBy, setSortBy] = useState<'date' | 'feedback' | 'recent'>('date');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [viewMode, setViewMode] = useState<'all' | 'written' | 'available'>('all');
 
-  const [todaySummary, setTodaySummary] = useState<{ mode_300: number; mode_1000: number }>({
+  const [todaySummary, setTodaySummary] = useState<TodaySummary>({
     mode_300: 0,
     mode_1000: 0,
   });
@@ -59,6 +51,20 @@ const FeedbackCamp = () => {
   const [isGuideExpanded, setIsGuideExpanded] = useState(false);
 
   const [dailyFeedbackCount, setDailyFeedbackCount] = useState(0);
+
+  // counts 계산
+  const counts = useMemo(() => {
+    const mode300Count = allSubmissions.filter(sub => sub.mode === 'mode_300').length;
+    const mode1000Count = allSubmissions.filter(sub => sub.mode === 'mode_1000').length;
+
+    return {
+      all: allSubmissions.length,
+      mode_300: mode300Count,
+      mode_1000: mode1000Count,
+      written: givenFeedbacks.length,
+      available: allSubmissions.filter(sub => !submittedIds.includes(sub._id)).length,
+    };
+  }, [allSubmissions, givenFeedbacks, submittedIds]);
 
   const getAvailableFeedbackModes = (userModes: Set<'mode_300' | 'mode_1000'>) => {
     if (!CONFIG.FEEDBACK.CROSS_MODE_FEEDBACK.ENABLED) {
@@ -74,34 +80,60 @@ const FeedbackCamp = () => {
     return availableModes;
   };
 
-  const availableSubmissions = allSubmissions
-    .filter(item => !item.hasGivenFeedback)
-    .filter(item => {
-      const availableModes = getAvailableFeedbackModes(todaySubmissionModes);
-      return availableModes.has(item.mode);
-    })
-    .filter(item => {
-      if (activeTab === 'all') return true;
-      return item.mode === activeTab;
-    })
-    .filter(
-      item =>
-        item.text.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (item.title?.toLowerCase() || '').includes(searchQuery.toLowerCase())
-    )
-    .sort((a, b) => {
+  const filteredData = useMemo(() => {
+    let filtered = {
+      submissions: [...allSubmissions],
+      givenFeedbacks: [...givenFeedbacks],
+    };
+
+    if (activeTab !== 'all') {
+      filtered.submissions = filtered.submissions.filter(sub => sub.mode === activeTab);
+      filtered.givenFeedbacks = filtered.givenFeedbacks.filter(fb => fb.mode === activeTab);
+    }
+
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      filtered.submissions = filtered.submissions.filter(
+        sub =>
+          sub.title?.toLowerCase()?.includes(query) ||
+          false ||
+          sub.text?.toLowerCase()?.includes(query) ||
+          false
+      );
+      filtered.givenFeedbacks = filtered.givenFeedbacks.filter(
+        fb =>
+          fb.submissionTitle?.toLowerCase()?.includes(query) ||
+          false ||
+          fb.content?.toLowerCase()?.includes(query) ||
+          false
+      );
+    }
+
+    const sortFn = (a: any, b: any) => {
       if (sortBy === 'date') {
         return sortOrder === 'desc'
-          ? new Date(b.createdAt || '').getTime() - new Date(a.createdAt || '').getTime()
-          : new Date(a.createdAt || '').getTime() - new Date(b.createdAt || '').getTime();
-      } else {
+          ? new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          : new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      }
+      if (sortBy === 'feedback') {
         return sortOrder === 'desc'
           ? (b.feedbackCount || 0) - (a.feedbackCount || 0)
           : (a.feedbackCount || 0) - (b.feedbackCount || 0);
       }
-    });
+      if (sortBy === 'recent') {
+        return sortOrder === 'desc'
+          ? new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+          : new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime();
+      }
+      return 0;
+    };
 
-  // 수정된 fetchGivenFeedbacks
+    filtered.submissions.sort(sortFn);
+    filtered.givenFeedbacks.sort(sortFn);
+
+    return filtered;
+  }, [allSubmissions, givenFeedbacks, activeTab, searchQuery, sortBy, sortOrder]);
+
   const fetchGivenFeedbacks = async () => {
     if (!user) return;
     try {
@@ -111,7 +143,7 @@ const FeedbackCamp = () => {
       );
       setGivenFeedbacks(res.data.feedbacks);
       setTotalFeedbacks(res.data.total);
-      setTodaySummary(res.data.todaySummary); // ✅ 요약 저장
+      setTodaySummary(res.data.todaySummary);
     } catch (err) {
       logger.error('내가 작성한 피드백 조회 실패:', err);
     }
@@ -136,13 +168,11 @@ const FeedbackCamp = () => {
       const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/submit/user/${user.uid}`);
       const submissions = res.data;
 
-      // 오늘 날짜의 글만 필터링
       const today = new Date().toISOString().slice(0, 10);
       const todaySubmissions = submissions.filter((sub: any) => sub.submissionDate === today);
 
       setHasMySubmission(submissions.length > 0);
 
-      // 오늘 작성한 글의 모드들을 저장
       const modes = new Set(todaySubmissions.map((sub: any) => sub.mode));
       setTodaySubmissionModes(modes);
     } catch (err) {
@@ -198,370 +228,65 @@ const FeedbackCamp = () => {
     fetchTodayFeedbackCount();
   }, [user]);
 
-  // 로그인 체크를 가장 먼저 수행
   if (!user) return <p className="msg-auth">로그인이 필요합니다.</p>;
-
-  // 그 다음 로딩 상태와 에러 체크
   if (loading) return <p className="msg-auth">로딩 중...</p>;
   if (error) return <p className="msg-error">에러: {error}</p>;
-
-  // 글 작성 여부 체크
   if (!hasMySubmission) {
     return <p className="msg-submit-note">✍ 먼저 글을 작성해야 피드백 미션을 진행할 수 있어요!</p>;
   }
 
-  // 안내 메시지 생성 함수 추가
-  const getFeedbackGuidanceMessage = (
-    availableCount: number,
-    availableModes: Set<'mode_300' | 'mode_1000'>,
-    isCrossEnabled: boolean
-  ) => {
-    const modeMessages = Array.from(availableModes).map(mode => (
-      <span
-        key={mode}
-        className={`inline-block mx-1 px-2 py-0.5 rounded-full ${
-          mode === 'mode_300' ? 'bg-blue-200 text-blue-800' : 'bg-green-200 text-green-800'
-        }`}
-      >
-        {mode === 'mode_300' ? '300자' : '1000자'} 글쓰기
-      </span>
-    ));
-
-    return (
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
-        {/* 모바일 뷰 */}
-        <div className="sm:hidden">
-          <div
-            className="flex items-center justify-between cursor-pointer"
-            onClick={() => setIsGuideExpanded(!isGuideExpanded)}
-          >
-            <div className="flex items-center gap-2">
-              <span className="text-lg">✨</span>
-              <div>
-                <h3 className="text-base font-medium text-gray-800">피드백 미션</h3>
-                <p className="text-sm text-gray-500">{dailyFeedbackCount}/3 완료</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              {/* 피드백 진행률 표시 */}
-              <div className="flex items-center gap-1.5">
-                <div className="w-12 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-blue-500 rounded-full transition-all duration-300"
-                    style={{ width: `${Math.min((dailyFeedbackCount / 3) * 100, 100)}%` }}
-                  />
-                </div>
-              </div>
-              <button className="text-gray-400">{isGuideExpanded ? '▼' : '▶'}</button>
-            </div>
-          </div>
-
-          {isGuideExpanded && (
-            <div className="mt-3 pt-3 border-t border-gray-100">
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-blue-500">•</span>
-                  <p className="text-sm text-gray-600">
-                    {availableCount}개의 글이 피드백을 기다리고 있어요
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-blue-500">•</span>
-                  <p className="text-sm text-gray-600">
-                    {isCrossEnabled ? (
-                      <span>
-                        {modeMessages} 모드 모두 가능 <span className="text-blue-500">🔄</span>
-                      </span>
-                    ) : (
-                      <span>{modeMessages} 모드만 가능</span>
-                    )}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-blue-500">•</span>
-                  <p className="text-sm text-gray-600">3개 작성 시 내 피드백 확인 가능</p>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* 데스크탑 뷰 */}
-        <div className="hidden sm:block">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <span className="text-xl">✨</span>
-              <h3 className="text-lg font-medium text-gray-800">오늘의 피드백 미션</h3>
-            </div>
-            <div className="flex items-center gap-3">
-              <span className="text-sm text-gray-600">진행률</span>
-              <div className="w-20 h-2 bg-gray-100 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-blue-500 rounded-full transition-all duration-300"
-                  style={{ width: `${Math.min((dailyFeedbackCount / 3) * 100, 100)}%` }}
-                />
-              </div>
-              <span className="text-sm font-medium text-blue-600">{dailyFeedbackCount}/3</span>
-            </div>
-          </div>
-          <div className="space-y-2">
-            <p className="text-base text-gray-700">
-              ✍ {availableCount}개의 글이 새로운 피드백을 기다리고 있어요!
-            </p>
-            <p className="text-sm text-gray-600">
-              {isCrossEnabled ? (
-                <span>
-                  {modeMessages} 모드 모두 작성 가능{' '}
-                  <span className="inline-flex items-center gap-1 text-blue-600">
-                    <span className="text-sm">🔄</span>
-                    교차 피드백 활성화
-                  </span>
-                </span>
-              ) : (
-                <span>오늘 작성한 {modeMessages} 모드의 글에만 피드백을 남길 수 있어요.</span>
-              )}
-            </p>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   return (
-    <div className="max-w-4xl mx-auto p-4">
+    <div className="max-w-4xl mx-auto px-3 sm:px-4 py-4 sm:py-6">
       <h1 className="text-2xl sm:text-xl font-bold mb-6 text-center">🤝 피드백 미션</h1>
-      <div className="mb-6 p-3 bg-blue-100/80 text-blue-800 rounded-lg text-base text-center font-medium">
-        {availableSubmissions.length > 0 ? (
-          getFeedbackGuidanceMessage(
-            availableSubmissions.length,
-            getAvailableFeedbackModes(todaySubmissionModes),
-            CONFIG.FEEDBACK.CROSS_MODE_FEEDBACK.ENABLED
-          )
-        ) : (
-          <p className="text-base text-gray-500 mb-0 text-center">
-            {todaySubmissionModes.size > 0
-              ? '📭 아직 피드백할 수 있는 글이 없습니다.'
-              : '✍ 먼저 글을 작성해야 피드백을 남길 수 있습니다.'}
-          </p>
-        )}
+
+      <div className="mb-4 p-3 bg-blue-100/80 text-blue-800 rounded-lg text-base text-center font-medium">
+        ✍ 다른 사람의 글에 피드백을 작성하고, 내가 쓴 글의 피드백도 확인해보세요!
       </div>
 
-      {/* 필터 & 검색창 */}
-      <FilterSection
+      <FeedbackStats dailyFeedbackCount={dailyFeedbackCount} todaySummary={todaySummary} />
+
+      <FeedbackGuidance
+        dailyFeedbackCount={dailyFeedbackCount}
+        availableModes={getAvailableFeedbackModes(todaySubmissionModes)}
+        isExpanded={isGuideExpanded}
+        onToggleExpand={() => setIsGuideExpanded(!isGuideExpanded)}
+      />
+
+      <FeedbackFilterSection
         activeTab={activeTab}
         setActiveTab={setActiveTab}
+        viewMode={viewMode}
+        setViewMode={setViewMode}
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
-        availableModes={getAvailableFeedbackModes(todaySubmissionModes)}
         sortBy={sortBy}
         setSortBy={setSortBy}
         sortOrder={sortOrder}
         setSortOrder={setSortOrder}
-        showSortOptions={true}
-        customSortOptions={[
-          { value: 'date', label: '날짜순' },
-          { value: 'feedback', label: '피드백순' },
-        ]}
+        counts={counts}
       />
 
-      {/* 내가 작성한 피드백 */}
-      <div className="mt-8">
-        <h2 className="text-xl sm:text-lg font-semibold mb-4">✍ 내가 작성한 피드백</h2>
-        <div className="mb-6 text-sm text-gray-600 text-center">
-          <p>오늘 작성한 피드백</p>
-          <p>
-            🧩 300자: <span className="font-bold text-blue-700">{todaySummary.mode_300}</span>개 /
-            📘 1000자: <span className="font-bold text-green-700">{todaySummary.mode_1000}</span>개
-          </p>
-        </div>
-        {givenFeedbacks.length === 0 ? (
-          <p className="text-base text-gray-500 text-center">아직 작성한 피드백이 없습니다.</p>
-        ) : (
-          <>
-            <ul className="space-y-3">
-              {givenFeedbacks.map(item => (
-                <li
-                  key={item._id}
-                  className="bg-white rounded-lg shadow-md p-4 cursor-pointer hover:shadow-lg transition-shadow duration-200"
-                  onClick={() => setExpanded(prev => (prev === item._id ? null : item._id))}
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <p className="text-lg font-medium text-gray-900">
-                        💬 {item.content.slice(0, 60)}...
-                      </p>
-                      <p className="text-sm text-gray-500 mt-1 flex items-center gap-2">
-                        <span>{new Date(item.createdAt).toLocaleString('ko-KR')}</span>
-                        {item.mode && (
-                          <span
-                            className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
-                              item.mode === 'mode_300'
-                                ? 'bg-blue-100 text-blue-700'
-                                : 'bg-green-100 text-green-700'
-                            }`}
-                          >
-                            {item.mode === 'mode_300' ? '300자' : '1000자'}
-                          </span>
-                        )}
-                      </p>
-                    </div>
-                  </div>
+      {(viewMode === 'all' || viewMode === 'written') && (
+        <MyFeedbacks
+          feedbacks={filteredData.givenFeedbacks}
+          visibleCount={visibleMyFeedbacks}
+          onLoadMore={() => setVisibleMyFeedbacks(prev => prev + 3)}
+          totalCount={filteredData.givenFeedbacks.length}
+        />
+      )}
 
-                  {expanded === item._id && (
-                    <div className="mt-3 space-y-3">
-                      <p className="text-base text-gray-700 whitespace-pre-wrap">{item.content}</p>
+      {(viewMode === 'all' || viewMode === 'available') && (
+        <FeedbackList
+          submissions={filteredData.submissions}
+          feedbacks={feedbacks}
+          expanded={expanded}
+          submittedIds={submittedIds}
+          onFeedbackChange={(id, value) => setFeedbacks(prev => ({ ...prev, [id]: value }))}
+          onSubmitFeedback={submitFeedback}
+          onToggleExpand={id => setExpanded(expanded === id ? null : id)}
+        />
+      )}
 
-                      {item.submissionText && (
-                        <div className="bg-gray-50 rounded-lg p-3">
-                          <p className="text-base font-medium text-blue-600 mb-2">📝 원글</p>
-                          <p className="text-base text-gray-700 whitespace-pre-wrap">
-                            {item.submissionText}
-                          </p>
-                          <p className="text-sm text-gray-500 mt-2">
-                            작성자:{' '}
-                            {item.submissionAuthor?.displayName || item.submissionAuthor?.email}
-                          </p>
-                          <p className="text-sm text-gray-500">
-                            작성일:{' '}
-                            {item.submissionCreatedAt
-                              ? new Date(item.submissionCreatedAt).toLocaleDateString('ko-KR')
-                              : '작성일 정보 없음'}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </li>
-              ))}
-            </ul>
-            <div className="flex justify-center mt-4 gap-2">
-              <button
-                onClick={() => setPage(p => Math.max(p - 1, 1))}
-                disabled={page === 1}
-                className="px-3 py-1.5 rounded-lg font-medium transition-all duration-200 text-base min-h-[36px] bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                ◀ 이전
-              </button>
-              <span className="px-3 py-1.5 text-base text-gray-600">{page}</span>
-              <button
-                onClick={() => {
-                  const maxPage = Math.ceil(totalFeedbacks / 10);
-                  if (page < maxPage) setPage(page + 1);
-                }}
-                disabled={page >= Math.ceil(totalFeedbacks / 10)}
-                className="px-3 py-1.5 rounded-lg font-medium transition-all duration-200 text-base min-h-[36px] bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                다음 ▶
-              </button>
-            </div>
-          </>
-        )}
-      </div>
-
-      {/* 피드백 할 글 */}
-      <div className="mt-8">
-        <h2 className="text-xl sm:text-lg font-semibold mb-4">📝 피드백 대상 글</h2>
-        {availableSubmissions.length === 0 ? (
-          <p className="text-base text-black-500 text-center">
-            📭 아직 피드백할 수 있는 글이 없어요!
-          </p>
-        ) : (
-          <>
-            <div className="grid grid-cols-1 gap-4">
-              {availableSubmissions.slice(0, visibleCount).map(submission => (
-                <div key={submission._id} className="bg-white rounded-lg shadow-sm overflow-hidden">
-                  {/* 헤더 섹션 - 항상 표시 */}
-                  <div
-                    className="p-4 cursor-pointer hover:bg-gray-50"
-                    onClick={() => setExpanded(expanded === submission._id ? null : submission._id)}
-                  >
-                    <div className="flex justify-between items-start mb-2">
-                      <div className="flex-1">
-                        {/* 제목 */}
-                        <h3 className="text-lg font-medium text-gray-900 mb-1">
-                          {submission.title}
-                        </h3>
-                        {/* 메타 정보 */}
-                        <div className="flex items-center text-sm text-gray-500 space-x-4">
-                          <span className="flex items-center">
-                            👤 {submission.user.displayName || '익명'}
-                          </span>
-                          <span>
-                            📅 {new Date(submission.createdAt || '').toLocaleDateString()}
-                          </span>
-                          <span
-                            className={`px-2 py-0.5 rounded-full text-xs ${
-                              submission.mode === 'mode_300'
-                                ? 'bg-blue-100 text-blue-800'
-                                : 'bg-green-100 text-green-800'
-                            }`}
-                          >
-                            {submission.mode === 'mode_300' ? '300자' : '1000자'}
-                          </span>
-                          <span className="flex items-center">💬 {submission.feedbackCount}</span>
-                        </div>
-                      </div>
-                      {/* 확장/축소 아이콘 */}
-                      <span className="text-gray-400">
-                        {expanded === submission._id ? '▼' : '▶'}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* 본문 및 피드백 섹션 - 확장 시에만 표시 */}
-                  {expanded === submission._id && (
-                    <div className="border-t border-gray-100 p-4">
-                      {/* 본문 */}
-                      <div className="mb-4 whitespace-pre-wrap text-gray-700">
-                        {submission.text}
-                      </div>
-
-                      {/* 피드백 입력 */}
-                      <div className="space-y-3">
-                        <textarea
-                          value={feedbacks[submission._id] || ''}
-                          onChange={e =>
-                            setFeedbacks(prev => ({
-                              ...prev,
-                              [submission._id]: e.target.value,
-                            }))
-                          }
-                          placeholder="피드백을 작성해주세요..."
-                          className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          rows={4}
-                        />
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm text-gray-500">
-                            최소 {CONFIG.FEEDBACK.MIN_LENGTH}자 이상 작성해주세요.
-                          </span>
-                          <button
-                            onClick={e => submitFeedback(submission._id, e)}
-                            disabled={
-                              !feedbacks[submission._id] ||
-                              feedbacks[submission._id].length < CONFIG.FEEDBACK.MIN_LENGTH
-                            }
-                            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
-                          >
-                            피드백 제출
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-            {availableSubmissions.length > visibleCount && (
-              <button
-                className="w-full mt-4 py-2 sm:py-3 bg-gray-100/80 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors duration-200 text-sm sm:text-base"
-                onClick={() => setVisibleCount(prev => prev + 3)}
-              >
-                더보기
-              </button>
-            )}
-          </>
-        )}
-      </div>
       <ScrollToTop />
     </div>
   );

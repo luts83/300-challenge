@@ -12,6 +12,7 @@ const feedbackSchema = new mongoose.Schema(
     fromUid: { type: String, required: true },
     content: { type: String, required: true },
     writtenDate: { type: String },
+    submissionTitle: { type: String },
   },
   { timestamps: true }
 ); // ✅ createdAt 자동 생성됨

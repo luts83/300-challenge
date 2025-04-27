@@ -15,15 +15,15 @@ const writingRoutes = require("./routes/writing");
 const draftRoutes = require("./routes/drafts");
 const recordsRoutes = require("./routes/records"); // 추가
 const streakRoute = require("./routes/streak");
-const logger = require('./utils/logger');
+const logger = require("./utils/logger");
 
 app.use(
   cors({
     origin: [
-      "http://localhost:5173",             // 개발용
-      "http://192.168.0.22:5173",          // 개발용
+      "http://localhost:5173", // 개발용
+      "http://192.168.0.22:5173", // 개발용
       "https://write-challenge.pages.dev", // Cloudflare Pages
-      "https://edu-ocean.com"              // 사용자용 도메인
+      "https://edu-ocean.com", // 사용자용 도메인
     ],
     credentials: true,
   })

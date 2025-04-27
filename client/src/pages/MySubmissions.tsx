@@ -1,16 +1,30 @@
 // src/pages/MySubmissions.tsx
-import React, { useEffect, useState, Component, ErrorInfo, useMemo } from 'react';
+import React, {
+  useEffect,
+  useState,
+  Component,
+  ErrorInfo,
+  useMemo,
+  useRef,
+  useCallback,
+} from 'react';
 import axios from 'axios';
 import { useUser } from '../context/UserContext';
 import { CONFIG } from '../config';
 // import FeedbackMissionPanel from '../components/FeedbackMissionPanel';
 import { useNavigate, useLocation } from 'react-router-dom';
-import WeeklyProgress from '../components/WeeklyProgress';
-import TokenDisplay from '../components/TokenDisplay';
-import FilterSection from '../components/FilterSection';
 import { logger } from '../utils/logger';
-import AIFeedback from '../components/AIFeedback';
+
 import ScrollToTop from '../components/ScrollToTop';
+import { WeeklyProgress } from '../components/SubmissionStats/WeeklyProgress';
+import TokenDisplay from '../components/TokenDisplay';
+import { FeedbackStats } from '../components/SubmissionStats/FeedbackStats';
+import { SubmissionItem } from '../components/SubmissionList/SubmissionItem';
+import { UnlockModal } from '../components/SubmissionList/UnlockModal';
+import { useTokens } from '../hooks/useTokens';
+import { SubmissionStats } from '../components/SubmissionStats/SubmissionStats';
+import type { StatsData } from '../components/SubmissionStats/types';
+import { SubmissionFilterSection } from '../components/FilterSection/SubmissionFilterSection';
 
 type Submission = {
   _id: string;
@@ -28,24 +42,6 @@ type FeedbackItem = {
   toSubmissionId: string | null;
   content: string;
   createdAt: string;
-};
-
-type Stats = {
-  mode_300?: {
-    count: number;
-    averageScore: number;
-    maxScore: number;
-    recentDate: string;
-    averageDuration: number;
-  };
-  mode_1000?: {
-    count: number;
-    averageScore: number;
-    maxScore: number;
-    recentDate: string;
-    averageDuration: number;
-    averageSessionCount: number;
-  };
 };
 
 // FeedbackStats 타입 정의
@@ -82,13 +78,16 @@ class ErrorBoundary extends Component<{ children: React.ReactNode }, { hasError:
   }
 }
 
+// 피드백 필터 타입 수정
+type FeedbackFilterType = 'all' | 'unlocked' | 'locked' | null; // null은 필터 미적용
+
 const MySubmissions = () => {
   const { user, loading: authLoading } = useUser();
   const navigate = useNavigate();
   const location = useLocation();
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [stats, setStats] = useState<Stats | null>(null);
+  const [stats, setStats] = useState<StatsData | null>(null);
   const [isStatsExpanded, setIsStatsExpanded] = useState(false);
   const [receivedFeedbackData, setReceivedFeedbackData] = useState<{
     totalWritten: number;
@@ -122,6 +121,34 @@ const MySubmissions = () => {
   const [isStarted, setIsStarted] = useState(false);
   const [todayFeedbackCount, setTodayFeedbackCount] = useState(0);
   const [isFeedbackStatsExpanded, setIsFeedbackStatsExpanded] = useState(false);
+  const [isUnlockModalOpen, setIsUnlockModalOpen] = useState(false);
+  const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null);
+  const { tokens, refetchTokens } = useTokens();
+
+  // 페이지네이션 관련 상태 추가
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const ITEMS_PER_PAGE = 10;
+
+  // Intersection Observer 참조 생성
+  const observer = useRef<IntersectionObserver>();
+  const lastSubmissionElementRef = useCallback(
+    (node: HTMLDivElement) => {
+      if (isLoadingMore) return;
+
+      if (observer.current) observer.current.disconnect();
+
+      observer.current = new IntersectionObserver(entries => {
+        if (entries[0].isIntersecting && hasMore) {
+          setPage(prevPage => prevPage + 1);
+        }
+      });
+
+      if (node) observer.current.observe(node);
+    },
+    [isLoadingMore, hasMore]
+  );
 
   const canSubmit = useMemo(() => {
     return (
@@ -151,75 +178,97 @@ const MySubmissions = () => {
     }
   };
 
-  useEffect(() => {
-    if (authLoading || !user) return;
+  const fetchData = async (pageNum = 1) => {
+    if (!user) return;
 
-    const fetchAll = async () => {
-      setIsLoading(true);
+    if (pageNum === 1) setIsLoading(true);
+    else setIsLoadingMore(true);
 
-      try {
-        const subRes = await axios.get(
-          `${import.meta.env.VITE_API_URL}/api/submit/user/${user.uid}`
-        );
-        if (subRes.data.length === 0) {
-          setNoSubmissions(true);
-          setSubmissions([]);
-        } else {
-          setNoSubmissions(false);
-          setSubmissions(subRes.data);
-        }
-      } catch (err) {
-        logger.error('📭 작성한 글 조회 실패:', err);
+    try {
+      // 페이지네이션된 데이터 요청
+      const [subRes, feedbackRes] = await Promise.all([
+        axios.get(`${import.meta.env.VITE_API_URL}/api/submit/user/${user.uid}`, {
+          params: {
+            page: pageNum,
+            limit: ITEMS_PER_PAGE,
+            mode: activeTab === 'all' ? undefined : activeTab,
+            search: searchQuery,
+            sortBy,
+            sortOrder,
+          },
+        }),
+        // 피드백 데이터 요청 추가
+        axios.get(`${import.meta.env.VITE_API_URL}/api/feedback/received/${user.uid}`),
+      ]);
+
+      // 서버 응답 구조 처리 수정
+      const newSubmissions = Array.isArray(subRes.data) ? subRes.data : [];
+
+      // 피드백 데이터 설정
+      setReceivedFeedbackData(feedbackRes.data || { totalWritten: 0, groupedBySubmission: [] });
+
+      if (pageNum === 1) {
+        setSubmissions(newSubmissions);
+      } else {
+        setSubmissions(prev => [...prev, ...newSubmissions]);
+      }
+
+      setHasMore(newSubmissions.length === ITEMS_PER_PAGE);
+
+      if (newSubmissions.length === 0) {
         setNoSubmissions(true);
+      } else {
+        setNoSubmissions(false);
       }
 
-      try {
-        const statRes = await axios.get(`${import.meta.env.VITE_API_URL}/api/stats/${user.uid}`);
-        setStats(statRes.data);
-      } catch (err) {
-        logger.error('📉 통계 조회 실패:', err);
+      // 첫 페이지 로드시에만 통계 데이터 가져오기
+      if (pageNum === 1) {
+        try {
+          const statsRes = await axios.get(`${import.meta.env.VITE_API_URL}/api/stats/${user.uid}`);
+          setStats(statsRes.data);
+        } catch (err) {
+          logger.error('통계 데이터 로딩 실패:', err);
+        }
+
+        try {
+          const feedbackStatsRes = await axios.get(
+            `${import.meta.env.VITE_API_URL}/api/feedback/stats/${user.uid}`
+          );
+          setFeedbackStats(feedbackStatsRes.data);
+        } catch (err) {
+          logger.error('피드백 통계 로딩 실패:', err);
+        }
+
+        try {
+          const feedbackRes = await axios.get(
+            `${import.meta.env.VITE_API_URL}/api/feedback/today/${user.uid}`
+          );
+          setDailyFeedbackCount(feedbackRes.data.count);
+        } catch (err) {
+          logger.error('오늘의 피드백 카운트 로딩 실패:', err);
+        }
       }
+    } catch (err) {
+      logger.error('데이터 로딩 실패:', err);
+      setError('데이터를 불러오는데 실패했습니다.');
+    } finally {
+      if (pageNum === 1) setIsLoading(false);
+      else setIsLoadingMore(false);
+    }
+  };
 
-      try {
-        const fbRes = await axios.get(
-          `${import.meta.env.VITE_API_URL}/api/feedback/received/${user.uid}`
-        );
-        setReceivedFeedbackData(fbRes.data);
-      } catch (err) {
-        logger.error(' 💬피드백 조회 실패:', err);
-      }
-
-      try {
-        const res = await axios.get(
-          `${import.meta.env.VITE_API_URL}/api/feedback/stats/${user.uid}`
-        );
-        setFeedbackStats(res.data);
-      } catch (err) {
-        logger.error('📊 피드백 통계 조회 실패:', err);
-      }
-
-      setIsLoading(false);
-    };
-
-    fetchAll();
-  }, [user, authLoading]);
-
+  // 필터나 정렬 변경시 데이터 리셋
   useEffect(() => {
-    const fetchTodayFeedbackCount = async () => {
-      if (!user) return;
-      try {
-        const res = await axios.get(
-          `${import.meta.env.VITE_API_URL}/api/feedback/today/${user.uid}`
-        );
-        setDailyFeedbackCount(res.data.count);
-        console.log('오늘의 피드백 카운트:', res.data.count); // 디버깅용 로그 추가
-      } catch (err) {
-        logger.error('오늘의 피드백 개수 불러오기 실패:', err);
-      }
-    };
+    setPage(1);
+    setHasMore(true);
+    setSubmissions([]);
+    fetchData(1);
+  }, [activeTab, searchQuery, sortBy, sortOrder]);
 
-    fetchTodayFeedbackCount();
-  }, [user]);
+  // 페이지 변경시 추가 데이터 로드
+  useEffect(() => {
+    if (page > 1) fetchData(page);
+  }, [page]);
 
   useEffect(() => {
     const fetchWeeklyGrowth = async () => {
@@ -251,35 +300,138 @@ const MySubmissions = () => {
     setVisibleCount(prev => prev + 5);
   };
 
-  const filteredSubmissions = submissions
-    .filter(submission => {
-      if (activeTab === 'all') return true;
-      return submission.mode === activeTab;
-    })
-    .filter(submission => submission.text.toLowerCase().includes(searchQuery.toLowerCase()))
-    .sort((a, b) => {
+  // 기본값을 null로 변경
+  const [feedbackFilter, setFeedbackFilter] = useState<string | null>(null);
+
+  // filterCounts 계산 로직 추가
+  const filterCounts = useMemo(() => {
+    // 모드별 카운트
+    const modeCounts = {
+      all: submissions.length,
+      mode_300: submissions.filter(sub => sub.mode === 'mode_300').length,
+      mode_1000: submissions.filter(sub => sub.mode === 'mode_1000').length,
+    };
+
+    // 피드백 상태별 카운트 - 현재 선택된 모드에 따라 필터링
+    const filteredSubmissions =
+      activeTab === 'all' ? submissions : submissions.filter(sub => sub.mode === activeTab);
+
+    // 피드백 상태 카운트
+    const feedbackCounts = {
+      has_feedback: filteredSubmissions.filter(sub =>
+        receivedFeedbackData.groupedBySubmission.some(fb => fb.toSubmissionId === sub._id)
+      ).length,
+      open_feedback: filteredSubmissions.filter(sub => sub.feedbackUnlocked).length,
+      locked_feedback: filteredSubmissions.filter(sub => !sub.feedbackUnlocked).length,
+    };
+
+    return {
+      ...modeCounts,
+      ...feedbackCounts,
+    };
+  }, [submissions, activeTab, receivedFeedbackData.groupedBySubmission]);
+
+  // 필터링된 제출물 계산
+  const filteredSubmissions = useMemo(() => {
+    let filtered = [...submissions];
+
+    // 검색어 필터링 - 제목과 내용 모두 검색
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(
+        sub =>
+          sub.title?.toLowerCase()?.includes(query) ||
+          false ||
+          sub.text?.toLowerCase()?.includes(query) ||
+          false
+      );
+    }
+
+    // 모드 필터 적용
+    if (activeTab !== 'all') {
+      filtered = filtered.filter(sub => sub.mode === activeTab);
+    }
+
+    // 피드백 상태 필터 적용
+    if (feedbackFilter !== null) {
+      switch (feedbackFilter) {
+        case 'has_feedback':
+          filtered = filtered.filter(sub =>
+            receivedFeedbackData.groupedBySubmission.some(fb => fb.toSubmissionId === sub._id)
+          );
+          break;
+        case 'open_feedback':
+          filtered = filtered.filter(sub => sub.feedbackUnlocked);
+          break;
+        case 'locked_feedback':
+          filtered = filtered.filter(sub => !sub.feedbackUnlocked);
+          break;
+      }
+    }
+
+    // 정렬 적용
+    return filtered.sort((a, b) => {
       if (sortBy === 'date') {
         return sortOrder === 'desc'
           ? new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
           : new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-      } else if (sortBy === 'score') {
-        return sortOrder === 'desc'
-          ? (b.score || 0) - (a.score || 0)
-          : (a.score || 0) - (b.score || 0);
-      } else {
-        const feedbackCountA = getFeedbacksForSubmission(a._id).length;
-        const feedbackCountB = getFeedbacksForSubmission(b._id).length;
-        return sortOrder === 'desc'
-          ? feedbackCountB - feedbackCountA
-          : feedbackCountA - feedbackCountB;
       }
+      if (sortBy === 'feedback') {
+        const aFeedbackCount = receivedFeedbackData.groupedBySubmission.filter(
+          fb => fb.toSubmissionId === a._id
+        ).length;
+        const bFeedbackCount = receivedFeedbackData.groupedBySubmission.filter(
+          fb => fb.toSubmissionId === b._id
+        ).length;
+        return sortOrder === 'desc'
+          ? bFeedbackCount - aFeedbackCount
+          : aFeedbackCount - bFeedbackCount;
+      }
+      return 0;
     });
+  }, [
+    submissions,
+    activeTab,
+    feedbackFilter,
+    searchQuery,
+    sortBy,
+    sortOrder,
+    receivedFeedbackData.groupedBySubmission,
+  ]);
 
-  // 평균 계산 로직을 useMemo로 분리
-  const averageFeedback = useMemo(() => {
-    if (!feedbackStats.totalSubmissions) return '0.0';
-    return (feedbackStats.feedbackReceived / feedbackStats.totalSubmissions).toFixed(1);
-  }, [feedbackStats.feedbackReceived, feedbackStats.totalSubmissions]);
+  // 피드백 언락 핸들러
+  const handleUnlockFeedback = (submission: Submission) => {
+    setSelectedSubmission(submission);
+    setIsUnlockModalOpen(true);
+  };
+
+  // 실제 언락 처리 함수
+  const handleUnlock = async (unlockType: 'single' | 'period') => {
+    if (!user || !selectedSubmission) return;
+
+    try {
+      const response = await axios.post(
+        `${import.meta.env.VITE_API_URL}/api/feedback/unlock-feedback`,
+        {
+          uid: user.uid,
+          unlockType,
+          submissionId: selectedSubmission._id,
+        }
+      );
+
+      // 성공 시 데이터 리프레시
+      await Promise.all([
+        fetchData(), // 제출물 데이터 새로고침
+        refetchTokens(), // 토큰 정보 새로고침
+      ]);
+
+      // 성공 메시지 표시
+      alert(response.data.message);
+    } catch (error: any) {
+      logger.error('피드백 언락 실패:', error);
+      alert(error.response?.data?.message || '피드백 언락에 실패했습니다.');
+    }
+  };
 
   if (!user) {
     return <p className="msg-auth">로그인이 필요합니다.</p>;
@@ -310,576 +462,93 @@ const MySubmissions = () => {
         </div>
 
         <TokenDisplay />
-        <WeeklyProgress className="mb-6" />
+        <WeeklyProgress />
 
         {/* 통계 섹션 - 접었다 폈다 가능한 버전 유지 */}
-        {stats && (
-          <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
-            <div
-              className="flex items-center justify-between cursor-pointer"
-              onClick={() => setIsStatsExpanded(!isStatsExpanded)}
-            >
-              <h2 className="text-lg font-semibold flex items-center gap-2">
-                <span>📊</span> 작성한 글 통계
-              </h2>
-              <button className="p-2 hover:bg-gray-50 rounded-full transition-colors">
-                {isStatsExpanded ? '▼' : '▶'}
-              </button>
-            </div>
-
-            {/* 접혀있을 때 보여줄 간단한 요약 */}
-            {!isStatsExpanded && (
-              <div className="mt-4 grid grid-cols-2 gap-4">
-                <div className="bg-blue-50 rounded-lg p-3">
-                  <div className="flex items-center justify-between mb-1">
-                    <p className="text-sm text-gray-600">300자 평균</p>
-                    <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
-                      총 {stats.mode_300?.count || 0}개
-                    </span>
-                  </div>
-                  <p className="text-xl font-bold text-blue-600">
-                    {(stats.mode_300?.averageScore || 0).toFixed(1)}
-                    <span className="text-sm ml-1">점</span>
-                  </p>
-                </div>
-                <div className="bg-purple-50 rounded-lg p-3">
-                  <div className="flex items-center justify-between mb-1">
-                    <p className="text-sm text-gray-600">1000자 평균</p>
-                    <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">
-                      총 {stats.mode_1000?.count || 0}개
-                    </span>
-                  </div>
-                  <p className="text-xl font-bold text-purple-600">
-                    {(stats.mode_1000?.averageScore || 0).toFixed(1)}
-                    <span className="text-sm ml-1">점</span>
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {/* 펼쳐져 있을 때 보여줄 상세 내용 */}
-            {isStatsExpanded && (
-              <div className="mt-6">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                  {/* 300자 통계 카드 */}
-                  <div className="bg-gradient-to-br from-blue-50 to-white rounded-xl p-5 border border-blue-100">
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-lg font-bold text-blue-900">300자 글쓰기</h3>
-                      <span className="text-sm font-medium text-blue-600 bg-blue-50 px-3 py-1 rounded-full">
-                        총 {stats.mode_300?.count || 0}개
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      {/* 점수 섹션 */}
-                      <div className="text-center p-3 bg-white rounded-lg shadow-sm">
-                        <div className="mb-2">
-                          <div className="inline-block p-2 bg-blue-50 rounded-full">
-                            <span className="text-blue-600 text-xl">
-                              {(stats.mode_300?.averageScore || 0).toFixed(1)}
-                            </span>
-                          </div>
-                        </div>
-                        <p className="text-sm text-gray-600">평균 점수</p>
-                      </div>
-
-                      {/* 최고 점수 섹션 */}
-                      <div className="text-center p-3 bg-white rounded-lg shadow-sm">
-                        <div className="mb-2">
-                          <div className="inline-block p-2 bg-green-50 rounded-full">
-                            <span className="text-green-600 text-xl">
-                              {stats.mode_300?.maxScore || 0}
-                            </span>
-                          </div>
-                        </div>
-                        <p className="text-sm text-gray-600">최고 점수</p>
-                      </div>
-                    </div>
-
-                    {/* 추가 정보 */}
-                    <div className="mt-4 space-y-2">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-gray-600">평균 작성 시간</span>
-                        <span className="font-medium">
-                          {Math.floor((stats.mode_300?.averageDuration || 0) / 60)}분{' '}
-                          {Math.floor((stats.mode_300?.averageDuration || 0) % 60)}초
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-gray-600">최근 작성일</span>
-                        <span className="font-medium">
-                          {stats.mode_300?.recentDate
-                            ? new Date(stats.mode_300.recentDate).toLocaleDateString('ko-KR')
-                            : '-'}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* 1000자 통계 카드 */}
-                  <div className="bg-gradient-to-br from-purple-50 to-white rounded-xl p-5 border border-purple-100">
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-lg font-bold text-purple-900">1000자 글쓰기</h3>
-                      <span className="text-sm font-medium text-purple-600 bg-purple-50 px-3 py-1 rounded-full">
-                        총 {stats.mode_1000?.count || 0}개
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      {/* 점수 섹션 */}
-                      <div className="text-center p-3 bg-white rounded-lg shadow-sm">
-                        <div className="mb-2">
-                          <div className="inline-block p-2 bg-purple-50 rounded-full">
-                            <span className="text-purple-600 text-xl">
-                              {(stats.mode_1000?.averageScore || 0).toFixed(1)}
-                            </span>
-                          </div>
-                        </div>
-                        <p className="text-sm text-gray-600">평균 점수</p>
-                      </div>
-
-                      {/* 최고 점수 섹션 */}
-                      <div className="text-center p-3 bg-white rounded-lg shadow-sm">
-                        <div className="mb-2">
-                          <div className="inline-block p-2 bg-green-50 rounded-full">
-                            <span className="text-green-600 text-xl">
-                              {stats.mode_1000?.maxScore || 0}
-                            </span>
-                          </div>
-                        </div>
-                        <p className="text-sm text-gray-600">최고 점수</p>
-                      </div>
-                    </div>
-
-                    {/* 추가 정보 */}
-                    <div className="mt-4 space-y-2">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-gray-600">평균 작성 시간</span>
-                        <span className="font-medium">
-                          {Math.floor((stats.mode_1000?.averageDuration || 0) / 60)}분{' '}
-                          {Math.floor((stats.mode_1000?.averageDuration || 0) % 60)}초
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-gray-600">평균 완성 횟수</span>
-                        <span className="font-medium">
-                          {stats.mode_1000?.averageSessionCount || 0}회
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-gray-600">최근 작성일</span>
-                        <span className="font-medium">
-                          {stats.mode_1000?.recentDate
-                            ? new Date(stats.mode_1000.recentDate).toLocaleDateString('ko-KR')
-                            : '-'}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
+        {stats && <SubmissionStats stats={stats} />}
 
         {/* 피드백 활동 통계 */}
         {feedbackStats && (
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-6">
-            {/* 헤더 섹션 - 동일하게 유지 */}
-            <div
-              className="flex items-center justify-between cursor-pointer"
-              onClick={() => setIsFeedbackStatsExpanded(!isFeedbackStatsExpanded)}
-            >
-              <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
-                <span className="text-xl">💫</span>
-                피드백 활동
-              </h2>
-              <button className="p-2 hover:bg-gray-50 rounded-full transition-colors">
-                {isFeedbackStatsExpanded ? '▼' : '▶'}
-              </button>
-            </div>
-
-            {/* 접혔을 때의 간단한 요약 뷰 */}
-            {!isFeedbackStatsExpanded && (
-              <div className="mt-4">
-                {/* 오늘의 피드백 진행 상태 */}
-                <div className="flex items-center gap-4 mb-4">
-                  <div className="flex-1">
-                    <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-gradient-to-r from-blue-500 to-purple-500 transition-all duration-300"
-                        style={{ width: `${Math.min((dailyFeedbackCount / 3) * 100, 100)}%` }}
-                      />
-                    </div>
-                  </div>
-                  <span className="text-sm font-medium text-blue-600">
-                    오늘 {dailyFeedbackCount}/3
-                  </span>
-                </div>
-
-                {/* 핵심 수치 요약 */}
-                <div className="flex justify-between items-center px-2">
-                  <div className="text-center">
-                    <p className="text-2xl font-bold text-blue-600">
-                      {feedbackStats.totalSubmissions}
-                    </p>
-                    <p className="text-xs text-gray-500">작성글</p>
-                  </div>
-                  <div className="h-8 w-px bg-gray-200" />
-                  <div className="text-center">
-                    <p className="text-2xl font-bold text-purple-600">
-                      {feedbackStats.feedbackGiven}
-                    </p>
-                    <p className="text-xs text-gray-500">작성 피드백</p>
-                  </div>
-                  <div className="h-8 w-px bg-gray-200" />
-                  <div className="text-center">
-                    <p className="text-2xl font-bold text-green-600">
-                      {feedbackStats.feedbackReceived}
-                    </p>
-                    <p className="text-xs text-gray-500">받은 피드백</p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* 펼쳤을 때의 상세 통계 뷰 */}
-            {isFeedbackStatsExpanded && (
-              <div className="mt-4 space-y-4">
-                {/* 기간 선택 필터 */}
-                <div className="flex justify-end mb-4">
-                  <select
-                    className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm bg-white"
-                    onChange={e =>
-                      setTimeFilter(e.target.value as 'all' | 'week' | 'month' | '3months')
-                    }
-                    defaultValue="all"
-                  >
-                    <option value="all">전체 기간</option>
-                    <option value="week">이번 주</option>
-                    <option value="month">이번 달</option>
-                    <option value="3months">최근 3개월</option>
-                  </select>
-                </div>
-
-                {/* 글 작성 통계 */}
-                <div className="bg-blue-50 rounded-lg p-4">
-                  <h3 className="text-sm font-medium text-gray-700 mb-3">📝 글 작성 활동</h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-white rounded-lg p-3 shadow-sm">
-                      <p className="text-xs text-gray-500 mb-1">총 작성글</p>
-                      <div className="flex items-end justify-between">
-                        <p className="text-2xl font-bold text-blue-600">
-                          {feedbackStats.totalSubmissions}
-                        </p>
-                        <p className="text-xs text-green-600">
-                          {weeklyGrowth.submissions > 0 && '+'}
-                          {weeklyGrowth.submissions} 이번 주
-                        </p>
-                      </div>
-                    </div>
-                    <div className="bg-white rounded-lg p-3 shadow-sm">
-                      <p className="text-xs text-gray-500 mb-1">피드백 언락률</p>
-                      <div className="space-y-2">
-                        <p className="text-2xl font-bold text-blue-600">
-                          {feedbackStats.unlockRate}%
-                        </p>
-                        <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-blue-500 rounded-full"
-                            style={{ width: `${feedbackStats.unlockRate}%` }}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 피드백 교류 통계 */}
-                <div className="bg-purple-50 rounded-lg p-4">
-                  <h3 className="text-sm font-medium text-gray-700 mb-3">💬 피드백 교류</h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-white rounded-lg p-3 shadow-sm">
-                      <p className="text-xs text-gray-500 mb-1">작성한 피드백</p>
-                      <p className="text-2xl font-bold text-purple-600">
-                        {feedbackStats.feedbackGiven}
-                      </p>
-                      <div className="mt-2">
-                        <p className="text-xs text-gray-500 mb-1">오늘의 진행도</p>
-                        <div className="flex items-center gap-2">
-                          <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-purple-500 rounded-full"
-                              style={{ width: `${(dailyFeedbackCount / 3) * 100}%` }}
-                            />
-                          </div>
-                          <span className="text-xs font-medium text-purple-600">
-                            {dailyFeedbackCount}/3
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="bg-white rounded-lg p-3 shadow-sm">
-                      <p className="text-xs text-gray-500 mb-1">받은 피드백</p>
-                      <p className="text-2xl font-bold text-purple-600">
-                        {feedbackStats.feedbackReceived}
-                      </p>
-                      <p className="text-xs text-gray-500 mt-2">
-                        평균 {averageFeedback}개의 피드백/글
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 전체 통계 요약 */}
-                <div className="bg-gradient-to-r from-yellow-50 to-orange-50 rounded-lg p-4">
-                  <h3 className="text-sm font-medium text-gray-700 mb-3">📊 활동 요약</h3>
-                  <div className="grid grid-cols-3 gap-2 text-center">
-                    <div>
-                      <p className="text-xs text-gray-500">언락된 글</p>
-                      <p className="text-lg font-bold text-orange-600">
-                        {feedbackStats.unlockedSubmissions}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-500">평균 피드백</p>
-                      <p className="text-lg font-bold text-orange-600">{averageFeedback}개</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-gray-500">달성률</p>
-                      <p className="text-lg font-bold text-orange-600">
-                        {feedbackStats.unlockRate}%
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
+          <FeedbackStats
+            feedbackStats={feedbackStats}
+            dailyFeedbackCount={dailyFeedbackCount}
+            weeklyGrowth={weeklyGrowth}
+          />
         )}
 
         {/* 피드백 미션 현황 */}
         {/* <FeedbackMissionPanel /> */}
 
-        {/* 피드백 현황 */}
-        {/* <div className="bg-white rounded-lg shadow-md p-4 mb-6">
-          <h2 className="text-xl sm:text-lg font-semibold mb-3 flex items-center gap-2">
-            🗣 받은 피드백 현황
-            <span className="text-sm font-normal text-gray-500">
-              (총 {receivedFeedbackData.groupedBySubmission.length}개)
-            </span>
-          </h2> */}
-
-        {/* 피드백 열람 규칙 설명 */}
-        {/* <div className="bg-blue-50 rounded-lg p-4 mb-4">
-            <h3 className="text-base font-medium text-blue-800 mb-2">📋 피드백 열람 규칙</h3>
-            <ul className="space-y-2 text-sm text-blue-700">
-              <li className="flex items-start gap-2">
-                <span>•</span>
-                <span>
-                  각 글마다 3개의 피드백을 작성하면 해당 글에 달린 피드백을 영구적으로 볼 수 있어요.
-                </span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span>•</span>
-                <span>
-                  현재까지 작성한 피드백: {receivedFeedbackData.totalWritten}개
-                  {receivedFeedbackData.totalWritten < CONFIG.FEEDBACK.REQUIRED_COUNT && (
-                    <span className="text-blue-800 font-medium">
-                      {' '}
-                      (앞으로 {CONFIG.FEEDBACK.REQUIRED_COUNT - receivedFeedbackData.totalWritten}개
-                      더 필요해요!)
-                    </span>
-                  )}
-                </span>
-              </li>
-            </ul>
-          </div> */}
-
-        {/* 글별 피드백 현황 */}
-        {/* <div className="space-y-4">
-            {filteredSubmissions.map(submission => (
-              <SubmissionItem key={submission._id} submission={submission} />
-            ))}
-        </div>
-        </div> */}
-
         {/* 필터 및 정렬 섹션 */}
-        <FilterSection
+        <SubmissionFilterSection
           activeTab={activeTab}
           setActiveTab={setActiveTab}
-          searchQuery={searchQuery}
-          setSearchQuery={setSearchQuery}
+          feedbackFilter={feedbackFilter}
+          setFeedbackFilter={setFeedbackFilter}
           sortBy={sortBy}
           setSortBy={setSortBy}
           sortOrder={sortOrder}
           setSortOrder={setSortOrder}
-          showSortOptions={true}
-          customSortOptions={[
-            { value: 'date', label: '날짜순' },
-            { value: 'score', label: '점수순' },
-            { value: 'feedback', label: '피드백순' },
-          ]}
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+          counts={filterCounts}
         />
 
         {/* 글 목록 */}
-        {filteredSubmissions.length === 0 ? (
-          <div className="text-center py-6 sm:py-8 text-gray-500 text-sm sm:text-base">
-            검색 결과가 없습니다.
+        {isLoading ? (
+          <div className="text-center py-8">
+            <p>로딩 중...</p>
+          </div>
+        ) : error ? (
+          <div className="text-center py-8 text-red-600">
+            <p>{error}</p>
+          </div>
+        ) : noSubmissions ? (
+          <div className="text-center py-8">
+            <p>아직 작성한 글이 없습니다.</p>
           </div>
         ) : (
           <div className="space-y-4">
-            {filteredSubmissions.slice(0, visibleCount).map(item => {
-              const isExpanded = expandedId === item._id;
-              const feedbacksForThis = getFeedbacksForSubmission(item._id);
-              const hasFeedback = feedbacksForThis.length > 0;
-              const canViewFeedback = item.feedbackUnlocked === true;
-
-              return (
-                <div
-                  key={item._id}
-                  className={`bg-white rounded-lg shadow-sm border transition-all duration-200 hover:shadow-md ${
-                    hasFeedback
-                      ? 'border-l-4 border-l-blue-500 border-t-0 border-r-0 border-b-0'
-                      : 'border border-gray-100'
-                  }`}
-                >
-                  {/* 카드 헤더 - 항상 보이는 영역 */}
-                  <div className="p-4 cursor-pointer" onClick={() => toggleExpand(item._id)}>
-                    {/* 메타 정보 (모드, 주제, 날짜, 점수) */}
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2 text-sm">
-                        {/* 모드 */}
-                        <span
-                          className={`px-2 py-0.5 rounded-full ${
-                            item.mode === 'mode_300'
-                              ? 'bg-blue-50 text-blue-600'
-                              : 'bg-green-50 text-green-600'
-                          }`}
-                        >
-                          <span className="hidden sm:inline">
-                            {item.mode === 'mode_300' ? '300자' : '1000자'}
-                          </span>
-                          <span className="sm:hidden">
-                            {item.mode === 'mode_300' ? '300' : '1000'}
-                          </span>
-                        </span>
-
-                        {/* 주제 */}
-                        <span className="text-gray-600">{item.topic || '자유주제'}</span>
-
-                        {/* 날짜 - 모바일/데스크탑 동일 형식 */}
-                        <span className="text-gray-500">
-                          {new Date(item.createdAt)
-                            .toLocaleDateString('ko-KR', {
-                              year: 'numeric',
-                              month: 'numeric',
-                              day: 'numeric',
-                            })
-                            .replace(/(\d{4}). (\d+). (\d+)./, '$1.$2.$3')}
-                        </span>
-                      </div>
-
-                      {/* 점수와 피드백 수 (오른쪽 끝) */}
-                      <div className="flex items-center gap-2">
-                        {/* 점수는 데스크탑에서만 표시 */}
-                        {item.score !== null && (
-                          <span className="hidden sm:flex text-sm text-gray-600 items-center gap-1">
-                            <span aria-label="score">{ICONS.SCORE}</span>
-                            {item.score}점
-                          </span>
-                        )}
-                        {/* 피드백 수는 모바일/데스크탑 모두 표시 */}
-                        {hasFeedback && (
-                          <span className="flex items-center gap-1 px-2 py-0.5 bg-blue-50 rounded-full text-sm text-blue-600">
-                            <span aria-label="feedback">{ICONS.FEEDBACK}</span>
-                            {feedbacksForThis.length}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* 제목 */}
-                    <h3 className="text-lg font-medium text-gray-900">{item.title}</h3>
-                  </div>
-
-                  {/* 확장 영역 - 클릭시 보이는 영역 */}
-                  {isExpanded && (
-                    <div className="border-t border-gray-100">
-                      {/* 본문 */}
-                      <div className="p-4 bg-gray-50">
-                        <p className="text-gray-800 whitespace-pre-line leading-relaxed">
-                          {item.text}
-                        </p>
-                      </div>
-
-                      {/* AI 피드백 */}
-                      {item.aiFeedback && (
-                        <div className="p-4 border-t border-gray-100">
-                          <div className="flex items-center gap-2 mb-2">
-                            <span aria-label="AI">{ICONS.AI}</span>
-                            <h4 className="text-sm font-medium text-gray-900">AI 피드백</h4>
-                          </div>
-                          <div className="mt-6">
-                            <AIFeedback feedback={item.aiFeedback} />
-                          </div>
-                        </div>
-                      )}
-
-                      {/* 사용자 피드백 */}
-                      {hasFeedback && (
-                        <div className="p-4 border-t border-gray-100">
-                          <div className="flex items-center justify-between mb-3">
-                            <div className="flex items-center gap-2">
-                              <span aria-label="feedback">{ICONS.FEEDBACK}</span>
-                              <h4 className="text-sm font-medium text-gray-900">받은 피드백</h4>
-                            </div>
-                          </div>
-
-                          {canViewFeedback ? (
-                            <div className="space-y-2">
-                              {feedbacksForThis.map((fb, index) => (
-                                <div key={index} className="bg-blue-50 rounded-lg p-3">
-                                  <p className="text-gray-800 mb-2">{fb.content}</p>
-                                  <div className="flex items-center justify-between text-xs text-gray-500">
-                                    <span>{fb.writer.displayName}</span>
-                                    <span>
-                                      {new Date(fb.createdAt).toLocaleDateString('ko-KR')}
-                                    </span>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          ) : (
-                            <div className="bg-yellow-50 rounded-lg p-3">
-                              <div className="flex items-center gap-2">
-                                <span aria-label="lock">{ICONS.LOCK}</span>
-                                <p className="text-sm text-yellow-700">
-                                  {CONFIG.FEEDBACK.REQUIRED_COUNT}개의 피드백을 작성하면 볼 수
-                                  있어요!
-                                </p>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-
-            {/* 더보기 버튼 */}
-            {filteredSubmissions.length > visibleCount && (
-              <button
-                className="w-full py-3 bg-gray-50 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors duration-200"
-                onClick={handleShowMore}
+            {filteredSubmissions.map((submission, index) => (
+              <div
+                key={submission._id}
+                ref={
+                  index === filteredSubmissions.length - 1 ? lastSubmissionElementRef : undefined
+                }
               >
-                더보기
-              </button>
+                <SubmissionItem
+                  submission={submission}
+                  isExpanded={expandedId === submission._id}
+                  onToggleExpand={() =>
+                    setExpandedId(expandedId === submission._id ? null : submission._id)
+                  }
+                  onUnlockFeedback={() => handleUnlockFeedback(submission)}
+                  feedbacks={getFeedbacksForSubmission(submission._id)}
+                />
+              </div>
+            ))}
+            {isLoadingMore && (
+              <div className="text-center py-4">
+                <p>로딩 중...</p>
+              </div>
             )}
           </div>
         )}
+
+        {/* UnlockModal 추가 */}
+        {selectedSubmission && (
+          <UnlockModal
+            isOpen={isUnlockModalOpen}
+            onClose={() => {
+              setIsUnlockModalOpen(false);
+              setSelectedSubmission(null);
+            }}
+            onUnlock={handleUnlock}
+            submissionTitle={selectedSubmission.title}
+            bonusTokens={tokens?.bonusTokens || 0}
+          />
+        )}
+
         <ScrollToTop />
       </div>
     </ErrorBoundary>
