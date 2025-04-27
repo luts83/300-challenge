@@ -7,6 +7,19 @@ interface FeedbackStatsProps {
     feedbackGiven: number;
     feedbackReceived: number;
     unlockRate: number;
+    receivedFeedbackDetails?: Array<{
+      feedbackId: string;
+      submissionId: string;
+      submissionTitle: string;
+      submissionMode: string;
+      submissionDate: string;
+      feedbackContent: string;
+      feedbackDate: string;
+      fromUser: {
+        displayName: string;
+        email: string;
+      };
+    }>;
   };
   dailyFeedbackCount: number;
   weeklyGrowth: {

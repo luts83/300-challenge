@@ -109,22 +109,30 @@ const Write1000 = () => {
   const fetchDraft = async () => {
     if (!user) return;
 
+    // localStorage에서 제출 상태 확인
+    const isSubmitted = localStorage.getItem('write1000_submitted');
+    if (isSubmitted) {
+      setText('');
+      setTitle('');
+      setSessionCount(0);
+      setTotalDuration(0);
+      setIsStarted(false);
+      return;
+    }
+
     try {
-      // 먼저 제출 여부 확인
-      const isSubmitted = localStorage.getItem('write1000_submitted');
-      if (isSubmitted) {
-        // 제출된 상태면 draft를 불러오지 않고 초기화
+      const res = await axiosInstance.get(`/api/drafts/${user.uid}`);
+      const draft = res.data;
+
+      // 드래프트가 없으면 초기화 상태로 설정
+      if (!draft || !draft.text) {
         setText('');
         setTitle('');
         setSessionCount(0);
         setTotalDuration(0);
         setIsStarted(false);
-        localStorage.removeItem('write1000_submitted');
         return;
       }
-
-      const res = await axiosInstance.get(`/api/drafts/${user.uid}`);
-      const draft = res.data;
 
       // 디버깅을 위한 상세 로깅 추가
 
@@ -148,11 +156,25 @@ const Write1000 = () => {
       setIsStarted(false);
       setIsPageReentered(true);
     } catch (err) {
+      if (axios.isAxiosError(err)) {
+        if (err.response?.status === 404) {
+          // 404 에러(드래프트 없음)
+          localStorage.removeItem('write1000_draft');
+          localStorage.removeItem('write1000_session');
+          setText('');
+          setTitle('');
+          setSessionCount(0);
+          setTotalDuration(0);
+          setIsStarted(false);
+          setIsPageReentered(false); // 🔥 추가!!
+          return;
+        }
+      }
       logger.error('📭 초안 불러오기 실패:', err);
-      if (err.response) {
+      if (axios.isAxiosError(err) && err.response) {
         logger.error('서버 응답:', err.response.data);
       }
-      setIsPageReentered(true);
+      setIsPageReentered(true); // 404가 아닌 다른 에러일 때만
     }
   };
 
@@ -206,6 +228,28 @@ const Write1000 = () => {
     if (!user) return;
     try {
       await axios.delete(`${import.meta.env.VITE_API_URL}/api/drafts/${user.uid}`);
+      // localStorage의 모든 관련 데이터 삭제
+      localStorage.setItem('write1000_submitted', 'true');
+      localStorage.removeItem('write1000_draft');
+      localStorage.removeItem('write1000_session');
+
+      // 상태 초기화
+      setText('');
+      setTitle('');
+      setSessionCount(0);
+      setTotalDuration(0);
+      setStartTime(null);
+      setDurationNow(0);
+      setIsStarted(false);
+      setLastInputTime(null);
+      setLastSavedAt(null);
+      setHasWrittenThisSession(false);
+
+      // 자동저장 중단
+      if (autosaveRef.current) {
+        clearInterval(autosaveRef.current);
+        autosaveRef.current = null;
+      }
     } catch (err) {
       logger.error('❌ 초안 삭제 실패:', err);
     }

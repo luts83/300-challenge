@@ -6,7 +6,6 @@ const Submission = require("../models/Submission");
 // 최고 기록 조회
 router.get("/best", async (req, res) => {
   const { mode } = req.query;
-  console.log("Fetching best record for mode:", mode);
 
   try {
     let query = {};
@@ -20,8 +19,6 @@ router.get("/best", async (req, res) => {
       .sort({ sessionCount: -1, duration: -1 })
       .select("sessionCount duration");
 
-    console.log("Found best record:", bestRecord);
-
     if (!bestRecord) {
       return res.json({ sessionCount: 0, duration: 0 });
     }
@@ -31,7 +28,6 @@ router.get("/best", async (req, res) => {
       duration: bestRecord.duration,
     });
   } catch (err) {
-    console.error("최고 기록 조회 오류:", err);
     res.status(500).json({
       error: "최고 기록 조회 실패",
       details: err.message,

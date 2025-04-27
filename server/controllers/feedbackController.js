@@ -81,37 +81,99 @@ exports.getAvailableSubmissions = async (req, res) => {
 exports.submitFeedback = async (req, res) => {
   const { toSubmissionId, fromUid, content } = req.body;
 
+  if (
+    !toSubmissionId ||
+    !fromUid ||
+    !content ||
+    content.trim().length < CONFIG.FEEDBACK.MIN_LENGTH
+  ) {
+    return res
+      .status(400)
+      .json({ message: "유효한 피드백 데이터를 입력해주세요." });
+  }
+
   try {
+    // 1. 피드백 대상 글 정보 가져오기
     const targetSubmission = await Submission.findById(toSubmissionId);
     if (!targetSubmission) {
-      return res.status(404).json({ message: "대상 글을 찾을 수 없습니다." });
+      return res
+        .status(404)
+        .json({ message: "피드백 대상 글을 찾을 수 없습니다." });
     }
 
-    // 피드백 가능 여부 확인
-    const canGive = await canGiveFeedback(fromUid, targetSubmission);
-    if (!canGive) {
-      return res.status(403).json({
-        message: CONFIG.FEEDBACK.CROSS_MODE_FEEDBACK.ENABLED
-          ? "해당 모드의 글에는 피드백을 줄 수 없습니다."
-          : "같은 모드의 글에만 피드백을 줄 수 있습니다.",
-      });
+    // 2. 피드백 작성자 정보 가져오기
+    const fromUser = await Submission.findOne({ "user.uid": fromUid })
+      .select("user")
+      .sort({ createdAt: -1 });
+
+    if (!fromUser) {
+      return res
+        .status(404)
+        .json({ message: "피드백 작성자 정보를 찾을 수 없습니다." });
     }
 
-    // 기존 피드백 검증 로직...
+    // 3. 새로운 피드백 데이터 생성
+    const newFeedback = new Feedback({
+      // 피드백 대상 글 정보
+      toSubmissionId: targetSubmission._id,
+      submissionTitle: targetSubmission.title,
+      submissionText: targetSubmission.text,
+      submissionMode: targetSubmission.mode,
 
-    // 피드백 저장
-    const feedback = new Feedback({
+      // 원글 작성자 정보
+      toUser: {
+        uid: targetSubmission.user.uid,
+        displayName: targetSubmission.user.displayName,
+        email: targetSubmission.user.email,
+      },
+
+      // 피드백 작성자 정보
       fromUid,
-      toSubmissionId,
+      fromUser: {
+        displayName: fromUser.user.displayName,
+        email: fromUser.user.email,
+      },
+
+      // 피드백 내용
       content,
       writtenDate: new Date().toISOString().slice(0, 10),
+
+      // 피드백 상태
+      isRead: false,
+      isHelpful: null,
     });
 
-    await feedback.save();
-    res.status(200).json({ message: "피드백이 저장되었습니다!" });
+    // 4. 피드백 저장
+    const savedFeedback = await newFeedback.save();
+
+    // 5. 오늘 작성한 피드백 수 확인
+    const today = new Date().toISOString().slice(0, 10);
+    const feedbackCount = await Feedback.countDocuments({
+      fromUid,
+      writtenDate: today,
+    });
+
+    // 6. 피드백이 3개 이상이면 오늘 작성한 모든 글의 피드백 열람 가능
+    if (feedbackCount >= CONFIG.FEEDBACK.REQUIRED_COUNT) {
+      await Submission.updateMany(
+        {
+          "user.uid": fromUid,
+          submissionDate: today,
+        },
+        {
+          feedbackUnlocked: true,
+        }
+      );
+    }
+
+    res.status(200).json({
+      message: "피드백이 성공적으로 저장되었습니다!",
+      feedback: savedFeedback,
+      todayFeedbackCount: feedbackCount,
+    });
   } catch (err) {
     logger.error("피드백 저장 실패:", err);
-    res.status(500).json({ message: `서버 오류: ${err.message}` });
+    res.status(500).json({ message: "서버 오류가 발생했습니다." });
   }
 };
 

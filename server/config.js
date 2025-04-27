@@ -22,7 +22,7 @@ module.exports = {
     REQUIRED_COUNT: 3, // 하루에 필요한 피드백 수
     PER_SUBMISSION: 3, // 글 1개당 할당되는 피드백 미션 수
     CROSS_MODE_FEEDBACK: {
-      ENABLED: false,
+      ENABLED: true,
       RESTRICTIONS: {
         mode_300: ["mode_300", "mode_1000"],
         mode_1000: ["mode_300", "mode_1000"],

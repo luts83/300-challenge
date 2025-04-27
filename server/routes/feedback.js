@@ -5,6 +5,7 @@ const Submission = require("../models/Submission");
 const Feedback = require("../models/Feedback");
 const mongoose = require("mongoose");
 const config = require("../config");
+const { submitFeedback } = require("../controllers/feedbackController");
 
 // 피드백할 글 추천 (모드 동일 + 적게 받은 글 우선)
 router.get("/assignments/:uid", async (req, res) => {
@@ -123,116 +124,7 @@ router.get("/assignments/:uid", async (req, res) => {
 });
 
 // 피드백 제출
-router.post("/", async (req, res) => {
-  const { toSubmissionId, fromUid, content } = req.body;
-
-  if (
-    !toSubmissionId ||
-    !fromUid ||
-    !content ||
-    content.trim().length < config.FEEDBACK.MIN_LENGTH
-  ) {
-    return res
-      .status(400)
-      .json({ message: "유효한 피드백 데이터를 입력해주세요." });
-  }
-
-  try {
-    // ObjectId 유효성 검증
-    if (!mongoose.Types.ObjectId.isValid(toSubmissionId)) {
-      return res
-        .status(400)
-        .json({ message: "유효하지 않은 제출물 ID입니다." });
-    }
-
-    // 작성한 글 여부 확인 및 모드 가져오기
-    const userSubmission = await Submission.findOne({
-      "user.uid": fromUid,
-      submissionDate: new Date().toISOString().slice(0, 10), // 오늘 작성한 글만
-    }).sort({ createdAt: -1 });
-
-    if (!userSubmission) {
-      return res.status(403).json({
-        message: "오늘 글을 작성한 사용자만 피드백을 남길 수 있습니다.",
-      });
-    }
-
-    // 피드백 대상 글 가져오기
-    const targetSubmission = await Submission.findById(toSubmissionId);
-    if (!targetSubmission) {
-      return res
-        .status(404)
-        .json({ message: "피드백 대상 글을 찾을 수 없습니다." });
-    }
-
-    // 교차 피드백 검증
-    if (config.FEEDBACK.CROSS_MODE_FEEDBACK.ENABLED) {
-      const allowedModes =
-        config.FEEDBACK.CROSS_MODE_FEEDBACK.RESTRICTIONS[userSubmission.mode];
-      if (!allowedModes || !allowedModes.includes(targetSubmission.mode)) {
-        return res.status(400).json({
-          message: "현재 모드에서는 해당 글에 피드백을 줄 수 없습니다.",
-        });
-      }
-    } else {
-      // 교차 피드백이 비활성화된 경우에만 모드 검증
-      if (userSubmission.mode !== targetSubmission.mode) {
-        return res.status(400).json({
-          message: `${
-            userSubmission.mode === "mode_300" ? "300자" : "1000자"
-          } 모드로 작성한 글에만 피드백을 줄 수 있습니다.`,
-        });
-      }
-    }
-
-    // 중복 피드백 체크
-    const existing = await Feedback.findOne({ toSubmissionId, fromUid });
-    if (existing) {
-      return res
-        .status(409)
-        .json({ message: "이미 이 글에 피드백을 작성했습니다." });
-    }
-
-    // 피드백 저장
-    const today = new Date().toISOString().slice(0, 10);
-    const savedFeedback = await Feedback.create({
-      fromUid,
-      toSubmissionId,
-      content,
-      writtenDate: today,
-      submissionTitle: targetSubmission.title,
-    });
-
-    // 오늘 작성한 피드백 수 확인
-    const feedbackCount = await Feedback.countDocuments({
-      fromUid,
-      writtenDate: today,
-    });
-
-    // 피드백이 3개 이상이면 오늘 작성한 모든 글의 피드백 열람 가능
-    if (feedbackCount >= config.FEEDBACK.REQUIRED_COUNT) {
-      await Submission.updateMany(
-        {
-          "user.uid": fromUid,
-          submissionDate: today,
-        },
-        {
-          feedbackUnlocked: true,
-        }
-      );
-    }
-
-    res.json({
-      message: "피드백이 성공적으로 저장되었습니다.",
-      feedback: savedFeedback,
-      unlocked: feedbackCount >= config.FEEDBACK.REQUIRED_COUNT,
-      feedbackCount,
-    });
-  } catch (err) {
-    console.error("❌ 피드백 저장 실패:", err);
-    res.status(500).json({ message: `서버 오류: ${err.message}` });
-  }
-});
+router.post("/", submitFeedback);
 
 // 내가 받은 피드백 조회
 router.get("/received/:uid", async (req, res) => {
@@ -458,11 +350,41 @@ router.get("/stats/:uid", async (req, res) => {
     // 내가 작성한 피드백 수
     const feedbackGiven = await Feedback.countDocuments({ fromUid: uid });
 
-    // 내가 받은 피드백 수 (전체)
+    // 내가 받은 피드백 조회 (상세 정보 포함)
     const mySubmissionIds = submissions.map((s) => s._id);
-    const feedbackReceived = await Feedback.countDocuments({
+    const receivedFeedbacks = await Feedback.find({
       toSubmissionId: { $in: mySubmissionIds },
-    });
+    })
+      .populate("toSubmissionId", "title text mode createdAt")
+      .lean(); // lean() 추가하여 일반 객체로 변환
+
+    // 피드백 작성자 정보 조회
+    const feedbackWriterUids = [
+      ...new Set(receivedFeedbacks.map((f) => f.fromUid)),
+    ];
+    const feedbackWriters = await Submission.find({
+      "user.uid": { $in: feedbackWriterUids },
+    })
+      .select("user")
+      .lean();
+
+    // 작성자 정보 매핑
+    const writerMap = feedbackWriters.reduce((acc, writer) => {
+      acc[writer.user.uid] = writer.user;
+      return acc;
+    }, {});
+
+    // 상세 피드백 정보에 작성자 정보 포함
+    const receivedFeedbackDetails = receivedFeedbacks.map((feedback) => ({
+      feedbackId: feedback._id,
+      submissionId: feedback.toSubmissionId._id,
+      submissionTitle: feedback.toSubmissionId.title,
+      submissionMode: feedback.toSubmissionId.mode,
+      submissionDate: feedback.toSubmissionId.createdAt,
+      feedbackContent: feedback.content,
+      feedbackDate: feedback.createdAt,
+      fromUser: writerMap[feedback.fromUid] || { displayName: "익명" },
+    }));
 
     // unlock 비율 계산
     const unlockRate =
@@ -474,8 +396,9 @@ router.get("/stats/:uid", async (req, res) => {
       totalSubmissions,
       unlockedSubmissions,
       feedbackGiven,
-      feedbackReceived, // 전체 피드백 수
+      feedbackReceived: receivedFeedbacks.length,
       unlockRate,
+      receivedFeedbackDetails,
     });
   } catch (err) {
     console.error("❌ 활동 통계 조회 실패:", err);

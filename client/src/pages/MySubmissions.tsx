@@ -36,6 +36,7 @@ type Submission = {
   mode: 'mode_300' | 'mode_1000';
   feedbackUnlocked?: boolean;
   aiFeedback?: string;
+  feedbacks?: FeedbackItem[];
 };
 
 type FeedbackItem = {
@@ -51,6 +52,7 @@ type FeedbackStats = {
   feedbackGiven: number;
   feedbackReceived: number;
   unlockRate: number;
+  receivedFeedbackDetails: any[];
 };
 
 // 상단에 이모지 상수 정의
@@ -78,8 +80,8 @@ class ErrorBoundary extends Component<{ children: React.ReactNode }, { hasError:
   }
 }
 
-// 피드백 필터 타입 수정
-type FeedbackFilterType = 'all' | 'unlocked' | 'locked' | null; // null은 필터 미적용
+// 피드백 필터 타입 정의
+type FeedbackFilterType = 'has_feedback' | 'open_feedback' | 'locked_feedback' | null;
 
 const MySubmissions = () => {
   const { user, loading: authLoading } = useUser();
@@ -87,7 +89,23 @@ const MySubmissions = () => {
   const location = useLocation();
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [stats, setStats] = useState<StatsData | null>(null);
+  const [stats, setStats] = useState<StatsData>({
+    mode_300: {
+      count: 0,
+      averageScore: 0,
+      maxScore: 0,
+      recentDate: '',
+      averageDuration: 0,
+    },
+    mode_1000: {
+      count: 0,
+      averageScore: 0,
+      maxScore: 0,
+      recentDate: '',
+      averageDuration: 0,
+      averageSessionCount: 0,
+    },
+  });
   const [isStatsExpanded, setIsStatsExpanded] = useState(false);
   const [receivedFeedbackData, setReceivedFeedbackData] = useState<{
     totalWritten: number;
@@ -101,12 +119,13 @@ const MySubmissions = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'date' | 'score' | 'feedback'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
-  const [feedbackStats, setFeedbackStats] = useState<FeedbackStats>({
+  const [feedbackStats, setFeedbackStats] = useState({
     totalSubmissions: 0,
     unlockedSubmissions: 0,
     feedbackGiven: 0,
     feedbackReceived: 0,
     unlockRate: 0,
+    receivedFeedbackDetails: [],
   });
   const [timeFilter, setTimeFilter] = useState<'all' | 'week' | 'month' | '3months'>('all');
   const [weeklyGrowth, setWeeklyGrowth] = useState({
@@ -178,6 +197,84 @@ const MySubmissions = () => {
     }
   };
 
+  const [feedbackFilter, setFeedbackFilter] = useState<FeedbackFilterType>(null);
+  const [counts, setCounts] = useState({
+    all: 0,
+    mode_300: 0,
+    mode_1000: 0,
+    has_feedback: 0,
+    open_feedback: 0,
+    locked_feedback: 0,
+  });
+
+  // 피드백 카운트를 업데이트하는 함수
+  const updateCounts = (submissions: Submission[]) => {
+    const newCounts = {
+      all: submissions.length,
+      mode_300: submissions.filter(s => s.mode === 'mode_300').length,
+      mode_1000: submissions.filter(s => s.mode === 'mode_1000').length,
+      has_feedback: submissions.filter(s => (s.feedbacks?.length || 0) > 0).length,
+      open_feedback: submissions.filter(s => s.feedbackUnlocked && (s.feedbacks?.length || 0) > 0)
+        .length,
+      locked_feedback: submissions.filter(
+        s => !s.feedbackUnlocked && (s.feedbacks?.length || 0) > 0
+      ).length,
+    };
+    setCounts(newCounts);
+  };
+
+  // 필터링된 submissions를 반환하는 함수
+  const getFilteredSubmissions = (submissions: Submission[]) => {
+    let filtered = [...submissions];
+
+    // 모드 필터링
+    if (activeTab !== 'all') {
+      filtered = filtered.filter(submission => submission.mode === activeTab);
+    }
+
+    // 피드백 필터링
+    if (feedbackFilter) {
+      filtered = filtered.filter(submission => {
+        const hasFeedback = (submission.feedbacks?.length || 0) > 0;
+        switch (feedbackFilter) {
+          case 'has_feedback':
+            return hasFeedback;
+          case 'open_feedback':
+            return hasFeedback && submission.feedbackUnlocked;
+          case 'locked_feedback':
+            return hasFeedback && !submission.feedbackUnlocked;
+          default:
+            return true;
+        }
+      });
+    }
+
+    // 검색어 필터링
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(
+        submission =>
+          submission.title.toLowerCase().includes(query) ||
+          submission.text.toLowerCase().includes(query)
+      );
+    }
+
+    // 정렬
+    filtered.sort((a, b) => {
+      if (sortBy === 'feedback') {
+        const aCount = a.feedbacks?.length || 0;
+        const bCount = b.feedbacks?.length || 0;
+        return sortOrder === 'asc' ? aCount - bCount : bCount - aCount;
+      }
+      // 기본: 날짜순
+      return sortOrder === 'asc'
+        ? new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        : new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
+
+    return filtered;
+  };
+
   const fetchData = async (pageNum = 1) => {
     if (!user) return;
 
@@ -185,77 +282,76 @@ const MySubmissions = () => {
     else setIsLoadingMore(true);
 
     try {
-      // 페이지네이션된 데이터 요청
-      const [subRes, feedbackRes] = await Promise.all([
-        axios.get(`${import.meta.env.VITE_API_URL}/api/submit/user/${user.uid}`, {
-          params: {
-            page: pageNum,
-            limit: ITEMS_PER_PAGE,
-            mode: activeTab === 'all' ? undefined : activeTab,
-            search: searchQuery,
-            sortBy,
-            sortOrder,
-          },
-        }),
-        // 피드백 데이터 요청 추가
-        axios.get(`${import.meta.env.VITE_API_URL}/api/feedback/received/${user.uid}`),
+      const [submissionsRes, feedbackRes] = await Promise.all([
+        axios.get(`${import.meta.env.VITE_API_URL}/api/submit/user/${user.uid}`),
+        axios.get(`${import.meta.env.VITE_API_URL}/api/feedback/stats/${user.uid}`),
       ]);
 
-      // 서버 응답 구조 처리 수정
-      const newSubmissions = Array.isArray(subRes.data) ? subRes.data : [];
+      const newSubmissions = submissionsRes.data;
+      const feedbackData = feedbackRes.data.receivedFeedbackDetails || [];
 
-      // 피드백 데이터 설정
-      setReceivedFeedbackData(feedbackRes.data || { totalWritten: 0, groupedBySubmission: [] });
+      // 피드백 데이터를 submissions에 매핑
+      const submissionsWithFeedback = newSubmissions.map(submission => {
+        const submissionFeedbacks = feedbackData.filter(
+          feedback => feedback.submissionId === submission._id
+        );
 
-      if (pageNum === 1) {
-        setSubmissions(newSubmissions);
-      } else {
-        setSubmissions(prev => [...prev, ...newSubmissions]);
-      }
+        return {
+          ...submission,
+          feedbacks: submissionFeedbacks.map(feedback => ({
+            content: feedback.feedbackContent,
+            createdAt: feedback.feedbackDate,
+            writer: {
+              displayName: feedback.fromUser.displayName,
+            },
+          })),
+        };
+      });
 
-      setHasMore(newSubmissions.length === ITEMS_PER_PAGE);
-
-      if (newSubmissions.length === 0) {
-        setNoSubmissions(true);
-      } else {
-        setNoSubmissions(false);
-      }
-
-      // 첫 페이지 로드시에만 통계 데이터 가져오기
-      if (pageNum === 1) {
-        try {
-          const statsRes = await axios.get(`${import.meta.env.VITE_API_URL}/api/stats/${user.uid}`);
-          setStats(statsRes.data);
-        } catch (err) {
-          logger.error('통계 데이터 로딩 실패:', err);
-        }
-
-        try {
-          const feedbackStatsRes = await axios.get(
-            `${import.meta.env.VITE_API_URL}/api/feedback/stats/${user.uid}`
-          );
-          setFeedbackStats(feedbackStatsRes.data);
-        } catch (err) {
-          logger.error('피드백 통계 로딩 실패:', err);
-        }
-
-        try {
-          const feedbackRes = await axios.get(
-            `${import.meta.env.VITE_API_URL}/api/feedback/today/${user.uid}`
-          );
-          setDailyFeedbackCount(feedbackRes.data.count);
-        } catch (err) {
-          logger.error('오늘의 피드백 카운트 로딩 실패:', err);
-        }
-      }
+      // 전체 submissions 업데이트 및 카운트 업데이트
+      setSubmissions(submissionsWithFeedback);
+      updateCounts(submissionsWithFeedback);
     } catch (err) {
-      logger.error('데이터 로딩 실패:', err);
       setError('데이터를 불러오는데 실패했습니다.');
+      logger.error('데이터 불러오기 실패:', err);
     } finally {
-      if (pageNum === 1) setIsLoading(false);
-      else setIsLoadingMore(false);
+      setIsLoading(false);
     }
   };
+
+  // 통계 데이터를 가져오는 함수
+  const fetchAllStats = async () => {
+    if (!user) return;
+
+    try {
+      const [statsRes, feedbackStatsRes, weeklyRes, dailyRes] = await Promise.all([
+        // 작성 통계
+        axios.get(`${import.meta.env.VITE_API_URL}/api/stats/${user.uid}`),
+        // 피드백 통계
+        axios.get(`${import.meta.env.VITE_API_URL}/api/feedback/stats/${user.uid}`),
+        // 주간 성장
+        axios.get(`${import.meta.env.VITE_API_URL}/api/stats/weekly-growth/${user.uid}`),
+        // 오늘의 피드백 수
+        axios.get(`${import.meta.env.VITE_API_URL}/api/feedback/today/${user.uid}`),
+      ]);
+
+      // 각 상태 업데이트
+      setStats(statsRes.data);
+      setFeedbackStats(feedbackStatsRes.data);
+      setWeeklyGrowth(weeklyRes.data);
+      setDailyFeedbackCount(dailyRes.data.count);
+    } catch (err) {
+      logger.error('통계 데이터 조회 실패:', err);
+    }
+  };
+
+  // 컴포넌트 마운트 시 데이터 로드
+  useEffect(() => {
+    if (user) {
+      fetchData();
+      fetchAllStats();
+    }
+  }, [user]);
 
   // 필터나 정렬 변경시 데이터 리셋
   useEffect(() => {
@@ -270,22 +366,6 @@ const MySubmissions = () => {
     if (page > 1) fetchData(page);
   }, [page]);
 
-  useEffect(() => {
-    const fetchWeeklyGrowth = async () => {
-      if (!user) return;
-      try {
-        const res = await axios.get(
-          `${import.meta.env.VITE_API_URL}/api/stats/weekly-growth/${user.uid}`
-        );
-        setWeeklyGrowth(res.data);
-      } catch (err) {
-        logger.error('📊 주간 성장 통계 조회 실패:', err);
-      }
-    };
-
-    fetchWeeklyGrowth();
-  }, [user]);
-
   const toggleExpand = (id: string) => {
     setExpandedId(prev => (prev === id ? null : id));
   };
@@ -299,105 +379,6 @@ const MySubmissions = () => {
   const handleShowMore = () => {
     setVisibleCount(prev => prev + 5);
   };
-
-  // 기본값을 null로 변경
-  const [feedbackFilter, setFeedbackFilter] = useState<string | null>(null);
-
-  // filterCounts 계산 로직 추가
-  const filterCounts = useMemo(() => {
-    // 모드별 카운트
-    const modeCounts = {
-      all: submissions.length,
-      mode_300: submissions.filter(sub => sub.mode === 'mode_300').length,
-      mode_1000: submissions.filter(sub => sub.mode === 'mode_1000').length,
-    };
-
-    // 피드백 상태별 카운트 - 현재 선택된 모드에 따라 필터링
-    const filteredSubmissions =
-      activeTab === 'all' ? submissions : submissions.filter(sub => sub.mode === activeTab);
-
-    // 피드백 상태 카운트
-    const feedbackCounts = {
-      has_feedback: filteredSubmissions.filter(sub =>
-        receivedFeedbackData.groupedBySubmission.some(fb => fb.toSubmissionId === sub._id)
-      ).length,
-      open_feedback: filteredSubmissions.filter(sub => sub.feedbackUnlocked).length,
-      locked_feedback: filteredSubmissions.filter(sub => !sub.feedbackUnlocked).length,
-    };
-
-    return {
-      ...modeCounts,
-      ...feedbackCounts,
-    };
-  }, [submissions, activeTab, receivedFeedbackData.groupedBySubmission]);
-
-  // 필터링된 제출물 계산
-  const filteredSubmissions = useMemo(() => {
-    let filtered = [...submissions];
-
-    // 검색어 필터링 - 제목과 내용 모두 검색
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(
-        sub =>
-          sub.title?.toLowerCase()?.includes(query) ||
-          false ||
-          sub.text?.toLowerCase()?.includes(query) ||
-          false
-      );
-    }
-
-    // 모드 필터 적용
-    if (activeTab !== 'all') {
-      filtered = filtered.filter(sub => sub.mode === activeTab);
-    }
-
-    // 피드백 상태 필터 적용
-    if (feedbackFilter !== null) {
-      switch (feedbackFilter) {
-        case 'has_feedback':
-          filtered = filtered.filter(sub =>
-            receivedFeedbackData.groupedBySubmission.some(fb => fb.toSubmissionId === sub._id)
-          );
-          break;
-        case 'open_feedback':
-          filtered = filtered.filter(sub => sub.feedbackUnlocked);
-          break;
-        case 'locked_feedback':
-          filtered = filtered.filter(sub => !sub.feedbackUnlocked);
-          break;
-      }
-    }
-
-    // 정렬 적용
-    return filtered.sort((a, b) => {
-      if (sortBy === 'date') {
-        return sortOrder === 'desc'
-          ? new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-          : new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-      }
-      if (sortBy === 'feedback') {
-        const aFeedbackCount = receivedFeedbackData.groupedBySubmission.filter(
-          fb => fb.toSubmissionId === a._id
-        ).length;
-        const bFeedbackCount = receivedFeedbackData.groupedBySubmission.filter(
-          fb => fb.toSubmissionId === b._id
-        ).length;
-        return sortOrder === 'desc'
-          ? bFeedbackCount - aFeedbackCount
-          : aFeedbackCount - bFeedbackCount;
-      }
-      return 0;
-    });
-  }, [
-    submissions,
-    activeTab,
-    feedbackFilter,
-    searchQuery,
-    sortBy,
-    sortOrder,
-    receivedFeedbackData.groupedBySubmission,
-  ]);
 
   // 피드백 언락 핸들러
   const handleUnlockFeedback = (submission: Submission) => {
@@ -464,17 +445,15 @@ const MySubmissions = () => {
         <TokenDisplay />
         <WeeklyProgress />
 
-        {/* 통계 섹션 - 접었다 폈다 가능한 버전 유지 */}
-        {stats && <SubmissionStats stats={stats} />}
+        {/* 작성 통계 섹션 */}
+        <SubmissionStats stats={stats} />
 
-        {/* 피드백 활동 통계 */}
-        {feedbackStats && (
-          <FeedbackStats
-            feedbackStats={feedbackStats}
-            dailyFeedbackCount={dailyFeedbackCount}
-            weeklyGrowth={weeklyGrowth}
-          />
-        )}
+        {/* 피드백 통계 섹션 */}
+        <FeedbackStats
+          feedbackStats={feedbackStats}
+          dailyFeedbackCount={dailyFeedbackCount}
+          weeklyGrowth={weeklyGrowth}
+        />
 
         {/* 피드백 미션 현황 */}
         {/* <FeedbackMissionPanel /> */}
@@ -491,7 +470,7 @@ const MySubmissions = () => {
           setSortOrder={setSortOrder}
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
-          counts={filterCounts}
+          counts={counts}
         />
 
         {/* 글 목록 */}
@@ -509,21 +488,21 @@ const MySubmissions = () => {
           </div>
         ) : (
           <div className="space-y-4">
-            {filteredSubmissions.map((submission, index) => (
+            {getFilteredSubmissions(submissions).map((submission, index) => (
               <div
                 key={submission._id}
                 ref={
-                  index === filteredSubmissions.length - 1 ? lastSubmissionElementRef : undefined
+                  index === getFilteredSubmissions(submissions).length - 1
+                    ? lastSubmissionElementRef
+                    : null
                 }
               >
                 <SubmissionItem
                   submission={submission}
                   isExpanded={expandedId === submission._id}
-                  onToggleExpand={() =>
-                    setExpandedId(expandedId === submission._id ? null : submission._id)
-                  }
+                  onToggleExpand={() => toggleExpand(submission._id)}
                   onUnlockFeedback={() => handleUnlockFeedback(submission)}
-                  feedbacks={getFeedbacksForSubmission(submission._id)}
+                  feedbacks={submission.feedbacks || []}
                 />
               </div>
             ))}
