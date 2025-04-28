@@ -656,9 +656,7 @@ const Write1000 = () => {
         <div className="mb-4">
           <h2 className="text-lg font-medium text-gray-800 mb-2">📝 오늘의 주제</h2>
           <p className="text-gray-700 bg-blue-50 p-3 rounded-lg">
-            {CONFIG.TOPIC.SHOW_ON_HOME_1000
-              ? dailyTopic || '주제를 불러오는 중...'
-              : '자유 주제입니다. 마음 가는 대로 글을 써보세요.'}
+            자유 주제입니다. 마음 가는 대로 글을 써보세요.
           </p>
         </div>
 
@@ -695,11 +693,12 @@ const Write1000 = () => {
             onChange={handleTextChange}
             placeholder="1000자 이내로 자유롭게 작성해보세요."
             className="w-full h-64 p-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-            maxLength={MAX_LENGTH}
+            // maxLength={MAX_LENGTH}
             disabled={isTokenDepleted}
           />
           <div className="absolute right-2 bottom-2 text-sm text-gray-500">
-            {text.length}/{MAX_LENGTH}
+            {text.length}자{/* /{MAX_LENGTH} */}
+            {text.length < MIN_LENGTH && ` (최소 ${MIN_LENGTH}자)`}
           </div>
         </div>
 
