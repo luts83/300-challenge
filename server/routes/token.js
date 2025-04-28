@@ -10,11 +10,8 @@ router.get("/:uid", async (req, res) => {
   const { uid } = req.params;
 
   try {
-    // 두 모델에서 동시에 데이터 조회
-    const [tokenEntry, streakEntry] = await Promise.all([
-      Token.findOne({ uid }),
-      WritingStreak.findOne({ uid }),
-    ]);
+    // Token 모델에서 토큰 정보 조회
+    const tokenEntry = await Token.findOne({ uid });
 
     const now = new Date();
     const today = now.toDateString();
@@ -25,6 +22,7 @@ router.get("/:uid", async (req, res) => {
         uid,
         tokens_300: TOKEN.DAILY_LIMIT_300,
         tokens_1000: TOKEN.DAILY_LIMIT_1000,
+        bonusTokens: 0, // 보너스 토큰도 초기화
         lastRefreshed: now,
       });
     }
@@ -36,11 +34,10 @@ router.get("/:uid", async (req, res) => {
       await finalTokenEntry.save();
     }
 
-    // WritingStreak의 bonusTokens와 함께 응답
     res.json({
       tokens_300: finalTokenEntry.tokens_300,
       tokens_1000: finalTokenEntry.tokens_1000,
-      bonusTokens: streakEntry?.bonusTokens || 0,
+      bonusTokens: finalTokenEntry.bonusTokens, // Token 모델의 bonusTokens 사용
       lastRefreshed: finalTokenEntry.lastRefreshed,
     });
   } catch (error) {

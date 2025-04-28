@@ -20,10 +20,15 @@ export const useTokens = () => {
 
     setIsLoading(true);
     try {
-      const response = await axios.get(
-        `${import.meta.env.VITE_API_URL}/api/submit/tokens/${user.uid}`
+      const response = await axios.get<TokenData>(
+        `${import.meta.env.VITE_API_URL}/api/tokens/${user.uid}`
       );
-      setTokens(response.data);
+
+      setTokens({
+        tokens_300: Number(response.data.tokens_300) || 0,
+        tokens_1000: Number(response.data.tokens_1000) || 0,
+        bonusTokens: Number(response.data.bonusTokens) || 0,
+      });
       setError(null);
     } catch (err) {
       logger.error('토큰 정보 조회 실패:', err);

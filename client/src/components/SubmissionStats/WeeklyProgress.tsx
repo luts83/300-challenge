@@ -65,28 +65,49 @@ export const WeeklyProgress: React.FC<WeeklyProgressProps> = ({ className = '' }
     }
   };
 
-  useEffect(() => {
-    const fetchStreak = async () => {
-      if (!user) return;
-      try {
-        const response = await axios.get<StreakData>(
-          `${import.meta.env.VITE_API_URL}/api/streak/${user.uid}`
-        );
-        const { weeklyProgress, celebrationShown } = response.data;
-        setProgress(weeklyProgress);
+  const fetchStreak = async () => {
+    if (!user) return;
+    try {
+      const response = await axios.get<StreakData>(
+        `${import.meta.env.VITE_API_URL}/api/streak/${user.uid}`
+      );
+      const { weeklyProgress, celebrationShown } = response.data;
+      setProgress(weeklyProgress);
 
-        const allCompleted = weeklyProgress.every(Boolean);
-        if (allCompleted && !celebrationShown) {
-          setShowCelebration(true);
-          handleStreakCompletion();
-        }
-      } catch (error) {
-        toast.error('연속 작성 현황 조회에 실패했습니다.');
+      const allCompleted = weeklyProgress.every(Boolean);
+      if (allCompleted && !celebrationShown) {
+        setShowCelebration(true);
+        handleStreakCompletion();
       }
-    };
+    } catch (error) {
+      toast.error('연속 작성 현황 조회에 실패했습니다.');
+    }
+  };
 
+  // 컴포넌트 마운트 시 데이터 가져오기
+  useEffect(() => {
     fetchStreak();
   }, [user]);
+
+  // 글 작성 완료 이벤트 구독
+  useEffect(() => {
+    const handleSubmissionComplete = () => {
+      fetchStreak();
+    };
+
+    window.addEventListener('submissionComplete', handleSubmissionComplete);
+    return () => window.removeEventListener('submissionComplete', handleSubmissionComplete);
+  }, []);
+
+  // 페이지 포커스될 때마다 데이터 새로고침
+  useEffect(() => {
+    const handleFocus = () => {
+      fetchStreak();
+    };
+
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, []);
 
   const completedDays = progress.filter(Boolean).length;
   const remainingDays = TOTAL_DAYS - completedDays;

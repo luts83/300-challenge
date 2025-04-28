@@ -25,6 +25,7 @@ import { useTokens } from '../hooks/useTokens';
 import { SubmissionStats } from '../components/SubmissionStats/SubmissionStats';
 import type { StatsData } from '../components/SubmissionStats/types';
 import { SubmissionFilterSection } from '../components/FilterSection/SubmissionFilterSection';
+import { useSubmissionFilter } from '../hooks/useSubmissionFilter';
 
 type Submission = {
   _id: string;
@@ -223,57 +224,15 @@ const MySubmissions = () => {
     setCounts(newCounts);
   };
 
-  // 필터링된 submissions를 반환하는 함수
-  const getFilteredSubmissions = (submissions: Submission[]) => {
-    let filtered = [...submissions];
-
-    // 모드 필터링
-    if (activeTab !== 'all') {
-      filtered = filtered.filter(submission => submission.mode === activeTab);
-    }
-
-    // 피드백 필터링
-    if (feedbackFilter) {
-      filtered = filtered.filter(submission => {
-        const hasFeedback = (submission.feedbacks?.length || 0) > 0;
-        switch (feedbackFilter) {
-          case 'has_feedback':
-            return hasFeedback;
-          case 'open_feedback':
-            return hasFeedback && submission.feedbackUnlocked;
-          case 'locked_feedback':
-            return hasFeedback && !submission.feedbackUnlocked;
-          default:
-            return true;
-        }
-      });
-    }
-
-    // 검색어 필터링
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(
-        submission =>
-          submission.title.toLowerCase().includes(query) ||
-          submission.text.toLowerCase().includes(query)
-      );
-    }
-
-    // 정렬
-    filtered.sort((a, b) => {
-      if (sortBy === 'feedback') {
-        const aCount = a.feedbacks?.length || 0;
-        const bCount = b.feedbacks?.length || 0;
-        return sortOrder === 'asc' ? aCount - bCount : bCount - aCount;
-      }
-      // 기본: 날짜순
-      return sortOrder === 'asc'
-        ? new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-        : new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-    });
-
-    return filtered;
-  };
+  // 필터링된 submissions를 커스텀 훅으로 관리
+  const filteredSubmissions = useSubmissionFilter(
+    submissions,
+    activeTab,
+    searchQuery,
+    sortBy,
+    sortOrder,
+    feedbackFilter
+  );
 
   const fetchData = async (pageNum = 1) => {
     if (!user) return;
@@ -488,14 +447,10 @@ const MySubmissions = () => {
           </div>
         ) : (
           <div className="space-y-4">
-            {getFilteredSubmissions(submissions).map((submission, index) => (
+            {filteredSubmissions.map((submission, index) => (
               <div
                 key={submission._id}
-                ref={
-                  index === getFilteredSubmissions(submissions).length - 1
-                    ? lastSubmissionElementRef
-                    : null
-                }
+                ref={index === filteredSubmissions.length - 1 ? lastSubmissionElementRef : null}
               >
                 <SubmissionItem
                   submission={submission}

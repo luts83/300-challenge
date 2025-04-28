@@ -139,7 +139,7 @@ const FeedbackCamp = () => {
     try {
       const modeParam = activeTab === 'all' ? '' : `&mode=${encodeURIComponent(activeTab)}`;
       const res = await axios.get(
-        `${import.meta.env.VITE_API_URL}/api/feedback/given/${user.uid}?page=${page}&limit=10${modeParam}`
+        `${import.meta.env.VITE_API_URL}/api/feedback/given/${user.uid}?page=${page}&limit=1000${modeParam}`
       );
       setGivenFeedbacks(res.data.feedbacks);
       setTotalFeedbacks(res.data.total);
@@ -182,27 +182,60 @@ const FeedbackCamp = () => {
     }
   };
 
-  const submitFeedback = async (submissionId: string, e: React.MouseEvent) => {
+  const handleSubmitFeedback = async (submissionId: string) => {
     if (!user) return;
-    e.stopPropagation();
-    const content = feedbacks[submissionId];
-    if (!content || content.trim().length < CONFIG.FEEDBACK.MIN_LENGTH) {
-      return alert(`피드백은 ${CONFIG.FEEDBACK.MIN_LENGTH}자 이상이어야 합니다.`);
-    }
 
     try {
-      await axios.post(`${import.meta.env.VITE_API_URL}/api/feedback`, {
+      setLoading(true);
+
+      const response = await axios.post(`${import.meta.env.VITE_API_URL}/api/feedback`, {
         toSubmissionId: submissionId,
         fromUid: user.uid,
-        content,
+        content: feedbacks[submissionId],
       });
-      alert('피드백이 저장되었습니다!');
+
+      const todayCount = response.data.todayFeedbackCount;
+
+      // 피드백 3개 달성 시
+      if (todayCount === CONFIG.FEEDBACK.REQUIRED_COUNT) {
+        alert(
+          `🎉 축하합니다! 오늘의 피드백 미션을 완료하셨습니다!\n\n이제 내 글의 피드백을 확인하실 수 있습니다.`
+        );
+      }
+      // 3개 미만일 때
+      else if (todayCount < CONFIG.FEEDBACK.REQUIRED_COUNT) {
+        alert(
+          `✅ 피드백이 제출되었습니다.\n\n오늘 작성한 피드백: ${todayCount}/${CONFIG.FEEDBACK.REQUIRED_COUNT}`
+        );
+      }
+      // 3개 초과일 때
+      else {
+        alert('✅ 피드백이 제출되었습니다.');
+      }
+
+      // 상태 업데이트
       setSubmittedIds(prev => [...prev, submissionId]);
-      setFeedbacks(prev => ({ ...prev, [submissionId]: '' }));
-      await Promise.all([fetchGivenFeedbacks(), fetchAllSubmissions()]);
-    } catch (err: any) {
+
+      // 피드백 입력 초기화
+      setFeedbacks(prev => {
+        const newFeedbacks = { ...prev };
+        delete newFeedbacks[submissionId];
+        return newFeedbacks;
+      });
+
+      // 확장된 글 접기
+      setExpanded(null);
+
+      // 페이지 상태 업데이트
+      Promise.all([fetchAllSubmissions(), fetchGivenFeedbacks(), fetchMySubmissionStatus()]);
+
+      // 일일 피드백 카운트 업데이트
+      setDailyFeedbackCount(todayCount);
+    } catch (err) {
       logger.error('피드백 제출 실패:', err);
-      alert(err.response?.data?.message || '오류 발생');
+      alert('❌ 피드백 제출에 실패했습니다. 다시 시도해주세요.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -282,7 +315,7 @@ const FeedbackCamp = () => {
           expanded={expanded}
           submittedIds={submittedIds}
           onFeedbackChange={(id, value) => setFeedbacks(prev => ({ ...prev, [id]: value }))}
-          onSubmitFeedback={submitFeedback}
+          onSubmitFeedback={handleSubmitFeedback}
           onToggleExpand={id => setExpanded(expanded === id ? null : id)}
         />
       )}

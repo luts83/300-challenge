@@ -6,6 +6,9 @@ const Feedback = require("../models/Feedback");
 const mongoose = require("mongoose");
 const config = require("../config");
 const { submitFeedback } = require("../controllers/feedbackController");
+const WritingStreak = require("../models/WritingStreak");
+const Token = require("../models/Token");
+const TokenHistory = require("../models/TokenHistory");
 
 // 피드백할 글 추천 (모드 동일 + 적게 받은 글 우선)
 router.get("/assignments/:uid", async (req, res) => {
@@ -207,7 +210,7 @@ router.get("/received/:uid", async (req, res) => {
 router.get("/given/:uid", async (req, res) => {
   const { uid } = req.params;
   const page = parseInt(req.query.page) || 1;
-  const limit = parseInt(req.query.limit) || 10;
+  const limit = parseInt(req.query.limit) || 1000;
   const mode = req.query.mode;
   const today = new Date().toISOString().slice(0, 10);
 
@@ -471,6 +474,62 @@ router.get("/unlock-status/:uid", async (req, res) => {
   } catch (err) {
     console.error("피드백 언락 상태 조회 실패:", err);
     res.status(500).json({ message: "서버 오류" });
+  }
+});
+
+// 보너스 토큰으로 피드백 언락하기
+router.post("/unlock-feedback", async (req, res) => {
+  const { uid, unlockType, submissionId } = req.body;
+  const requiredTokens = unlockType === "single" ? 1 : 2;
+
+  try {
+    // Token 모델에서 보너스 토큰 확인
+    const userToken = await Token.findOne({ uid });
+    if (!userToken || userToken.bonusTokens < requiredTokens) {
+      return res.status(403).json({
+        message: `보너스 토큰이 부족합니다. (필요: ${requiredTokens}개)`,
+      });
+    }
+
+    // 언락 타입에 따른 처리
+    if (unlockType === "single") {
+      await Submission.findOneAndUpdate(
+        { _id: submissionId, "user.uid": uid },
+        { feedbackUnlocked: true }
+      );
+    } else if (unlockType === "period") {
+      const targetSubmission = await Submission.findById(submissionId);
+      await Submission.updateMany(
+        {
+          "user.uid": uid,
+          createdAt: { $lte: targetSubmission.createdAt },
+        },
+        { feedbackUnlocked: true }
+      );
+    }
+
+    // 보너스 토큰 차감
+    userToken.bonusTokens -= requiredTokens;
+    await userToken.save();
+
+    // 토큰 히스토리 기록
+    await TokenHistory.create({
+      uid,
+      type: "FEEDBACK_UNLOCK",
+      amount: -requiredTokens,
+      timestamp: new Date(),
+    });
+
+    res.json({
+      message:
+        unlockType === "single"
+          ? "피드백이 성공적으로 언락되었습니다."
+          : "선택한 글을 포함한 과거의 모든 피드백이 언락되었습니다.",
+      remainingBonusTokens: userToken.bonusTokens,
+    });
+  } catch (error) {
+    console.error("피드백 언락 실패:", error);
+    res.status(500).json({ message: "서버 오류가 발생했습니다." });
   }
 });
 

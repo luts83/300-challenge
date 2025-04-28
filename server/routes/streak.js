@@ -16,6 +16,13 @@ router.get("/:uid", async (req, res) => {
       });
     }
 
+    if (streak.shouldStartNewWeek()) {
+      streak.weeklyProgress = [false, false, false, false, false];
+      streak.celebrationShown = false;
+      streak.currentWeekStartDate = new Date();
+      await streak.save();
+    }
+
     res.json({
       weeklyProgress: streak.weeklyProgress,
       celebrationShown: streak.celebrationShown || false,

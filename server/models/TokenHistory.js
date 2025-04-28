@@ -5,7 +5,7 @@ const tokenHistorySchema = new mongoose.Schema({
   uid: String,
   type: {
     type: String,
-    enum: ["DAILY_RESET", "STREAK_BONUS", "WRITING_USE"],
+    enum: ["DAILY_RESET", "STREAK_BONUS", "WRITING_USE", "FEEDBACK_UNLOCK"],
   },
   amount: Number,
   mode: String,

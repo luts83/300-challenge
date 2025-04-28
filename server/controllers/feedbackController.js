@@ -13,7 +13,9 @@ const canGiveFeedback = async (userUid, targetSubmission) => {
   });
 
   if (!userSubmission) {
-    throw new Error("오늘 작성한 글이 없습니다.");
+    throw new Error(
+      "오늘은 아직 글을 작성하지 않으셨네요. 먼저 글을 작성한 후 피드백을 남길 수 있어요!"
+    );
   }
 
   // 교차 피드백이 비활성화된 경우
@@ -93,6 +95,18 @@ exports.submitFeedback = async (req, res) => {
   }
 
   try {
+    // 중복 피드백 체크 추가
+    const existingFeedback = await Feedback.findOne({
+      toSubmissionId,
+      fromUid,
+    });
+
+    if (existingFeedback) {
+      return res.status(400).json({
+        message: "이미 이 글에 피드백을 작성하셨습니다.",
+      });
+    }
+
     // 1. 피드백 대상 글 정보 가져오기
     const targetSubmission = await Submission.findById(toSubmissionId);
     if (!targetSubmission) {
@@ -112,7 +126,19 @@ exports.submitFeedback = async (req, res) => {
         .json({ message: "피드백 작성자 정보를 찾을 수 없습니다." });
     }
 
-    // 3. 새로운 피드백 데이터 생성
+    // 3. 피드백 작성 가능 여부 확인
+    try {
+      const canGive = await canGiveFeedback(fromUid, targetSubmission);
+      if (!canGive) {
+        return res
+          .status(403)
+          .json({ message: "피드백을 작성할 수 없습니다." });
+      }
+    } catch (err) {
+      return res.status(403).json({ message: err.message });
+    }
+
+    // 4. 새로운 피드백 데이터 생성
     const newFeedback = new Feedback({
       // 피드백 대상 글 정보
       toSubmissionId: targetSubmission._id,
@@ -143,17 +169,22 @@ exports.submitFeedback = async (req, res) => {
       isHelpful: null,
     });
 
-    // 4. 피드백 저장
+    // 5. 피드백 저장
     const savedFeedback = await newFeedback.save();
 
-    // 5. 오늘 작성한 피드백 수 확인
+    // Submission 모델의 hasGivenFeedback 필드 업데이트
+    await Submission.findByIdAndUpdate(toSubmissionId, {
+      $inc: { feedbackCount: 1 },
+    });
+
+    // 6. 오늘 작성한 피드백 수 확인
     const today = new Date().toISOString().slice(0, 10);
     const feedbackCount = await Feedback.countDocuments({
       fromUid,
       writtenDate: today,
     });
 
-    // 6. 피드백이 3개 이상이면 오늘 작성한 모든 글의 피드백 열람 가능
+    // 7. 피드백이 3개 이상이면 오늘 작성한 모든 글의 피드백 열람 가능
     if (feedbackCount >= CONFIG.FEEDBACK.REQUIRED_COUNT) {
       await Submission.updateMany(
         {

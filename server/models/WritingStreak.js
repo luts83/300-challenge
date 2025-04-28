@@ -34,9 +34,12 @@ writingStreakSchema.methods.shouldStartNewWeek = function () {
   if (!this.currentWeekStartDate) return true;
 
   const now = new Date();
-  const daysSinceStart =
-    (now - this.currentWeekStartDate) / (1000 * 60 * 60 * 24);
-  return daysSinceStart >= 7;
+  const monday = new Date();
+  monday.setHours(0, 0, 0, 0);
+  monday.setDate(monday.getDate() - monday.getDay() + 1); // 이번 주 월요일
+
+  // 현재 주의 시작일이 이번 주 월요일보다 이전이면 새로운 주 시작
+  return this.currentWeekStartDate < monday;
 };
 
 module.exports = mongoose.model("WritingStreak", writingStreakSchema);

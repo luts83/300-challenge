@@ -221,52 +221,55 @@ const handleSubmit = async (req, res) => {
 
     // 스트릭 처리
     const dayOfWeek = now.getDay();
+
+    // 월-금요일인 경우에만 처리
     if (dayOfWeek >= 1 && dayOfWeek <= 5) {
-      // 당일 첫 제출인지 확인
-      const todayFirstSubmission = await checkFirstSubmissionOfDay(user.uid);
-      if (
-        !todayFirstSubmission ||
-        todayFirstSubmission._id.equals(submission._id)
-      ) {
+      try {
         streak = await WritingStreak.findOne({ uid: user.uid });
 
+        // streak가 없으면 새로 생성
         if (!streak) {
           streak = new WritingStreak({
             uid: user.uid,
             weeklyProgress: Array(5).fill(false),
             celebrationShown: false,
             lastStreakCompletion: null,
+            currentWeekStartDate: new Date(),
           });
         }
 
-        // 월요일 체크 및 초기화
-        if (dayOfWeek === 1) {
-          const shouldReset =
-            !streak.lastStreakCompletion ||
-            now - streak.lastStreakCompletion > 24 * 60 * 60 * 1000;
-
-          if (shouldReset) {
-            streak.weeklyProgress = Array(5).fill(false);
-            streak.celebrationShown = false;
-          }
+        // 새로운 주 시작 체크
+        if (streak.shouldStartNewWeek()) {
+          streak.weeklyProgress = Array(5).fill(false);
+          streak.celebrationShown = false;
+          streak.currentWeekStartDate = new Date();
         }
 
-        // 진행 상태 업데이트
+        // 해당 요일 업데이트
         const dayIndex = dayOfWeek - 1;
-        streak.weeklyProgress[dayIndex] = true;
+        if (!streak.weeklyProgress[dayIndex]) {
+          streak.weeklyProgress[dayIndex] = true;
 
-        // 스트릭 완료 체크
-        const allDaysCompleted = streak.weeklyProgress.every((day) => day);
-        if (allDaysCompleted && !streak.celebrationShown) {
-          userToken.bonusTokens =
-            (userToken.bonusTokens || 0) + TOKEN.STREAK_BONUS;
-          await userToken.save();
+          // 모든 날짜가 완료되었는지 체크
+          const allDaysCompleted = streak.weeklyProgress.every((day) => day);
+          if (allDaysCompleted && !streak.celebrationShown) {
+            // Token 모델의 bonusTokens 업데이트
+            const userToken = await Token.findOne({ uid: user.uid });
+            if (userToken) {
+              userToken.bonusTokens =
+                (userToken.bonusTokens || 0) + TOKEN.STREAK_BONUS;
+              await userToken.save();
+            }
 
-          streak.celebrationShown = true;
-          streak.lastStreakCompletion = now;
+            streak.celebrationShown = true;
+            streak.lastStreakCompletion = now;
+          }
+
+          await streak.save();
+        } else {
         }
-
-        await streak.save();
+      } catch (error) {
+        console.error("❌ Streak 업데이트 중 오류:", error);
       }
     }
 

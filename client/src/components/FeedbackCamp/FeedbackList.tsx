@@ -12,6 +12,7 @@ interface FeedbackListProps {
   onFeedbackChange: (id: string, value: string) => void;
   onSubmitFeedback: (id: string, e: React.MouseEvent) => void;
   onToggleExpand: (id: string) => void;
+  loading?: boolean;
 }
 
 export const FeedbackList: React.FC<FeedbackListProps> = ({
@@ -22,6 +23,7 @@ export const FeedbackList: React.FC<FeedbackListProps> = ({
   onFeedbackChange,
   onSubmitFeedback,
   onToggleExpand,
+  loading = false,
 }) => {
   const [isListExpanded, setIsListExpanded] = useState(true);
 
@@ -103,6 +105,7 @@ export const FeedbackList: React.FC<FeedbackListProps> = ({
                           onChange={e => onFeedbackChange(submission._id, e.target.value)}
                           placeholder={`${CONFIG.FEEDBACK.MIN_LENGTH}자 이상의 피드백을 작성해주세요.`}
                           className="w-full h-24 sm:h-32 p-2 sm:p-3 text-sm sm:text-base border rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          disabled={loading}
                         />
                         <div className="flex justify-between items-center">
                           <span className="text-xs sm:text-sm text-gray-500">
@@ -112,11 +115,19 @@ export const FeedbackList: React.FC<FeedbackListProps> = ({
                           <button
                             onClick={e => onSubmitFeedback(submission._id, e)}
                             disabled={
+                              loading ||
                               (feedbacks[submission._id] || '').length < CONFIG.FEEDBACK.MIN_LENGTH
                             }
-                            className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                            className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
                           >
-                            피드백 제출
+                            {loading ? (
+                              <>
+                                <span className="animate-spin">⏳</span>
+                                제출 중...
+                              </>
+                            ) : (
+                              '피드백 제출'
+                            )}
                           </button>
                         </div>
                       </div>

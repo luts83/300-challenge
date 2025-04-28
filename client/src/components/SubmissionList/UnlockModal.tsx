@@ -20,6 +20,10 @@ export const UnlockModal: React.FC<UnlockModalProps> = ({
 
   if (!isOpen) return null;
 
+  const getRequiredTokens = (type: 'single' | 'period') => {
+    return type === 'single' ? 1 : 2;
+  };
+
   const handleUnlock = async () => {
     setIsLoading(true);
     try {
@@ -30,6 +34,24 @@ export const UnlockModal: React.FC<UnlockModalProps> = ({
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // 토큰 부족 메시지 표시 함수
+  const getTokenMessage = () => {
+    const required = getRequiredTokens(unlockType);
+    if (bonusTokens < required) {
+      return (
+        <div className="mt-2 text-red-500 text-sm">
+          {unlockType === 'single'
+            ? '⚠️ 피드백 언락을 위해 1개의 보너스 토큰이 필요합니다.'
+            : '⚠️ 과거 피드백 언락을 위해 2개의 보너스 토큰이 필요합니다.'}
+          <div className="mt-1 text-xs">
+            💡 주간 목표(월-금 5일)를 달성하면 보너스 토큰을 획득할 수 있습니다.
+          </div>
+        </div>
+      );
+    }
+    return null;
   };
 
   return (
@@ -69,9 +91,12 @@ export const UnlockModal: React.FC<UnlockModalProps> = ({
             />
             <label htmlFor="period" className="flex-1">
               <p className="font-medium">이 글을 포함한 과거의 모든 피드백 언락하기</p>
-              <p className="text-sm text-gray-500">1개의 보너스 토큰 사용</p>
+              <p className="text-sm text-gray-500">2개의 보너스 토큰 사용</p>
             </label>
           </div>
+
+          {/* 토큰 부족 메시지 표시 */}
+          {getTokenMessage()}
         </div>
 
         <div className="flex justify-end gap-2">
@@ -84,10 +109,14 @@ export const UnlockModal: React.FC<UnlockModalProps> = ({
           </button>
           <button
             onClick={handleUnlock}
-            disabled={isLoading || bonusTokens < 1}
+            disabled={isLoading || bonusTokens < getRequiredTokens(unlockType)}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300"
           >
-            {isLoading ? '처리 중...' : '언락하기'}
+            {isLoading
+              ? '처리 중...'
+              : bonusTokens < getRequiredTokens(unlockType)
+                ? '토큰 부족'
+                : '언락하기'}
           </button>
         </div>
       </div>

@@ -146,7 +146,7 @@ module.exports = {
 
   TOPIC: {
     MODE: "manual", // "manual" | "ai"
-    BASE_DATE: "2025-04-22", // 수동 주제 시작 기준일
+    BASE_DATE: "2025-04-28", // 수동 주제 시작 기준일
     INTERVAL_DAYS: 1, // 몇 일 간격으로 주제를 바꿀지
     SHOW_ON_HOME_300: true, // 추가
     SHOW_ON_HOME_1000: true, // 추가
