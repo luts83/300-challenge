@@ -54,43 +54,42 @@ export const FeedbackList: React.FC<FeedbackListProps> = ({
                 className="p-3 sm:p-4 cursor-pointer hover:bg-gray-50 transition-colors"
                 onClick={() => onToggleExpand(submission._id)}
               >
-                <div className="flex flex-col gap-1">
-                  {/* 제목 */}
+                <div className="flex flex-col items-start gap-1">
+                  {/* 1. 제목 + 주제(데스크탑), 제목만(모바일) */}
                   <div className="flex items-center gap-2">
                     <h4 className="text-base font-medium text-gray-900 break-all line-clamp-1">
                       {submission.title}
                     </h4>
+                    {/* 데스크탑(중간 이상)에서만 주제 표시 */}
                     {submission.topic && (
                       <span className="hidden sm:inline-block text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
                         {submission.topic}
                       </span>
                     )}
                   </div>
-
-                  {/* 메타 정보 */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-sm text-gray-600">
-                      <span>{submission.user.displayName || '익명'}</span>
-                      <span className="text-gray-400">•</span>
-                      <span>
-                        {format(new Date(submission.createdAt || ''), 'PPP', { locale: ko })}
-                      </span>
-                      <HelpfulButton submissionId={submission._id} userUid={user?.uid} />
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                          submission.mode === 'mode_300'
-                            ? 'bg-blue-100 text-blue-800'
-                            : 'bg-green-100 text-green-800'
-                        }`}
-                      >
-                        {submission.mode === 'mode_300' ? '300자' : '1000자'}
-                      </span>
-                      <span className="text-gray-400 text-sm">
-                        {expanded === submission._id ? '▼' : '▶'}
-                      </span>
-                    </div>
+                  {/* 모바일(소형)에서는 주제만 별도 줄에 표시, 텍스트 길이만큼만 배경 */}
+                  {submission.topic && (
+                    <span className="inline-block sm:hidden text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full mb-1">
+                      {submission.topic}
+                    </span>
+                  )}
+                  {/* 3. 기타 정보 */}
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-gray-600 mt-1">
+                    <span>{submission.user.displayName || '익명'}</span>
+                    <span className="text-gray-400">•</span>
+                    <span>
+                      {format(new Date(submission.createdAt || ''), 'PPP', { locale: ko })}
+                    </span>
+                    <HelpfulButton submissionId={submission._id} userUid={user?.uid} />
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                        submission.mode === 'mode_300'
+                          ? 'bg-blue-100 text-blue-800'
+                          : 'bg-green-100 text-green-800'
+                      }`}
+                    >
+                      {submission.mode === 'mode_300' ? '300자' : '1000자'}
+                    </span>
                   </div>
                 </div>
               </div>

@@ -26,6 +26,16 @@ export const MyFeedbacks: React.FC<MyFeedbacksProps> = ({
   const [selectedFeedback, setSelectedFeedback] = useState<string | null>(null);
   const { user } = useUser();
 
+  const fetchGivenFeedbacks = async () => {
+    console.log('fetchGivenFeedbacks 호출됨');
+    if (!user) return;
+    try {
+      // ... (이하 생략)
+    } catch (err) {
+      // ... (이하 생략)
+    }
+  };
+
   return (
     <div className="bg-white rounded-lg shadow-sm p-3 sm:p-4 mb-4 sm:mb-6">
       {/* 헤더 섹션 */}
@@ -54,42 +64,39 @@ export const MyFeedbacks: React.FC<MyFeedbacksProps> = ({
                       setSelectedFeedback(selectedFeedback === feedback._id ? null : feedback._id)
                     }
                   >
-                    <div className="flex flex-col gap-1">
+                    <div className="flex flex-col items-start gap-1">
+                      {/* 1. 제목 + 주제(데스크탑), 제목만(모바일) */}
                       <div className="flex items-center gap-2">
                         <h4 className="text-base font-medium text-gray-900 break-all line-clamp-1">
                           {feedback.submissionTitle || '(제목 없음)'}
                         </h4>
-                        {submission?.topic && (
+                        {/* 데스크탑(중간 이상)에서만 주제 표시 */}
+                        {(feedback.submissionTopic || submission?.topic) && (
                           <span className="hidden sm:inline-block text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
-                            {submission.topic}
+                            {feedback.submissionTopic || submission?.topic}
                           </span>
                         )}
                       </div>
-
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2 text-sm text-gray-600">
-                          <span>{feedback.submissionAuthor?.displayName || '익명'}</span>
-                          <span className="text-gray-400">•</span>
-                          <span>{format(new Date(feedback.createdAt), 'PPP', { locale: ko })}</span>
-                          <HelpfulButton
-                            submissionId={feedback.toSubmissionId}
-                            userUid={user?.uid}
-                          />
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                              feedback.mode === 'mode_300'
-                                ? 'bg-blue-100 text-blue-800'
-                                : 'bg-green-100 text-green-800'
-                            }`}
-                          >
-                            {feedback.mode === 'mode_300' ? '300자' : '1000자'}
-                          </span>
-                          <span className="text-gray-400 text-sm">
-                            {selectedFeedback === feedback._id ? '▼' : '▶'}
-                          </span>
-                        </div>
+                      {/* 모바일(소형)에서는 주제만 별도 줄에 표시, 텍스트 길이만큼만 배경 */}
+                      {(feedback.submissionTopic || submission?.topic) && (
+                        <span className="inline-block sm:hidden text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full mb-1">
+                          {feedback.submissionTopic || submission?.topic}
+                        </span>
+                      )}
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-gray-600 mt-1">
+                        <span>{feedback.submissionAuthor?.displayName || '익명'}</span>
+                        <span className="text-gray-400">•</span>
+                        <span>{format(new Date(feedback.createdAt), 'PPP', { locale: ko })}</span>
+                        <HelpfulButton submissionId={feedback.toSubmissionId} userUid={user?.uid} />
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                            feedback.mode === 'mode_300'
+                              ? 'bg-blue-100 text-blue-800'
+                              : 'bg-green-100 text-green-800'
+                          }`}
+                        >
+                          {feedback.mode === 'mode_300' ? '300자' : '1000자'}
+                        </span>
                       </div>
                     </div>
                   </div>

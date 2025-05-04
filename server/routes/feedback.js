@@ -224,7 +224,7 @@ router.get("/given/:uid", async (req, res) => {
       .sort({ createdAt: -1 })
       .populate({
         path: "toSubmissionId",
-        select: "text mode user createdAt title",
+        select: "text mode user createdAt title topic",
       });
 
     // ✅ mode별로 필터링
@@ -246,6 +246,7 @@ router.get("/given/:uid", async (req, res) => {
       toSubmissionId: fb.toSubmissionId?._id || null,
       submissionTitle: fb.toSubmissionId?.title || "",
       submissionText: fb.toSubmissionId?.text || "",
+      submissionTopic: fb.toSubmissionId?.topic || "",
       mode: fb.toSubmissionId?.mode || null,
       createdAt: fb.createdAt,
       submissionAuthor: fb.toSubmissionId?.user || null,

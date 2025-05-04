@@ -6,8 +6,6 @@ import AIFeedback from '../AIFeedback';
 import { useUser } from '../../context/UserContext';
 import { LikeDisplay } from '../HelpfulButton';
 
-
-
 interface Submission {
   _id: string;
   title: string;
@@ -54,37 +52,49 @@ export const SubmissionItem = React.memo(
         >
           <div className="flex justify-between items-start gap-3">
             <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2 mb-1.5">
-                <h3 className="text-base sm:text-lg font-medium text-gray-900 break-all line-clamp-2">
-                  {submission.title}
-                </h3>
+              <div className="flex flex-col items-start gap-1">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-base sm:text-lg font-medium text-gray-900 break-all line-clamp-2">
+                    {submission.title}
+                  </h3>
+                  {/* 데스크탑에서만 주제 */}
+                  {submission.topic && (
+                    <span className="hidden sm:inline-block text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+                      {submission.topic}
+                    </span>
+                  )}
+                </div>
+                {/* 모바일에서만 주제 */}
                 {submission.topic && (
-                  <span className="hidden sm:inline-block text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+                  <span
+                    className="inline-block sm:hidden text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full mb-1"
+                    style={{ width: 'auto', display: 'inline-block' }}
+                  >
                     {submission.topic}
                   </span>
                 )}
-              </div>
-              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs sm:text-sm text-gray-500">
-                <span>{formattedDate}</span>
-                <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
-                  {submission.mode === 'mode_300' ? '300자' : '1000자'}
-                </span>
-                <LikeDisplay
-          likeCount={submission.likeCount || 0}
-          liked={submission.likedUsers?.includes(user?.uid)} // ✅ user null 체크
-          likedUsernames={submission.likedUsers?.map(user => user.displayName)}
-        />
-                <div className="flex items-center gap-1.5">
-                  {submission.feedbackUnlocked && hasFeedback && (
-                    <span className="shrink-0 px-2 py-0.5 bg-green-100 text-green-800 rounded-full text-xs font-medium">
-                      💬 {feedbacks.length}
-                    </span>
-                  )}
-                  {!submission.feedbackUnlocked && hasFeedback && (
-                    <span className="shrink-0 px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full text-xs font-medium">
-                      🔒
-                    </span>
-                  )}
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs sm:text-sm text-gray-500">
+                  <span>{formattedDate}</span>
+                  <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+                    {submission.mode === 'mode_300' ? '300자' : '1000자'}
+                  </span>
+                  <LikeDisplay
+                    likeCount={submission.likeCount || 0}
+                    liked={submission.likedUsers?.includes(user?.uid)} // ✅ user null 체크
+                    likedUsernames={submission.likedUsers?.map(user => user.displayName)}
+                  />
+                  <div className="flex items-center gap-1.5">
+                    {submission.feedbackUnlocked && hasFeedback && (
+                      <span className="shrink-0 px-2 py-0.5 bg-green-100 text-green-800 rounded-full text-xs font-medium">
+                        💬 {feedbacks.length}
+                      </span>
+                    )}
+                    {!submission.feedbackUnlocked && hasFeedback && (
+                      <span className="shrink-0 px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full text-xs font-medium">
+                        🔒
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>

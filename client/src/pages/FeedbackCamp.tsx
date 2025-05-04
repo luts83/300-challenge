@@ -175,6 +175,12 @@ const FeedbackCamp = () => {
         `${import.meta.env.VITE_API_URL}/api/feedback/all-submissions/${user.uid}`
       );
       setAllSubmissions(res.data);
+
+      // 추가: 이미 피드백을 남긴 글의 id를 submittedIds에 세팅
+      const alreadySubmitted = res.data
+        .filter((sub: any) => sub.hasGivenFeedback)
+        .map((sub: any) => sub._id);
+      setSubmittedIds(alreadySubmitted);
     } catch (err) {
       logger.error('❌ 전체 글 목록 불러오기 실패:', err);
       setError('글 목록을 불러오지 못했습니다.');
