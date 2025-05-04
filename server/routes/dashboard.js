@@ -109,7 +109,7 @@ router.get("/all-submissions/:uid", async (req, res) => {
       ) // ai_feedback 필드도 추가
       .sort({ createdAt: -1 });
 
-    console.log("서버에서 조회된 제출물:", submissions[0]); // 첫 번째 제출물 데이터 확인용 로그
+    // console.log("서버에서 조회된 제출물:", submissions[0]); // 첫 번째 제출물 데이터 확인용 로그
 
     // 2. 각 제출물의 피드백 가져오기
     const submissionIds = submissions.map((sub) => sub._id);
@@ -161,18 +161,18 @@ router.get("/rankings", async (req, res) => {
     const submissions = await Submission.find();
 
     // 점수 데이터 확인을 위한 로그
-    console.log("\n=== 점수 데이터 확인 ===");
-    submissions.forEach((sub) => {
-      console.log({
-        title: sub.title,
-        mode: sub.mode,
-        score: sub.score,
-        user: {
-          displayName: sub.user.displayName,
-          uid: sub.user.uid,
-        },
-      });
-    });
+    // console.log("\n=== 점수 데이터 확인 ===");
+    // submissions.forEach((sub) => {
+    //   console.log({
+    //     title: sub.title,
+    //     mode: sub.mode,
+    //     score: sub.score,
+    //     user: {
+    //       displayName: sub.user.displayName,
+    //       uid: sub.user.uid,
+    //     },
+    //   });
+    // });
 
     // score 필드가 있는 제출물만 필터링
     const validSubmissions = submissions.filter(
@@ -299,7 +299,7 @@ router.get("/rankings", async (req, res) => {
       .sort((a, b) => b.likeCount - a.likeCount)
       .slice(0, 5);
 
-    console.log("유저별 좋아요 랭킹:", likeRanking);
+    // console.log("유저별 좋아요 랭킹:", likeRanking);
 
     // 최종 응답
     res.json({
@@ -316,6 +316,42 @@ router.get("/rankings", async (req, res) => {
   } catch (error) {
     console.error("Error fetching rankings:", error);
     res.status(500).json({ error: "랭킹 정보를 불러오는데 실패했습니다." });
+  }
+});
+
+// 좋아요 많이 받은 사람 랭킹
+router.get("/rankings/likes-received", async (req, res) => {
+  try {
+    const submissions = await Submission.find();
+
+    const likeReceivedCounts = {};
+
+    submissions.forEach((submission) => {
+      const uid = submission.user.uid;
+      const user = submission.user;
+      const likeCount = submission.likedUsers?.length || 0;
+
+      if (!likeReceivedCounts[uid]) {
+        likeReceivedCounts[uid] = {
+          user,
+          likeCount: 0,
+        };
+      }
+
+      likeReceivedCounts[uid].likeCount += likeCount;
+    });
+
+    const likeReceivedRanking = Object.values(likeReceivedCounts)
+      .filter((item) => item.user)
+      .sort((a, b) => b.likeCount - a.likeCount)
+      .slice(0, 5);
+
+    res.json({ likeReceivedRanking });
+  } catch (error) {
+    console.error("좋아요 받은 랭킹 조회 실패:", error);
+    res
+      .status(500)
+      .json({ error: "좋아요 받은 랭킹을 불러오는 데 실패했습니다." });
   }
 });
 

@@ -71,9 +71,25 @@ interface RankingStats {
     };
     likeCount: number;
   }[];
+  likeReceivedRanking?: {
+    user: {
+      displayName: string;
+      uid: string;
+    };
+    likeCount: number;
+  }[];
 }
 
-const RankingSection: React.FC<{ rankings: RankingStats }> = ({ rankings }) => {
+const RankingSection: React.FC<{
+  rankings: RankingStats;
+  likeReceivedRanking: {
+    user: {
+      displayName: string;
+      uid: string;
+    };
+    likeCount: number;
+  }[];
+}> = ({ rankings, likeReceivedRanking }) => {
   const [activeTab, setActiveTab] = useState<'300' | '1000'>('300');
 
   return (
@@ -202,10 +218,41 @@ const RankingSection: React.FC<{ rankings: RankingStats }> = ({ rankings }) => {
             </div>
           </div>
           {/* 좋아요 수 랭킹 */}
-          <div>
+          {/* <div>
             <h3 className="text-lg font-semibold mb-4">좋아요 수 랭킹</h3>
             <div className="space-y-2">
               {rankings.likeRanking.map((rank, index) => (
+                <div
+                  key={rank.user.uid}
+                  className="flex items-center justify-between p-2 hover:bg-gray-50 rounded"
+                >
+                  <div className="flex items-center gap-3">
+                    <span
+                      className={`w-6 h-6 flex items-center justify-center rounded-full
+            ${
+              index === 0
+                ? 'bg-yellow-100 text-yellow-700'
+                : index === 1
+                  ? 'bg-gray-100 text-gray-700'
+                  : index === 2
+                    ? 'bg-orange-100 text-orange-700'
+                    : 'text-gray-500'
+            }`}
+                    >
+                      {index + 1}
+                    </span>
+                    <span>{rank.user.displayName}</span>
+                  </div>
+                  <span className="font-semibold">{rank.likeCount}개</span>
+                </div>
+              ))}
+            </div>
+          </div> */}
+          {/* 좋아요 받은 랭킹 */}
+          <div>
+            <h3 className="text-lg font-semibold mb-4">💖 좋아요 받은 랭킹</h3>
+            <div className="space-y-2">
+              {likeReceivedRanking.map((rank, index) => (
                 <div
                   key={rank.user.uid}
                   className="flex items-center justify-between p-2 hover:bg-gray-50 rounded"
@@ -255,6 +302,10 @@ const Dashboard = () => {
   const [stats, setStats] = useState<any>(null);
   const [isAdminView, setIsAdminView] = useState(false);
   const [adminSubmissions, setAdminSubmissions] = useState([]);
+  const [likeReceivedRanking, setLikeReceivedRanking] = useState<
+    { user: { displayName: string; uid: string }; likeCount: number }[]
+  >([]);
+
   const [rankings, setRankings] = useState<RankingStats>({
     scoreRanking: {
       mode300: [],
@@ -277,6 +328,7 @@ const Dashboard = () => {
         axios.get(`${import.meta.env.VITE_API_URL}/api/dashboard/all-submissions/${user.uid}`),
         axios.get(`${import.meta.env.VITE_API_URL}/api/dashboard/stats/${user.uid}`),
         axios.get(`${import.meta.env.VITE_API_URL}/api/dashboard/rankings`),
+        axios.get(`${import.meta.env.VITE_API_URL}/api/dashboard/rankings/likes-received`),
       ]);
 
       // console.log('서버 응답 데이터:', submissionsRes.data);
@@ -317,6 +369,21 @@ const Dashboard = () => {
   useEffect(() => {
     fetchAllData();
   }, [user]);
+
+  useEffect(() => {
+    const fetchLikesReceived = async () => {
+      try {
+        const res = await axios.get(
+          `${import.meta.env.VITE_API_URL}/api/dashboard/rankings/likes-received`
+        );
+        setLikeReceivedRanking(res.data.likeReceivedRanking);
+      } catch (err) {
+        console.error('좋아요 받은 랭킹 가져오기 실패:', err);
+      }
+    };
+
+    fetchLikesReceived();
+  }, []);
 
   // 사용자 선택 시
   const handleUserChange = (uid: string) => {
@@ -438,7 +505,7 @@ const Dashboard = () => {
       ) : (
         <>
           {/* 랭킹 섹션 추가 */}
-          <RankingSection rankings={rankings} />
+          <RankingSection rankings={rankings} likeReceivedRanking={likeReceivedRanking} />
 
           {/* 기존 사용자 선택 드롭다운 */}
           <select
