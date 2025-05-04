@@ -1,7 +1,6 @@
 // server/controllers/submitController.js
 const Submission = require("../models/Submission");
 const Token = require("../models/Token");
-const FeedbackMission = require("../models/FeedbackMission");
 const TokenHistory = require("../models/TokenHistory");
 const { TOKEN, SUBMISSION, FEEDBACK } = require("../config");
 const axios = require("axios");
@@ -77,7 +76,7 @@ const evaluateSubmission = async (text, mode) => {
       {
         headers: {
           Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-          "HTTP-Referer": "https://writing-challenge.com",
+          "HTTP-Referer": "https://edu-ocean.com",
           "Content-Type": "application/json",
         },
       }
@@ -213,7 +212,6 @@ const handleSubmit = async (req, res) => {
       userUid: user.uid,
     }));
 
-    await FeedbackMission.insertMany(missions);
 
     // 토큰 차감
     userToken[tokenField] -= 1;

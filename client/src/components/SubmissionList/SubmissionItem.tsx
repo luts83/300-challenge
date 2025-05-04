@@ -3,6 +3,10 @@ import { format } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { FeedbackSection } from './FeedbackSection';
 import AIFeedback from '../AIFeedback';
+import { useUser } from '../../context/UserContext';
+import { LikeDisplay } from '../HelpfulButton';
+
+
 
 interface Submission {
   _id: string;
@@ -15,6 +19,8 @@ interface Submission {
   feedbackUnlocked?: boolean;
   aiFeedback?: string;
   topic?: string;
+  likeCount?: number;
+  likedUsers?: { uid: string; displayName: string }[];
 }
 
 interface SubmissionItemProps {
@@ -33,6 +39,7 @@ export const SubmissionItem = React.memo(
     onUnlockFeedback,
     feedbacks,
   }: SubmissionItemProps) => {
+    const { user } = useUser();
     const formattedDate = format(new Date(submission.createdAt), 'PPP', { locale: ko });
     const hasFeedback = feedbacks && feedbacks.length > 0;
 
@@ -62,6 +69,11 @@ export const SubmissionItem = React.memo(
                 <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
                   {submission.mode === 'mode_300' ? '300자' : '1000자'}
                 </span>
+                <LikeDisplay
+          likeCount={submission.likeCount || 0}
+          liked={submission.likedUsers?.includes(user?.uid)} // ✅ user null 체크
+          likedUsernames={submission.likedUsers?.map(user => user.displayName)}
+        />
                 <div className="flex items-center gap-1.5">
                   {submission.feedbackUnlocked && hasFeedback && (
                     <span className="shrink-0 px-2 py-0.5 bg-green-100 text-green-800 rounded-full text-xs font-medium">

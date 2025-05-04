@@ -8,13 +8,14 @@ interface Submission {
   createdAt: string;
   feedbacks?: any[];
   feedbackUnlocked?: boolean;
+  likeCount?: number;
 }
 
 export const useSubmissionFilter = (
   submissions: Submission[],
   activeTab: 'all' | 'mode_300' | 'mode_1000',
   searchQuery: string,
-  sortBy: 'date' | 'score' | 'feedback',
+  sortBy: 'date' | 'score' | 'feedback' | 'likes',
   sortOrder: 'asc' | 'desc',
   feedbackFilter: 'has_feedback' | 'open_feedback' | 'locked_feedback' | null
 ) => {
@@ -60,6 +61,17 @@ export const useSubmissionFilter = (
         const bCount = b.feedbacks?.length || 0;
         return sortOrder === 'asc' ? aCount - bCount : bCount - aCount;
       }
+
+      if (sortBy === 'score') {
+        // 추후 필요 시 추가
+      }
+
+      if (sortBy === 'likes') {
+        const aLikes = a.likeCount || 0;
+        const bLikes = b.likeCount || 0;
+        return sortOrder === 'asc' ? aLikes - bLikes : bLikes - aLikes;
+      }
+
       // 기본: 날짜순
       return sortOrder === 'asc'
         ? new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()

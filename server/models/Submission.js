@@ -53,7 +53,18 @@ const submissionSchema = new mongoose.Schema(
     feedbackGivenForUnlock: [
       { type: mongoose.Schema.Types.ObjectId, ref: "Feedback" },
     ],
+    likeCount: {
+      type: Number,
+      default: 0,
+    },
+    likedUsers: [
+      {
+        uid: { type: String, required: true },
+        displayName: { type: String, required: true }
+      }
+    ],
   },
+  
   {
     timestamps: true, // ✨ createdAt, updatedAt 자동 생성!
   }

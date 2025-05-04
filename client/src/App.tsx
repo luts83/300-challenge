@@ -10,6 +10,7 @@ import './index.css';
 import Write from './pages/Write';
 import Write300 from './pages/Write300';
 import Write1000 from './pages/Write1000';
+import Dashboard from './pages/Dashboard';
 
 function App() {
   return (
@@ -36,6 +37,7 @@ function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/my" element={<MySubmissions />} />
             <Route path="/feedback-camp" element={<FeedbackCamp />} />
+            <Route path="/dashboard" element={<Dashboard />} />
           </Routes>
         </div>
       </Router>

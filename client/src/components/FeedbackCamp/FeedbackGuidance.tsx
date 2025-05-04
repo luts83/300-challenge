@@ -30,7 +30,7 @@ export const FeedbackGuidance: React.FC<FeedbackGuidanceProps> = ({
     }
     return {
       emoji: '✨',
-      statusText: '피드백 미션',
+      statusText: '오늘의 피드백 미션',
       textColor: 'text-gray-800',
     };
   };

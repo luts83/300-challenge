@@ -1,3 +1,4 @@
+// client/src/pages/Write1000.tsx
 import React, { useEffect, useState, useRef } from 'react';
 import axios from 'axios';
 import { useUser } from '../context/UserContext';
@@ -53,6 +54,59 @@ const axiosInstance = axios.create({
   },
 });
 
+// 타입 정의 추가
+interface Draft {
+  uid: string;
+  title: string;
+  text: string;
+  sessionCount: number;
+  totalDuration: number;
+  resetCount: number;
+  status: 'active' | 'submitted' | 'reset';
+  lastInputTime?: number;
+  lastSavedAt?: number;
+  submittedAt?: Date;
+  resetHistory?: Array<{
+    resetAt: Date;
+    sessionCount: number;
+    duration: number;
+  }>;
+}
+
+// utils: 상태 초기화
+const resetWritingState = (
+  setText,
+  setTitle,
+  setSessionCount,
+  setTotalDuration,
+  setStartTime,
+  setDurationNow,
+  setIsStarted,
+  setLastInputTime,
+  setLastSavedAt,
+  setHasWrittenThisSession,
+  setResetCount?
+) => {
+  setText('');
+  setTitle('');
+  setSessionCount(0);
+  setTotalDuration(0);
+  setStartTime(null);
+  setDurationNow(0);
+  setIsStarted(false);
+  setLastInputTime(null);
+  setLastSavedAt(null);
+  setHasWrittenThisSession(false);
+  if (setResetCount) setResetCount(0);
+};
+
+// utils: 로컬 스토리지 초기화
+const clearLocalDraft = () => {
+  localStorage.setItem('write1000_submitted', 'true');
+  localStorage.removeItem('write1000_draft');
+  localStorage.removeItem('write1000_session');
+};
+
 const Write1000 = () => {
   const { user, loading } = useUser();
   const navigate = useNavigate();
@@ -77,13 +131,12 @@ const Write1000 = () => {
   const [lastInputTime, setLastInputTime] = useState<number | null>(null);
   const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
   const [isPageReentered, setIsPageReentered] = useState(true);
-  const [isEvaluating, setIsEvaluating] = useState(false);
   const [score, setScore] = useState<number | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [title, setTitle] = useState('');
-  const [submissionState, setSubmissionState] = useState<
-    'idle' | 'submitting' | 'evaluating' | 'complete'
-  >('idle');
+  const [submissionState, setSubmissionState] = useState<'idle' | 'submitting' | 'complete'>(
+    'idle'
+  );
   const [submissionProgress, setSubmissionProgress] = useState<string>('');
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -94,6 +147,8 @@ const Write1000 = () => {
   const MAX_LENGTH = CONFIG.SUBMISSION.MODE_1000.MAX_LENGTH;
   const isTokenDepleted = tokens !== null && tokens <= 0;
   const [hasWrittenThisSession, setHasWrittenThisSession] = useState(false);
+  const [subStep, setSubStep] = useState<'loading' | 'evaluating'>('loading');
+  const submissionInProgress = useRef(false);
 
   useEffect(() => {
     // 로딩이 완료되고 user가 없을 때만 리다이렉션
@@ -109,118 +164,89 @@ const Write1000 = () => {
   const fetchDraft = async () => {
     if (!user) return;
 
-    // localStorage에서 제출 상태 확인
-    const isSubmitted = localStorage.getItem('write1000_submitted');
-    if (isSubmitted) {
-      setText('');
-      setTitle('');
-      setSessionCount(0);
-      setTotalDuration(0);
-      setIsStarted(false);
-      return;
-    }
-
     try {
       const res = await axiosInstance.get(`/api/drafts/${user.uid}`);
-      const draft = res.data;
+      const draft: Draft = res.data;
 
-      // 드래프트가 없으면 초기화 상태로 설정
-      if (!draft || !draft.text) {
+      if (!draft || draft.status !== 'active') {
         setText('');
         setTitle('');
         setSessionCount(0);
         setTotalDuration(0);
         setIsStarted(false);
+        setResetCount(0);
+
         return;
       }
 
-      // 디버깅을 위한 상세 로깅 추가
-
-      // 초기화 후에는 데이터를 불러오지 않음
-      if (draft.resetCount > 0 && !draft.text && !draft.title) {
+      setTitle(draft.title ?? '');
+      setText(draft.text ?? '');
+      setSessionCount(Number(draft.sessionCount) || 0);
+      setTotalDuration(Number(draft.totalDuration) || 0);
+      setResetCount(Number(draft.resetCount) || 0);
+      setLastSavedAt(draft.lastSavedAt || null);
+      setIsStarted(false);
+      setIsPageReentered(true);
+    } catch (err) {
+      if (axios.isAxiosError(err) && err.response?.status === 404) {
+        localStorage.removeItem('write1000_draft');
+        localStorage.removeItem('write1000_session');
         setText('');
         setTitle('');
         setSessionCount(0);
         setTotalDuration(0);
-        setResetCount(draft.resetCount);
+        setIsStarted(false);
+        setIsPageReentered(false);
         return;
       }
-
-      // 명시적으로 각 필드를 처리
-      setTitle(draft.title ?? ''); // null이나 undefined면 빈 문자열
-      setText(draft.text ?? ''); // null이나 undefined면 빈 문자열
-      setSessionCount(Number(draft.sessionCount) || 0);
-      setTotalDuration(Number(draft.totalDuration) || 0);
-      setResetCount(Number(draft.resetCount) || 0);
-      setLastSavedAt(draft.lastSavedAt ? Number(draft.lastSavedAt) : null);
-      setIsStarted(false);
-      setIsPageReentered(true);
-    } catch (err) {
-      if (axios.isAxiosError(err)) {
-        if (err.response?.status === 404) {
-          // 404 에러(드래프트 없음)
-          localStorage.removeItem('write1000_draft');
-          localStorage.removeItem('write1000_session');
-          setText('');
-          setTitle('');
-          setSessionCount(0);
-          setTotalDuration(0);
-          setIsStarted(false);
-          setIsPageReentered(false); // 🔥 추가!!
-          return;
-        }
-      }
       logger.error('📭 초안 불러오기 실패:', err);
-      if (axios.isAxiosError(err) && err.response) {
-        logger.error('서버 응답:', err.response.data);
-      }
-      setIsPageReentered(true); // 404가 아닌 다른 에러일 때만
+      setIsPageReentered(true);
     }
   };
 
-  const saveDraft = async () => {
+  const saveDraft = async (showMessage = false) => {
     if (!user) {
-      setSaveMessage('⚠️ 로그인이 필요합니다.');
-      setTimeout(() => setSaveMessage(null), 3000);
+      if (showMessage) {
+        setSaveMessage('⚠️ 로그인이 필요합니다.');
+        setTimeout(() => setSaveMessage(null), 3000);
+      }
       return;
     }
 
-    // 제출 상태 확인 추가
     const isSubmitted = localStorage.getItem('write1000_submitted');
-    if (isSubmitted) {
-      return;
-    }
+    if (isSubmitted) return;
 
-    if (text.trim().length === 0 && title.trim().length === 0) {
-      return;
-    }
+    if (text.trim().length === 0 && title.trim().length === 0) return;
 
-    const currentDuration = startTime ? Math.floor((Date.now() - startTime) / 1000) : 0;
+    const now = Date.now();
+    const currentDuration = startTime ? Math.floor((now - startTime) / 1000) : 0;
     const updatedTotalDuration = totalDuration + currentDuration;
 
     try {
-      const response = await axiosInstance.post('/api/drafts/save', {
+      await axiosInstance.post('/api/drafts/save', {
         uid: user.uid,
         title: title || '',
         text: text || '',
         sessionCount,
         totalDuration: updatedTotalDuration,
         resetCount,
-        lastInputTime: lastInputTime || Date.now(),
-        lastSavedAt: Date.now(),
+        lastInputTime: now,
+        lastSavedAt: now,
       });
 
-      setTotalDuration(updatedTotalDuration);
-      setLastSavedAt(Date.now());
-      setSaveMessage('✨ 초안이 자동 저장되었습니다!');
-      setTimeout(() => setSaveMessage(null), 3000);
+      if (showMessage) {
+        setSaveMessage('✨ 초안이 저장되었습니다!');
+        setTimeout(() => setSaveMessage(null), 3000);
+      }
+
+      // ⭐ 여기서 타이머를 멈추거나 세션 리셋하는 행동을 하면 절대 안 됨.
+      // 즉, startTime과 hasWrittenThisSession은 건드리지 말 것.
     } catch (err) {
       logger.error('❌ 초안 저장 실패:', err);
-      if (err.response) {
-        logger.error('서버 응답:', err.response.data);
+      if (showMessage) {
+        setSaveMessage('❌ 초안 저장에 실패했습니다.');
+        setTimeout(() => setSaveMessage(null), 3000);
       }
-      setSaveMessage('❌ 초안 저장에 실패했습니다.');
-      setTimeout(() => setSaveMessage(null), 3000);
     }
   };
 
@@ -229,21 +255,20 @@ const Write1000 = () => {
     try {
       await axios.delete(`${import.meta.env.VITE_API_URL}/api/drafts/${user.uid}`);
       // localStorage의 모든 관련 데이터 삭제
-      localStorage.setItem('write1000_submitted', 'true');
-      localStorage.removeItem('write1000_draft');
-      localStorage.removeItem('write1000_session');
-
-      // 상태 초기화
-      setText('');
-      setTitle('');
-      setSessionCount(0);
-      setTotalDuration(0);
-      setStartTime(null);
-      setDurationNow(0);
-      setIsStarted(false);
-      setLastInputTime(null);
-      setLastSavedAt(null);
-      setHasWrittenThisSession(false);
+      clearLocalDraft();
+      resetWritingState(
+        setText,
+        setTitle,
+        setSessionCount,
+        setTotalDuration,
+        setStartTime,
+        setDurationNow,
+        setIsStarted,
+        setLastInputTime,
+        setLastSavedAt,
+        setHasWrittenThisSession,
+        setResetCount
+      );
 
       // 자동저장 중단
       if (autosaveRef.current) {
@@ -280,41 +305,37 @@ const Write1000 = () => {
       return alert('초기화 가능 횟수를 모두 사용했습니다.');
     }
 
-    if (
-      !window.confirm(
-        `⚠️ 작성 중인 글과 제목, 시간이 초기화됩니다.\n초기화는 최대 ${CONFIG.SUBMISSION.RESET_LIMIT_1000}번까지 가능합니다.\n정말 초기화하시겠습니까?`
-      )
-    )
-      return;
+    if (!window.confirm(`⚠️ 모든 기록이 초기화됩니다. 정말 초기화하시겠습니까?`)) return;
 
     try {
-      // 1. 서버의 초안 삭제 및 초기화 횟수 업데이트
-      await axiosInstance.delete(`/api/drafts/${user?.uid}`, {
-        data: {
-          resetCount: resetCount + 1,
-        },
-      });
+      // POST /reset 호출로 변경
+      // 정답 — ✅ resetCount 증가 O
+      const response = await axiosInstance.post(`/api/drafts/${user?.uid}/reset`);
+      const newDraft = response.data.draft;
 
-      // 2. 클라이언트 상태 초기화
-      setText('');
-      setTitle('');
-      setSessionCount(0);
-      setTotalDuration(0);
-      setStartTime(null);
-      setDurationNow(0);
-      setIsStarted(false);
+      resetWritingState(
+        setText,
+        setTitle,
+        setSessionCount,
+        setTotalDuration,
+        setStartTime,
+        setDurationNow,
+        setIsStarted,
+        setLastInputTime,
+        setLastSavedAt,
+        setHasWrittenThisSession,
+        setResetCount
+      );
 
       if (timerRef.current) {
         clearInterval(timerRef.current);
         timerRef.current = null;
       }
+      if (autosaveRef.current) {
+        clearInterval(autosaveRef.current);
+        autosaveRef.current = null;
+      }
 
-      setLastInputTime(null);
-      setLastSavedAt(null);
-      setResetCount(prev => prev + 1);
-      setHasWrittenThisSession(false);
-
-      // 3. 로컬 스토리지도 초기화
       localStorage.removeItem('write1000_draft');
       localStorage.removeItem('write1000_session');
 
@@ -330,24 +351,14 @@ const Write1000 = () => {
     setSubmissionState('complete');
     setSubmissionProgress('✨ 글 작성이 완료되었습니다!');
 
-    // 제출 상태 저장
-    localStorage.setItem('write1000_submitted', 'true');
-
-    // 즉시 localStorage 초기화
-    localStorage.removeItem('write1000_draft');
-    localStorage.removeItem('write1000_session');
-
-    // 상태 초기화를 즉시 수행
-    setText('');
-    setTitle('');
-    setSessionCount(0);
-    setTotalDuration(0);
-    setStartTime(null);
-    setDurationNow(0);
-    setIsStarted(false);
-    setLastInputTime(null);
-    setLastSavedAt(null);
-    setHasWrittenThisSession(false);
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    if (autosaveRef.current) {
+      clearInterval(autosaveRef.current);
+      autosaveRef.current = null;
+    }
 
     setTimeout(() => {
       const message = [
@@ -378,28 +389,40 @@ const Write1000 = () => {
   const submitFinal = async () => {
     if (!user) return;
 
-    // 1. 제출 전 확인
+    // 현재 세션의 시간 계산
+    const now = Date.now();
+    const currentSessionDuration = startTime ? Math.floor((now - startTime) / 1000) : 0;
+
+    // 총 소요 시간 = 이전까지의 누적 시간 + 현재 세션 시간
+    const finalDuration = totalDuration + currentSessionDuration;
+
     if (
       !window.confirm(
         `정말 제출하시겠습니까?\n\n` +
           `제목: ${title}\n` +
           `작성한 글자 수: ${text.length}자\n` +
           `총 세션 수: ${sessionCount}회\n` +
-          `소요 시간: ${formatDuration(totalDuration)}\n\n` +
+          `소요 시간: ${formatDuration(finalDuration)}\n\n` +
           `제출 후에는 수정이 불가능합니다.`
       )
     ) {
       return;
     }
 
-    setIsSubmitting(true);
+    // 제출 시작
+    submissionInProgress.current = true;
     setSubmissionState('submitting');
+    setSubStep('loading'); // 초기엔 로딩 스피너
     setSubmissionProgress('글을 제출하고 있습니다...');
 
+    setTimeout(() => {
+      setSubStep('evaluating');
+      setSubmissionProgress('AI가 글을 읽고 평가하고 있어요... ✨');
+    }, 1200); // 1.2초 뒤 평가 상태로 전환
+
     try {
-      const finalDuration = startTime
-        ? totalDuration + Math.floor((Date.now() - startTime) / 1000)
-        : totalDuration;
+      // 최종 시간 상태 업데이트
+      setTotalDuration(finalDuration);
 
       const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/submit`, {
         title,
@@ -415,54 +438,38 @@ const Write1000 = () => {
         duration: finalDuration,
       });
 
-      // draft 삭제를 먼저 수행하고 성공 여부 확인
+      let { score, feedback } = res.data.data;
+      if (feedback && typeof feedback === 'object') {
+        feedback = Object.entries(feedback)
+          .map(([key, value]) => `• ${key}`)
+          .join('\n');
+      }
+
+      // 2. draft 완료 처리
       try {
-        await axiosInstance.delete(`/api/drafts/${user.uid}`);
-        // localStorage도 함께 정리
-        localStorage.removeItem('write1000_draft');
-        localStorage.removeItem('write1000_session');
-      } catch (deleteError) {
-        logger.error('Draft 삭제 실패:', deleteError);
-        // draft 삭제 실패 시에도 계속 진행
+        const completeRes = await axiosInstance.post(`/api/drafts/${user.uid}/complete`);
+        const newDraft = completeRes.data.draft;
+
+        clearLocalDraft();
+        resetWritingState(
+          setText,
+          setTitle,
+          setSessionCount,
+          setTotalDuration,
+          setStartTime,
+          setDurationNow,
+          setIsStarted,
+          setLastInputTime,
+          setLastSavedAt,
+          setHasWrittenThisSession,
+          setResetCount
+        );
+      } catch (completeError) {
+        logger.error('Draft 완료 처리 실패:', completeError);
+        // 실패해도 계속 진행
       }
 
-      let score = null;
-      let feedback = null;
-
-      if (CONFIG.AI.ENABLE_1000) {
-        setSubmissionState('evaluating');
-        setSubmissionProgress('AI가 글을 평가하고 있습니다...');
-
-        try {
-          const aiRes = await axios.post(`${import.meta.env.VITE_API_URL}/api/evaluate`, {
-            text,
-            topic: dailyTopic || '자유 주제',
-            submissionId: res.data.data.submissionId,
-            mode: 'mode_1000',
-          });
-
-          score = aiRes.data.score;
-          feedback = aiRes.data.feedback;
-        } catch (aiError) {
-          logger.error('AI 평가 중 오류 발생:', aiError);
-          score = CONFIG.AI.DEFAULT_SCORE;
-          feedback = 'AI 평가에 문제가 발생했습니다. 기본 점수가 부여됩니다.';
-        }
-      }
-
-      // 상태 초기화
-      setText('');
-      setTitle('');
-      setSessionCount(0);
-      setTotalDuration(0);
-      setStartTime(null);
-      setDurationNow(0);
-      setIsStarted(false);
-      setLastInputTime(null);
-      setLastSavedAt(null);
-      setHasWrittenThisSession(false);
-
-      // 제출 완료 처리
+      // 3. 제출 완료 처리
       handleSubmitComplete(res, score, feedback);
     } catch (error) {
       const errorMessage = error.response?.data?.message || '알 수 없는 오류가 발생했습니다.';
@@ -521,20 +528,15 @@ const Write1000 = () => {
     const now = Date.now();
     setLastInputTime(now);
 
-    // ✅ 타이핑 시작하면 무조건 타이머 시작
+    localStorage.removeItem('write1000_submitted');
+
     if (!startTime) {
-      setStartTime(now);
+      setStartTime(now); // 무조건 타이머 다시 시작
     }
 
-    // ✅ 세션 카운트는 최초 시작 시 한 번만 증가
     if (!hasWrittenThisSession) {
       setSessionCount(prev => prev + 1);
       setHasWrittenThisSession(true);
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
-      }
-      setStartTime(now); // 타이핑 시작 시점에 타이머 시작
     }
   };
 
@@ -568,7 +570,11 @@ const Write1000 = () => {
   }, [startTime]);
 
   useEffect(() => {
-    fetchDraft();
+    const isSubmitted = localStorage.getItem('write1000_submitted') === 'true';
+
+    if (!isSubmitted) {
+      fetchDraft();
+    }
     fetchTopic();
     fetchTokens();
     fetchBestRecord();
@@ -577,19 +583,27 @@ const Write1000 = () => {
       if (timerRef.current) clearInterval(timerRef.current);
       if (autosaveRef.current) clearInterval(autosaveRef.current);
       if (inactivityRef.current) clearInterval(inactivityRef.current);
-      saveDraft();
+
+      // 제출 완료 상태가 아니면 저장
+      if (!isSubmitted) {
+        saveDraft();
+      }
     };
   }, [user]);
 
   useEffect(() => {
-    // 제출 상태나 토큰 소진 시 자동저장 중단
-    const isSubmitted = localStorage.getItem('write1000_submitted');
-    if (isTokenDepleted || !user || isSubmitted) {
+    const isSubmitted = localStorage.getItem('write1000_submitted') === 'true';
+
+    if (isSubmitted || isTokenDepleted || !user) {
       if (autosaveRef.current) {
         clearInterval(autosaveRef.current);
         autosaveRef.current = null;
       }
       return;
+    }
+
+    if (autosaveRef.current) {
+      clearInterval(autosaveRef.current);
     }
 
     autosaveRef.current = setInterval(() => {
@@ -656,7 +670,9 @@ const Write1000 = () => {
         <div className="mb-4">
           <h2 className="text-lg font-medium text-gray-800 mb-2">📝 오늘의 주제</h2>
           <p className="text-gray-700 bg-blue-50 p-3 rounded-lg">
-            자유 주제입니다. 마음 가는 대로 글을 써보세요.
+            {CONFIG.TOPIC.SHOW_ON_HOME_1000
+              ? dailyTopic || '주제를 불러오는 중...'
+              : '자유 주제입니다. 마음 가는 대로 글을 써보세요.'}
           </p>
         </div>
 
@@ -693,12 +709,11 @@ const Write1000 = () => {
             onChange={handleTextChange}
             placeholder="1000자 이내로 자유롭게 작성해보세요."
             className="w-full h-64 p-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-            // maxLength={MAX_LENGTH}
+            maxLength={MAX_LENGTH}
             disabled={isTokenDepleted}
           />
           <div className="absolute right-2 bottom-2 text-sm text-gray-500">
-            {text.length}자{/* /{MAX_LENGTH} */}
-            {text.length < MIN_LENGTH && ` (최소 ${MIN_LENGTH}자)`}
+            {text.length}/{MAX_LENGTH}
           </div>
         </div>
 
@@ -722,12 +737,13 @@ const Write1000 = () => {
               초기화
             </button>
             <button
-              onClick={saveDraft}
+              onClick={() => saveDraft(true)}
               className="px-4 py-2 text-blue-600 hover:text-blue-800 transition-colors"
               disabled={isSubmitting || text.trim().length === 0 || isTokenDepleted}
             >
               임시저장
             </button>
+
             <button
               onClick={submitFinal}
               className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
@@ -749,25 +765,17 @@ const Write1000 = () => {
 
       {/* 저장 메시지 */}
       {saveMessage && (
-        <div
-          className={`mt-4 p-3 rounded-lg text-center ${
-            saveMessage.includes('❌')
-              ? 'bg-red-50 text-red-700'
-              : saveMessage.includes('✨')
-                ? 'bg-green-50 text-green-700'
-                : 'bg-blue-50 text-blue-700'
-          }`}
-        >
-          {saveMessage}
+        <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-lg p-6 max-w-sm w-full text-center">
+            <div className="text-2xl mb-4">
+              {saveMessage.includes('❌') ? '⚠️' : saveMessage.includes('✨') ? '✅' : 'ℹ️'}
+            </div>
+            <div className="text-lg font-semibold text-gray-800">{saveMessage}</div>
+          </div>
         </div>
       )}
 
       {/* AI 평가 결과 */}
-      {isEvaluating && (
-        <div className="mt-4 p-4 bg-blue-50 rounded-lg text-center text-blue-700">
-          🤖 AI가 글을 평가하고 있어요...
-        </div>
-      )}
 
       {score !== null && (
         <div className="mt-4 p-4 bg-gray-50 rounded-lg">
@@ -785,35 +793,23 @@ const Write1000 = () => {
           <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
             <div className="flex flex-col items-center">
               {submissionState === 'submitting' && (
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mb-4" />
-              )}
-              {submissionState === 'evaluating' && (
-                <div className="flex items-center space-x-2 mb-4">
-                  <div className="animate-pulse text-3xl">🤖</div>
-                  <div className="animate-bounce text-3xl">✨</div>
-                  <div className="mt-4 p-4 bg-blue-50 rounded-lg text-center text-blue-700">
-                    AI가 글을 평가하고 있어요...
-                  </div>
-                </div>
-              )}
-              {submissionState === 'complete' && (
-                <>
-                  <div className="text-3xl mb-4">✅</div>
-                  <p className="text-lg font-medium text-gray-800 text-center mb-4">
-                    {submissionProgress}
-                  </p>
-                  {score !== null && (
-                    <div className="w-full bg-gray-50 rounded-lg p-4 mb-4">
-                      <p className="text-xl font-bold text-center text-blue-600 mb-2">
-                        🎯 AI 평가 점수: {score}점
+                <div className="flex flex-col items-center space-y-4 mb-4">
+                  {subStep === 'loading' && (
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500" />
+                  )}
+
+                  {subStep === 'evaluating' && (
+                    <div className="flex flex-col items-center space-y-3">
+                      <div className="flex items-center justify-center space-x-4">
+                        <div className="text-4xl animate-spin">🤖</div>
+                        <div className="text-4xl animate-bounce">✨</div>
+                      </div>
+                      <p className="text-lg font-medium text-gray-800 text-center">
+                        {submissionProgress}
                       </p>
-                      {feedback && (
-                        <p className="text-gray-700 text-center whitespace-pre-wrap">{feedback}</p>
-                      )}
                     </div>
                   )}
-                  <p className="text-sm text-gray-600">잠시 후 다음 활동 안내가 표시됩니다...</p>
-                </>
+                </div>
               )}
             </div>
           </div>

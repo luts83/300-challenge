@@ -1,8 +1,11 @@
+// feedbacklist.tsx
 import React, { useState } from 'react';
 import { format } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { Submission } from './types';
 import { CONFIG } from '../../config';
+import HelpfulButton from '../HelpfulButton';
+import { useUser } from '../../context/UserContext';
 
 interface FeedbackListProps {
   submissions: Submission[];
@@ -26,7 +29,7 @@ export const FeedbackList: React.FC<FeedbackListProps> = ({
   loading = false,
 }) => {
   const [isListExpanded, setIsListExpanded] = useState(true);
-
+  const { user } = useUser();
   return (
     <div className="bg-white rounded-lg shadow-sm p-3 sm:p-4 mb-4 sm:mb-6">
       {/* 헤더 섹션 */}
@@ -53,9 +56,16 @@ export const FeedbackList: React.FC<FeedbackListProps> = ({
               >
                 <div className="flex flex-col gap-1">
                   {/* 제목 */}
-                  <h4 className="text-base font-medium text-gray-900 break-all line-clamp-1">
-                    {submission.title}
-                  </h4>
+                  <div className="flex items-center gap-2">
+                    <h4 className="text-base font-medium text-gray-900 break-all line-clamp-1">
+                      {submission.title}
+                    </h4>
+                    {submission.topic && (
+                      <span className="hidden sm:inline-block text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+                        {submission.topic}
+                      </span>
+                    )}
+                  </div>
 
                   {/* 메타 정보 */}
                   <div className="flex items-center justify-between">
@@ -65,6 +75,7 @@ export const FeedbackList: React.FC<FeedbackListProps> = ({
                       <span>
                         {format(new Date(submission.createdAt || ''), 'PPP', { locale: ko })}
                       </span>
+                      <HelpfulButton submissionId={submission._id} userUid={user?.uid} />
                     </div>
                     <div className="flex items-center gap-2">
                       <span

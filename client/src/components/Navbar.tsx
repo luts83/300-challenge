@@ -2,6 +2,7 @@ import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useUser } from '../context/UserContext';
 import { toast } from 'react-hot-toast';
+import { isAdmin } from '../utils/admin';
 
 // 스타일 상수
 const STYLES = {
@@ -13,7 +14,7 @@ const STYLES = {
   logo: {
     wrapper: 'flex-shrink-0 flex items-center',
     image:
-      'h-12 w-auto transition-transform duration-300 hover:scale-110 hover:rotate-3 active:scale-90 active:rotate-0',
+      'h-16 w-auto transition-transform duration-300 hover:scale-110 hover:rotate-3 active:scale-90 active:rotate-0',
     fallback:
       'text-xl font-bold text-gray-800 transition-transform duration-300 hover:scale-110 hover:rotate-3 active:scale-95 active:rotate-0',
   },
@@ -100,14 +101,19 @@ const Navbar = () => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  const navItems = useMemo(
-    () => [
+  const navItems = useMemo(() => {
+    const items = [
       { path: '/', label: '홈', icon: '🏠' },
       { path: '/feedback-camp', label: '피드백 미션', icon: '🏕️' },
       { path: '/my', label: '내가 쓴 글', icon: '📝' },
-    ],
-    []
-  );
+    ];
+
+    if (user && isAdmin(user.uid)) {
+      items.push({ path: '/dashboard', label: '관리자', icon: '🛠️' });
+    }
+
+    return items;
+  }, [user]);
 
   const handleLogout = useCallback(async () => {
     if (window.confirm('정말 로그아웃 하시겠습니까?')) {
@@ -267,7 +273,7 @@ const Navbar = () => {
         </div>
       </nav>
       {/* 네비게이션 바 높이만큼 여백 추가 */}
-      <div className="h-16"></div>
+      {/* <div className="h-16"></div> */}
     </>
   );
 };

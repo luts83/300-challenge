@@ -33,7 +33,20 @@ const evaluateAI = async (req, res) => {
     );
 
     const content = response.data.choices[0].message.content;
-    const parsed = JSON.parse(content);
+    const cleaned = content.replace(/```json|```/g, "").trim();
+
+let parsed;
+try {
+  parsed = JSON.parse(cleaned);
+} catch (err) {
+  logger.error('AI 응답 파싱 실패:', cleaned);
+  return res.status(500).json({
+    message: 'AI 응답 파싱 중 오류가 발생했습니다',
+    score: AI.DEFAULT_SCORE,
+    feedback: 'AI 응답이 JSON 형식이 아닙니다. 다시 시도해 주세요.',
+  });
+}
+
 
     // 평가 결과 저장
     const submission = await Submission.findById(submissionId);

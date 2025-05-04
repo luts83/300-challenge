@@ -9,6 +9,7 @@ const { submitFeedback } = require("../controllers/feedbackController");
 const WritingStreak = require("../models/WritingStreak");
 const Token = require("../models/Token");
 const TokenHistory = require("../models/TokenHistory");
+const HelpfulVote = require("../models/HelpfulVote");
 
 // 피드백할 글 추천 (모드 동일 + 적게 받은 글 우선)
 router.get("/assignments/:uid", async (req, res) => {
@@ -329,6 +330,7 @@ router.get("/all-submissions/:uid", async (req, res) => {
       hasGivenFeedback: myFeedbackSet.has(sub._id.toString()),
       mode: sub.mode,
       submissionDate: sub.submissionDate,
+      likeCount: sub.likeCount || 0,
     }));
 
     res.json(results);
@@ -530,6 +532,76 @@ router.post("/unlock-feedback", async (req, res) => {
   } catch (error) {
     console.error("피드백 언락 실패:", error);
     res.status(500).json({ message: "서버 오류가 발생했습니다." });
+  }
+});
+
+// 좋아요 토글 API
+router.post("/:submissionId/like", async (req, res) => {
+  const { submissionId } = req.params;
+  const { uid, displayName } = req.body;
+
+  if (!uid || !displayName) {
+    return res.status(400).json({ message: "uid와 displayName이 필요합니다." });
+  }
+
+  try {
+    const submission = await Submission.findById(submissionId);
+    if (!submission) {
+      return res.status(404).json({ message: "글을 찾을 수 없습니다." });
+    }
+
+    const alreadyLiked = submission.likedUsers.some((user) => user.uid === uid);
+
+    if (alreadyLiked) {
+      submission.likedUsers = submission.likedUsers.filter(
+        (user) => user.uid !== uid
+      );
+      submission.likeCount = Math.max(0, submission.likeCount - 1);
+    } else {
+      submission.likedUsers.push({ uid, displayName });
+      submission.likeCount += 1;
+    }
+
+    await submission.save();
+
+    res.json({
+      liked: !alreadyLiked,
+      total: submission.likeCount,
+    });
+  } catch (err) {
+    console.error("좋아요 토글 실패:", err);
+    res.status(500).json({ message: "서버 오류" });
+  }
+});
+
+// 좋아요 상태 조회
+router.get("/:submissionId/like-status", async (req, res) => {
+  const { submissionId } = req.params;
+  const { uid } = req.query; // ✅ 쿼리에서 uid만 받음
+
+  if (!uid) {
+    return res.status(400).json({ message: "uid가 필요합니다." });
+  }
+
+  try {
+    const submission = await Submission.findById(submissionId);
+    if (!submission) {
+      return res.status(404).json({ message: "글을 찾을 수 없습니다." });
+    }
+
+    const liked = submission.likedUsers.some((user) => user.uid === uid); // ✅ 객체 배열 체크
+    const likedUsernames = submission.likedUsers.map(
+      (user) => user.displayName
+    );
+
+    res.json({
+      total: submission.likeCount,
+      liked,
+      likedUsernames,
+    });
+  } catch (err) {
+    console.error("좋아요 상태 조회 실패:", err);
+    res.status(500).json({ message: "서버 오류" });
   }
 });
 

@@ -4,6 +4,7 @@ import Timer from '../components/Timer';
 import { useUser } from '../context/UserContext';
 import { CONFIG } from '../config';
 import { useNavigate } from 'react-router-dom';
+import { logger } from '../utils/logger';
 
 const Write300 = () => {
   const { user, loading } = useUser();
@@ -15,7 +16,6 @@ const Write300 = () => {
   const [isStarted, setIsStarted] = useState(false);
   const [score, setScore] = useState<number | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
-  const [isEvaluating, setIsEvaluating] = useState(false);
   const [dailyTopic, setDailyTopic] = useState<string>('');
   const [startTime, setStartTime] = useState<number | null>(null);
   const [duration, setDuration] = useState(0);
@@ -25,6 +25,7 @@ const Write300 = () => {
     'idle' | 'submitting' | 'evaluating' | 'complete'
   >('idle');
   const [submissionProgress, setSubmissionProgress] = useState<string>('');
+  const [subStep, setSubStep] = useState<'loading' | 'evaluating'>('loading');
 
   useEffect(() => {
     // 로딩이 완료되고 user가 없을 때만 리다이렉션
@@ -42,22 +43,20 @@ const Write300 = () => {
     return str.length;
   };
 
-  const handleSubmitComplete = (res, score, feedback) => {
+  const handleSubmitComplete = (res: any) => {
     setSubmissionState('complete');
     setSubmissionProgress('✨ 글 작성이 완료되었습니다!');
 
     setTimeout(() => {
       const message = [
         '✨ 글 작성이 완료되었습니다!\n',
-        score ? `🎯 AI 평가 점수: ${score}점` : '',
-        feedback ? `💬 AI 피드백: ${feedback}\n` : '',
         '\n📝 다음은 어떤 활동을 해보시겠어요?',
         '1. 피드백 미션에서 다른 사람의 글에 피드백 남기기',
         '2. 내가 작성한 글 확인하기',
         '3. 새로운 글 작성하기',
         `\n남은 토큰: ${res.data.data.tokens}개\n`,
-        '피드백 미션로 이동하시겠습니까?',
-        '(확인: 피드백 미션로 이동, 취소: 내 제출 목록으로 이동)',
+        '피드백 미션으로 이동하시겠습니까?',
+        '(확인: 피드백 미션으로 이동, 취소: 내 제출 목록으로 이동)',
       ]
         .filter(Boolean)
         .join('\n');
@@ -76,6 +75,12 @@ const Write300 = () => {
     if (submissionInProgress.current) return;
 
     if (!user) return alert('로그인이 필요합니다!');
+
+    // 👉 제출 시작할 때 타이머 멈추기
+    setStartTime(null); // 타이머 중지
+    setIsStarted(false); // 시작 상태 해제
+
+    const finalDuration = startTime ? Math.floor((Date.now() - startTime) / 1000) : 0;
 
     // 일반 제출 시에만 글자 수 검증
     if (!forceSubmit) {
@@ -98,8 +103,13 @@ const Write300 = () => {
     // 제출 시작
     submissionInProgress.current = true;
     setSubmissionState('submitting');
+    setSubStep('loading'); // 초기엔 로딩 스피너
     setSubmissionProgress('글을 제출하고 있습니다...');
-    const finalDuration = startTime ? Math.floor((Date.now() - startTime) / 1000) : 0;
+
+    setTimeout(() => {
+      setSubStep('evaluating');
+      setSubmissionProgress('AI가 글을 읽고 평가하고 있어요... ✨');
+    }, 1200); // 1.2초 뒤 평가로 전환
 
     try {
       const charCount = getCharCount(text);
@@ -123,28 +133,6 @@ const Write300 = () => {
 
       const submissionId = res.data.data.submissionId;
 
-      // AI 평가 시작
-      if (CONFIG.AI.ENABLE_300) {
-        setSubmissionState('evaluating');
-        setSubmissionProgress('AI가 평가하고 있습니다...');
-
-        try {
-          const aiRes = await axios.post(`${import.meta.env.VITE_API_URL}/api/evaluate`, {
-            text,
-            submissionId,
-            topic: dailyTopic || '자유 주제',
-            mode: 'mode_300',
-          });
-
-          setScore(aiRes.data.score ?? CONFIG.AI.DEFAULT_SCORE);
-          setFeedback(aiRes.data.feedback || 'AI 피드백을 불러오지 못했습니다.');
-        } catch (aiError) {
-          logger.error('AI 평가 중 오류 발생:', aiError);
-          setScore(CONFIG.AI.DEFAULT_SCORE);
-          setFeedback('AI 평가에 일시적인 문제가 발생했습니다. 기본 점수가 부여됩니다.');
-        }
-      }
-
       setTokens(res.data.data.tokens);
       setText('');
       setTitle('');
@@ -152,7 +140,7 @@ const Write300 = () => {
       setIsStarted(false);
 
       // 제출 완료 처리
-      handleSubmitComplete(res, score, feedback);
+      handleSubmitComplete(res);
     } catch (err) {
       logger.error('제출 중 오류 발생:', err.response?.data || err);
       alert('오류가 발생했습니다: ' + (err.response?.data?.message || err.message));
@@ -171,8 +159,11 @@ const Write300 = () => {
       setRemainingTime(Math.max(0, remaining));
       setDuration(elapsed);
 
+      // 시간 초과 시 자동 제출
       if (remaining <= 0) {
         clearInterval(interval);
+        setStartTime(null); // 👉 시간 초과 시에도 타이머 멈추기
+        setIsStarted(false); // 👉 시작 상태 해제
 
         // setTimeout으로 약간의 지연을 주어 상태 업데이트가 완료되도록 함
         setTimeout(() => {
@@ -314,9 +305,9 @@ const Write300 = () => {
             </button>
             <button
               onClick={() => handleSubmit(false)}
-              disabled={!isMinLengthMet || isEvaluating || submitted}
+              disabled={!isMinLengthMet || submitted}
               className={`px-4 py-2 rounded-lg ${
-                !isMinLengthMet || isEvaluating || submitted
+                !isMinLengthMet || submitted
                   ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                   : 'bg-blue-500 text-white hover:bg-blue-600'
               }`}
@@ -334,27 +325,24 @@ const Write300 = () => {
       </div>
 
       {/* 제출 상태 표시 */}
-      {submissionState !== 'idle' && (
+      {submissionState === 'submitting' && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <div className="flex flex-col items-center">
-              {submissionState === 'submitting' && (
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mb-4" />
-              )}
-              {submissionState === 'evaluating' && (
-                <div className="flex items-center space-x-2 mb-4">
-                  <div className="animate-pulse text-3xl">🤖</div>
-                  <div className="animate-bounce text-3xl">✨</div>
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 flex flex-col items-center space-y-6">
+            {subStep === 'loading' && (
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500" />
+            )}
+
+            {subStep === 'evaluating' && (
+              <div className="flex flex-col items-center space-y-4">
+                <div className="flex items-center justify-center space-x-4">
+                  <div className="text-4xl animate-spin">🤖</div>
+                  <div className="text-4xl animate-bounce">✨</div>
                 </div>
-              )}
-              {submissionState === 'complete' && <div className="text-3xl mb-4">✅</div>}
-
-              <p className="text-lg font-medium text-gray-800 text-center">{submissionProgress}</p>
-
-              {submissionState === 'evaluating' && (
-                <div className="mt-4 text-sm text-gray-600">잠시만 기다려주세요...</div>
-              )}
-            </div>
+                <p className="text-lg font-medium text-gray-800 text-center">
+                  {submissionProgress}
+                </p>
+              </div>
+            )}
           </div>
         </div>
       )}

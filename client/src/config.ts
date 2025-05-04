@@ -10,7 +10,7 @@ export const CONFIG = {
   // ✍ 글자 수 제한
   SUBMISSION: {
     MODE_300: { MIN_LENGTH: 100, MAX_LENGTH: 300 },
-    MODE_1000: { MIN_LENGTH: 600, MAX_LENGTH: 9999 },
+    MODE_1000: { MIN_LENGTH: 600, MAX_LENGTH: 1000 },
     TITLE: {
       REQUIRED: true,
       MIN_LENGTH: 1,
@@ -57,6 +57,6 @@ export const CONFIG = {
   // 📌 주제 표시 여부
   TOPIC: {
     SHOW_ON_HOME_300: true,
-    SHOW_ON_HOME_1000: true,
+    SHOW_ON_HOME_1000: false,
   },
 };

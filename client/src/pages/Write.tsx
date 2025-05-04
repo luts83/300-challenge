@@ -6,8 +6,8 @@ const Write = () => {
   const navigate = useNavigate();
 
   return (
-    <div className="max-w-4xl mx-auto p-4 min-h-screen flex flex-col justify-center">
-      <div className="text-center">
+    <div className="h-screen flex items-center justify-center px-4">
+      <div className="text-center max-w-md w-full">
         <h1 className="text-2xl sm:text-xl font-bold mb-4">✍ 글쓰기 모드 선택</h1>
         <p className="text-base text-gray-600 mb-8">원하는 글쓰기 방식을 선택하세요.</p>
 

@@ -1,3 +1,4 @@
+// src/components/FeedbackCamp/FeedbackFilterSection.tsx
 interface FeedbackFilterSectionProps {
   activeTab: 'all' | 'mode_300' | 'mode_1000';
   setActiveTab: (tab: 'all' | 'mode_300' | 'mode_1000') => void;
@@ -33,7 +34,8 @@ export const FeedbackFilterSection: React.FC<FeedbackFilterSectionProps> = ({
 }) => {
   return (
     <div className="bg-white rounded-lg shadow-sm p-3 sm:p-4 mb-4">
-      <div className="flex flex-wrap gap-2 mb-3">
+      <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 mb-3">
+        {/* activeTab 버튼 */}
         <button
           className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors flex items-center gap-2 ${
             activeTab === 'all'
@@ -67,9 +69,10 @@ export const FeedbackFilterSection: React.FC<FeedbackFilterSectionProps> = ({
           1000자
           <span className="bg-white/20 px-2 py-0.5 rounded-full text-xs">{counts.mode_1000}</span>
         </button>
-      </div>
 
-      <div className="flex flex-wrap gap-2 mb-3">
+        <div className="hidden sm:block mx-1">|</div>
+
+        {/* viewMode 버튼 */}
         <button
           className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors flex items-center gap-2 ${
             viewMode === 'all'
@@ -121,8 +124,8 @@ export const FeedbackFilterSection: React.FC<FeedbackFilterSectionProps> = ({
             className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
             <option value="date">작성일순</option>
-            <option value="recent">최신순</option>
             <option value="feedback">피드백순</option>
+            <option value="likes">좋아요순</option>
           </select>
           <button
             onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}

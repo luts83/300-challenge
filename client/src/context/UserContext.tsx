@@ -2,12 +2,14 @@ import React, { createContext, useContext, useEffect, useState, useCallback, use
 import { User, onAuthStateChanged, onIdTokenChanged } from 'firebase/auth';
 import { auth } from '../firebase';
 import { toast } from 'react-hot-toast';
+import { ADMIN_UIDS, isAdmin } from '../utils/admin';
 
 // 사용자 상태 타입 정의
 interface UserState {
   user: User | null;
   loading: boolean;
   initialized: boolean;
+  isAdmin: boolean;
 }
 
 // Context 타입 정의
@@ -22,6 +24,7 @@ const initialState: UserState = {
   user: null,
   loading: true,
   initialized: false,
+  isAdmin: false,
 };
 
 // Context 생성
@@ -50,10 +53,12 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
 
   // 사용자 정보 업데이트 함수
   const setUser = useCallback((user: User | null) => {
+    const isAdmin = user ? ADMIN_UIDS.includes(user.uid) : false;
     setState(prev => ({
       ...prev,
       user,
       loading: false,
+      isAdmin,
     }));
   }, []);
 
@@ -124,11 +129,12 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
       user: enhancedUser,
       loading: state.loading,
       initialized: state.initialized,
+      isAdmin: state.isAdmin,
       setUser,
       logout,
       refreshUser,
     }),
-    [enhancedUser, state.loading, state.initialized, setUser, logout, refreshUser]
+    [enhancedUser, state.loading, state.initialized, state.isAdmin, setUser, logout, refreshUser]
   );
 
   // 초기화되지 않은 경우 로딩 표시

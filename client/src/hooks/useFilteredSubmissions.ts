@@ -33,7 +33,7 @@ export const useFilteredSubmissions = (
   todaySubmissionModes: Set<SubmissionMode>,
   activeTab: 'all' | SubmissionMode,
   searchQuery: string,
-  sortBy: 'date' | 'feedback',
+  sortBy: 'date' | 'score' | 'feedback' | 'likes',
   sortOrder: 'asc' | 'desc'
 ) => {
   return useMemo(() => {

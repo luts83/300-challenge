@@ -152,6 +152,7 @@ export const SubmissionFilterSection: React.FC<SubmissionFilterSectionProps> = (
           >
             <option value="date">작성일순</option>
             <option value="feedback">피드백순</option>
+            <option value="likes">좋아요순</option>
           </select>
           <button
             onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}

@@ -7,6 +7,8 @@ export default defineConfig({
     include: ['@tanstack/react-virtual', '@tanstack/react-query'],
   },
   server: {
-    force: true, // 강제로 의존성 최적화를 다시 실행
+    host: '0.0.0.0',  // 모든 IP에서 접근 가능
+    port: 5173,       // 기본 포트
+    force: true,      // 강제로 의존성 최적화를 다시 실행
   },
 });

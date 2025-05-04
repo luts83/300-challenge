@@ -7,23 +7,27 @@ const submitRoute = require("./routes/submit");
 const topicRoute = require("./routes/topic");
 const mongoose = require("mongoose");
 const tokenRoute = require("./routes/token");
-const evaluateRoute = require("./routes/evaluate");
+// const evaluateRoute = require("./routes/evaluate");
 const statsRoute = require("./routes/stats");
 const feedbackRoute = require("./routes/feedback");
-const feedbackMissionRoute = require("./routes/feedbackMission");
 const writingRoutes = require("./routes/writing");
 const draftRoutes = require("./routes/drafts");
 const recordsRoutes = require("./routes/records"); // 추가
 const streakRoute = require("./routes/streak");
 const logger = require("./utils/logger");
+const dashboardRouter = require("./routes/dashboard");
+
+
 
 app.use(
   cors({
     origin: [
-      "http://localhost:5173", // 개발용
-      "http://192.168.0.22:5173", // 개발용
-      "https://write-challenge.pages.dev", // Cloudflare Pages
-      "https://edu-ocean.com", // 사용자용 도메인
+      "http://localhost:5173",
+      "http://localhost:5173/",
+      "http://192.168.0.22:5173",
+      "http://192.168.0.163:5173",  // 현재 클라이언트 IP 추가
+      "https://write-challenge.pages.dev",
+      "https://edu-ocean.com",
     ],
     credentials: true,
   })
@@ -32,15 +36,16 @@ app.use(
 app.use(express.json());
 app.use("/api/topic", topicRoute);
 app.use("/api/tokens", tokenRoute);
-app.use("/api/evaluate", require("./routes/evaluate"));
+// app.use("/api/evaluate", require("./routes/evaluate"));
 app.use("/api/records", recordsRoutes); // 추가
 app.use("/api/drafts", draftRoutes);
 app.use("/api/submit", require("./routes/submit"));
 app.use("/api/writing", writingRoutes);
-app.use("/api/feedback-missions", feedbackMissionRoute);
+
 app.use("/api/feedback", feedbackRoute);
 app.use("/api/stats", statsRoute);
 app.use("/api/streak", streakRoute);
+app.use("/api/dashboard", dashboardRouter);
 
 // MongoDB 연결
 mongoose

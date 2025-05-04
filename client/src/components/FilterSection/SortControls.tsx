@@ -1,7 +1,7 @@
 import React from 'react';
 
 type SortControlsProps = {
-  sortBy: 'date' | 'score' | 'feedback';
+  sortBy: 'date' | 'score' | 'feedback' | 'likes';
   setSortBy: (sort: 'date' | 'score' | 'feedback') => void;
   sortOrder: 'asc' | 'desc';
   setSortOrder: (order: 'asc' | 'desc') => void;
@@ -32,6 +32,7 @@ export const SortControls: React.FC<SortControlsProps> = ({
           <>
             <option value="date">날짜순</option>
             <option value="score">점수순</option>
+            <option value="likes">좋아요순</option>
           </>
         )}
       </select>

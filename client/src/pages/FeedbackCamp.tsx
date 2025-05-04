@@ -3,7 +3,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import axios from 'axios';
 import { useUser } from '../context/UserContext';
 import { CONFIG } from '../config';
-import { FilterSection } from '../components/FilterSection/FilterSection';
+import { FilterSection } from '../../archive/FilterSection';
 import { FeedbackForm } from '../components/FeedbackCamp/FeedbackForm';
 import {
   FeedbackList,
@@ -18,6 +18,7 @@ import useFilteredSubmissions from '../hooks/useFilteredSubmissions';
 import { logger } from '../utils/logger';
 import ScrollToTop from '../components/ScrollToTop';
 import { FeedbackFilterSection } from '../components/FeedbackCamp/FeedbackFilterSection';
+import { useNavigate } from 'react-router-dom';
 
 const FeedbackCamp = () => {
   const { user } = useUser();
@@ -35,9 +36,19 @@ const FeedbackCamp = () => {
   const [visibleMyFeedbacks, setVisibleMyFeedbacks] = useState(3);
   const [activeTab, setActiveTab] = useState<'all' | 'mode_300' | 'mode_1000'>('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [sortBy, setSortBy] = useState<'date' | 'feedback' | 'recent'>('date');
+  const [sortBy, setSortBy] = useState<'date' | 'feedback' | 'recent' | 'likes'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [viewMode, setViewMode] = useState<'all' | 'written' | 'available'>('all');
+  const [inputValue, setInputValue] = useState(searchQuery);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setSearchQuery(inputValue);
+    }, 300); // 300ms 후 반영
+
+    return () => clearTimeout(timeout);
+  }, [inputValue]);
 
   const [todaySummary, setTodaySummary] = useState<TodaySummary>({
     mode_300: 0,
@@ -109,6 +120,9 @@ const FeedbackCamp = () => {
       );
     }
 
+    // ✅ 이미 피드백을 남긴 글은 FeedbackList 대상에서 제외
+    filtered.submissions = filtered.submissions.filter(sub => !submittedIds.includes(sub._id));
+
     const sortFn = (a: any, b: any) => {
       if (sortBy === 'date') {
         return sortOrder === 'desc'
@@ -125,6 +139,11 @@ const FeedbackCamp = () => {
           ? new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
           : new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime();
       }
+      if (sortBy === 'likes') {
+        return sortOrder === 'desc'
+          ? (b.likeCount || 0) - (a.likeCount || 0)
+          : (a.likeCount || 0) - (b.likeCount || 0);
+      }
       return 0;
     };
 
@@ -132,7 +151,7 @@ const FeedbackCamp = () => {
     filtered.givenFeedbacks.sort(sortFn);
 
     return filtered;
-  }, [allSubmissions, givenFeedbacks, activeTab, searchQuery, sortBy, sortOrder]);
+  }, [allSubmissions, givenFeedbacks, activeTab, searchQuery, sortBy, sortOrder, submittedIds]);
 
   const fetchGivenFeedbacks = async () => {
     if (!user) return;
@@ -199,7 +218,7 @@ const FeedbackCamp = () => {
       // 피드백 3개 달성 시
       if (todayCount === CONFIG.FEEDBACK.REQUIRED_COUNT) {
         alert(
-          `🎉 축하합니다! 오늘의 피드백 미션을 완료하셨습니다!\n\n이제 내 글의 피드백을 확인하실 수 있습니다.`
+          `🎉 축하합니다! 오늘의 피드백 미션을 완료하셨습니다!\n\n이제 오늘 작성한 내 글의 피드백을 확인하실 수 있습니다.`
         );
       }
       // 3개 미만일 때
@@ -232,8 +251,42 @@ const FeedbackCamp = () => {
       // 일일 피드백 카운트 업데이트
       setDailyFeedbackCount(todayCount);
     } catch (err) {
+      if (axios.isAxiosError(err)) {
+        const errorMessage = err.response?.data?.message;
+
+        // 서버에서 온 에러 메시지에 따라 더 친절한 안내
+        if (errorMessage?.includes('오늘은 아직 글을 작성하지 않으셨네요')) {
+          alert(
+            '❌ 피드백을 남기기 위해서는 오늘 글을 작성해야 합니다!\n\n' +
+              '1. 먼저 오늘의 글쓰기를 완료해 주세요.\n' +
+              '2. 글쓰기 완료 후 다시 피드백을 남겨주세요.\n\n' +
+              '✍️ 글쓰기 페이지로 이동하시겠습니까?'
+          ).then(result => {
+            if (result) {
+              navigate('/write'); // 글쓰기 페이지로 이동
+            }
+          });
+        } else if (errorMessage?.includes('이미 이 글에 피드백을 작성하셨습니다')) {
+          alert('❌ 이미 이 글에 피드백을 작성하셨습니다.\n다른 글에 피드백을 남겨보세요!');
+        } else if (errorMessage?.includes('피드백을 작성할 수 없습니다')) {
+          alert(
+            '❌ 피드백을 작성할 수 없습니다.\n\n' +
+              '가능한 원인:\n' +
+              '1. 오늘 글을 작성하지 않은 경우\n' +
+              '2. 자신의 글에 피드백을 시도한 경우\n' +
+              '3. 이미 피드백을 작성한 글인 경우\n\n' +
+              '문제가 지속되면 관리자에게 문의해 주세요.'
+          );
+        } else {
+          // 기타 에러
+          alert(
+            '❌ 피드백 제출에 실패했습니다.\n\n' +
+              '문제가 지속되면 아래 내용과 함께 관리자에게 문의해 주세요.\n' +
+              `에러 메시지: ${errorMessage || '알 수 없는 오류'}`
+          );
+        }
+      }
       logger.error('피드백 제출 실패:', err);
-      alert('❌ 피드백 제출에 실패했습니다. 다시 시도해주세요.');
     } finally {
       setLoading(false);
     }
@@ -290,8 +343,8 @@ const FeedbackCamp = () => {
         setActiveTab={setActiveTab}
         viewMode={viewMode}
         setViewMode={setViewMode}
-        searchQuery={searchQuery}
-        setSearchQuery={setSearchQuery}
+        searchQuery={inputValue}
+        setSearchQuery={setInputValue}
         sortBy={sortBy}
         setSortBy={setSortBy}
         sortOrder={sortOrder}
@@ -301,6 +354,7 @@ const FeedbackCamp = () => {
 
       {(viewMode === 'all' || viewMode === 'written') && (
         <MyFeedbacks
+          submissions={filteredData.submissions}
           feedbacks={filteredData.givenFeedbacks}
           visibleCount={visibleMyFeedbacks}
           onLoadMore={() => setVisibleMyFeedbacks(prev => prev + 3)}
@@ -308,17 +362,22 @@ const FeedbackCamp = () => {
         />
       )}
 
-      {(viewMode === 'all' || viewMode === 'available') && (
-        <FeedbackList
-          submissions={filteredData.submissions}
-          feedbacks={feedbacks}
-          expanded={expanded}
-          submittedIds={submittedIds}
-          onFeedbackChange={(id, value) => setFeedbacks(prev => ({ ...prev, [id]: value }))}
-          onSubmitFeedback={handleSubmitFeedback}
-          onToggleExpand={id => setExpanded(expanded === id ? null : id)}
-        />
-      )}
+      {(viewMode === 'all' || viewMode === 'available') &&
+        (filteredData.submissions.length === 0 ? (
+          <p className="text-center py-8 text-gray-700 bg-white/80 rounded-lg shadow-sm">
+            🔍 검색 결과가 없습니다.
+          </p>
+        ) : (
+          <FeedbackList
+            submissions={filteredData.submissions}
+            feedbacks={feedbacks}
+            expanded={expanded}
+            submittedIds={submittedIds}
+            onFeedbackChange={(id, value) => setFeedbacks(prev => ({ ...prev, [id]: value }))}
+            onSubmitFeedback={handleSubmitFeedback}
+            onToggleExpand={id => setExpanded(expanded === id ? null : id)}
+          />
+        ))}
 
       <ScrollToTop />
     </div>

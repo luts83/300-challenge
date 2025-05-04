@@ -38,7 +38,6 @@ const feedbackSchema = new mongoose.Schema(
 
     // 피드백 상태
     isRead: { type: Boolean, default: false }, // 읽음 여부
-    isHelpful: { type: Boolean }, // 도움됨 표시
   },
   {
     timestamps: true, // createdAt, updatedAt 자동 생성

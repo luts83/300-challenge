@@ -38,6 +38,8 @@ type Submission = {
   feedbackUnlocked?: boolean;
   aiFeedback?: string;
   feedbacks?: FeedbackItem[];
+  likeCount?: number;
+  likedUsers?: string[];
 };
 
 type FeedbackItem = {
@@ -118,6 +120,15 @@ const MySubmissions = () => {
   const [noSubmissions, setNoSubmissions] = useState(false);
   const [activeTab, setActiveTab] = useState<'all' | 'mode_300' | 'mode_1000'>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [inputValue, setInputValue] = useState('');
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setSearchQuery(inputValue);
+    }, 300);
+    return () => clearTimeout(timeout);
+  }, [inputValue]);
+
   const [sortBy, setSortBy] = useState<'date' | 'score' | 'feedback'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [feedbackStats, setFeedbackStats] = useState({
@@ -427,8 +438,8 @@ const MySubmissions = () => {
           setSortBy={setSortBy}
           sortOrder={sortOrder}
           setSortOrder={setSortOrder}
-          searchQuery={searchQuery}
-          setSearchQuery={setSearchQuery}
+          searchQuery={inputValue}
+          setSearchQuery={setInputValue}
           counts={counts}
         />
 
@@ -441,10 +452,10 @@ const MySubmissions = () => {
           <div className="text-center py-8 text-red-600">
             <p>{error}</p>
           </div>
-        ) : noSubmissions ? (
-          <div className="text-center py-8">
-            <p>아직 작성한 글이 없습니다.</p>
-          </div>
+        ) : filteredSubmissions.length === 0 ? (
+          <p className="text-center py-8 text-gray-700 bg-white/80 rounded-lg shadow-sm">
+            🔍 검색 결과가 없습니다.
+          </p>
         ) : (
           <div className="space-y-4">
             {filteredSubmissions.map((submission, index) => (
