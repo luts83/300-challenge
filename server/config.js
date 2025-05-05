@@ -9,7 +9,7 @@ module.exports = {
   },
   SUBMISSION: {
     MODE_300: { MIN_LENGTH: 100, MAX_LENGTH: 300 }, // 300자 모드 글자 제한
-    MODE_1000: { MIN_LENGTH: 600, MAX_LENGTH: 1000 }, // 1000자 모드 글자 제한
+    MODE_1000: { MIN_LENGTH: 800, MAX_LENGTH: 1500 }, // 1000자 모드 글자 제한
     TITLE: {
       // 제목 관련 설정 추가
       MIN_LENGTH: 1,
@@ -43,7 +43,7 @@ module.exports = {
         CONTENT: { weight: 0.3 },
         EXPRESSION: { weight: 0.3 },
         STRUCTURE: { weight: 0.2 },
-        TECHNICAL: { weight: 0.2 }
+        TECHNICAL: { weight: 0.2 },
       },
       // 자유 주제일 경우
       FREE: {
@@ -51,41 +51,48 @@ module.exports = {
         CONSISTENCY: { weight: 0.25 },
         EXPRESSION: { weight: 0.2 },
         STRUCTURE: { weight: 0.2 },
-        TECHNICAL: { weight: 0.1 }
-      }
+        TECHNICAL: { weight: 0.1 },
+      },
     },
 
     PROMPT_TEMPLATE: {
       mode_300: (text, topic) => `
         [평가 대상 글]
-        주제: ${topic || '자유주제'}
+        주제: ${topic || "자유주제"}
         내용: ${text}
 
         [평가 지침]
-        ${topic ? `
+        ${
+          topic
+            ? `
           // 기존 지정 주제 평가 지침
           1. 각 평가 기준별로 구체적인 점수와 피드백을 제시해주세요.
           2. 글의 장점을 먼저 언급한 후, 개선점을 제안해주세요.
           3. 300자 분량에 맞는 간단명료한 피드백을 제공해주세요.
-        ` : `
+        `
+            : `
           // 자유 주제 평가 지침
           1. 글의 독창성과 메시지 전달력을 중점적으로 평가해주세요.
           2. 주제 선정의 참신성과 주제 전개의 일관성을 평가해주세요.
           3. 글쓴이의 개성과 창의적 표현을 중요하게 고려해주세요.
           4. 300자 분량에 맞는 간단명료한 피드백을 제공해주세요.
-        `}
+        `
+        }
 
         [응답 형식]
         {
           "overall_score": 0-100 사이 점수,
           "criteria_scores": {
-            ${topic ? `
+            ${
+              topic
+                ? `
               // 지정 주제 평가 기준
               "content": {
                 "score": 0-100,
                 "feedback": "주제 관련성과 내용의 충실도에 대한 피드백"
               },
-            ` : `
+            `
+                : `
               // 자유 주제 평가 기준
               "originality": {
                 "score": 0-100,
@@ -95,7 +102,8 @@ module.exports = {
                 "score": 0-100,
                 "feedback": "주제 전개의 일관성과 메시지 전달력"
               },
-            `}
+            `
+            }
             "expression": {
               "score": 0-100,
               "feedback": "감정 표현과 문체의 개성"
@@ -118,36 +126,43 @@ module.exports = {
       `,
       mode_1000: (text, topic) => `
         [평가 대상 글]
-        주제: ${topic || '자유주제'}
+        주제: ${topic || "자유주제"}
         내용: ${text}
 
         [평가 지침]
-        ${topic ? `
+        ${
+          topic
+            ? `
           // 기존 지정 주제 평가 지침
           1. 각 평가 기준별로 상세한 점수와 피드백을 제시해주세요.
           2. 글의 장점을 먼저 언급한 후, 개선점을 제안해주세요.
           3. 1000자 분량에 맞는 심층적인 분석을 제공해주세요.
           4. 문단 구성과 논리적 전개에 대해 자세히 평가해주세요.
-        ` : `
+        `
+            : `
           // 자유 주제 평가 지침
           1. 주제 선정의 독창성과 심층성을 평가해주세요.
           2. 글쓴이만의 관점과 통찰력을 중점적으로 평가해주세요.
           3. 주제 전개의 논리성과 설득력을 평가해주세요.
           4. 1000자 분량에 맞는 깊이 있는 분석을 제공해주세요.
           5. 문단 간 유기적 연결과 전체적인 글의 완성도를 평가해주세요.
-        `}
+        `
+        }
 
         [응답 형식]
         {
           "overall_score": 0-100 사이 점수,
           "criteria_scores": {
-            ${topic ? `
+            ${
+              topic
+                ? `
               // 지정 주제 평가 기준
               "content": {
                 "score": 0-100,
                 "feedback": "주제 이해도, 내용의 깊이, 논리적 전개"
               },
-            ` : `
+            `
+                : `
               // 자유 주제 평가 기준
               "originality": {
                 "score": 0-100,
@@ -161,7 +176,8 @@ module.exports = {
                 "score": 0-100,
                 "feedback": "주제 전개의 논리성과 설득력"
               },
-            `}
+            `
+            }
             "expression": {
               "score": 0-100,
               "feedback": "문체의 개성과 표현력"

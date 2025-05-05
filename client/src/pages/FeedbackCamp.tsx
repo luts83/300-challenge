@@ -19,6 +19,7 @@ import { logger } from '../utils/logger';
 import ScrollToTop from '../components/ScrollToTop';
 import { FeedbackFilterSection } from '../components/FeedbackCamp/FeedbackFilterSection';
 import { useNavigate } from 'react-router-dom';
+import Layout from '../components/Layout';
 
 const FeedbackCamp = () => {
   const { user } = useUser();
@@ -320,73 +321,96 @@ const FeedbackCamp = () => {
     fetchTodayFeedbackCount();
   }, [user]);
 
-  if (!user) return <p className="msg-auth">로그인이 필요합니다.</p>;
-  if (loading) return <p className="msg-auth">로딩 중...</p>;
-  if (error) return <p className="msg-error">에러: {error}</p>;
+  if (!user)
+    return (
+      <Layout>
+        <p className="msg-auth pt-20">로그인이 필요합니다.</p>
+      </Layout>
+    );
+  if (loading)
+    return (
+      <Layout>
+        <p className="msg-auth pt-20">로딩 중...</p>
+      </Layout>
+    );
+  if (error)
+    return (
+      <Layout>
+        <p className="msg-error pt-20">에러: {error}</p>
+      </Layout>
+    );
   if (!hasMySubmission) {
-    return <p className="msg-submit-note">✍ 먼저 글을 작성해야 피드백 미션을 진행할 수 있어요!</p>;
+    return (
+      <Layout>
+        <p className="msg-submit-note pt-16">
+          ✍ 먼저 글을 작성해야 피드백 미션을 진행할 수 있어요!
+        </p>
+      </Layout>
+    );
   }
 
   return (
-    <div className="max-w-4xl mx-auto px-3 sm:px-4 py-4 sm:py-6">
-      <h1 className="text-2xl sm:text-xl font-bold mb-6 text-center">🤝 피드백 미션</h1>
+    <Layout>
+      <div className="max-w-4xl mx-auto px-3 sm:px-4 py-4 sm:py-6">
+        <h1 className="text-2xl sm:text-xl font-bold mb-6 text-center">🤝 피드백 미션</h1>
 
-      <div className="mb-4 p-3 bg-blue-100/80 text-blue-800 rounded-lg text-base text-center font-medium">
-        ✍ 다른 사람의 글에 피드백을 작성하고, 내가 쓴 글의 피드백도 확인해보세요!
-      </div>
+        <div className="mb-4 p-3 bg-blue-100/80 text-blue-800 rounded-lg text-base text-center font-medium">
+          ✍ 다른 사람의 글에 피드백을 작성하고, 내가 쓴 글의 피드백도 확인해보세요!
+        </div>
 
-      <FeedbackStats dailyFeedbackCount={dailyFeedbackCount} todaySummary={todaySummary} />
+        <FeedbackStats dailyFeedbackCount={dailyFeedbackCount} todaySummary={todaySummary} />
 
-      <FeedbackGuidance
-        dailyFeedbackCount={dailyFeedbackCount}
-        availableModes={getAvailableFeedbackModes(todaySubmissionModes)}
-        isExpanded={isGuideExpanded}
-        onToggleExpand={() => setIsGuideExpanded(!isGuideExpanded)}
-      />
-
-      <FeedbackFilterSection
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        viewMode={viewMode}
-        setViewMode={setViewMode}
-        searchQuery={inputValue}
-        setSearchQuery={setInputValue}
-        sortBy={sortBy}
-        setSortBy={setSortBy}
-        sortOrder={sortOrder}
-        setSortOrder={setSortOrder}
-        counts={counts}
-      />
-
-      {(viewMode === 'all' || viewMode === 'written') && (
-        <MyFeedbacks
-          submissions={filteredData.submissions}
-          feedbacks={filteredData.givenFeedbacks}
-          visibleCount={visibleMyFeedbacks}
-          onLoadMore={() => setVisibleMyFeedbacks(prev => prev + 3)}
-          totalCount={filteredData.givenFeedbacks.length}
+        <FeedbackGuidance
+          dailyFeedbackCount={dailyFeedbackCount}
+          availableModes={getAvailableFeedbackModes(todaySubmissionModes)}
+          isExpanded={isGuideExpanded}
+          onToggleExpand={() => setIsGuideExpanded(!isGuideExpanded)}
         />
-      )}
 
-      {(viewMode === 'all' || viewMode === 'available') &&
-        (filteredData.submissions.length === 0 ? (
-          <p className="text-center py-8 text-gray-700 bg-white/80 rounded-lg shadow-sm">
-            🔍 검색 결과가 없습니다.
-          </p>
-        ) : (
-          <FeedbackList
+        <FeedbackFilterSection
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          viewMode={viewMode}
+          setViewMode={setViewMode}
+          searchQuery={inputValue}
+          setSearchQuery={setInputValue}
+          sortBy={sortBy}
+          setSortBy={setSortBy}
+          sortOrder={sortOrder}
+          setSortOrder={setSortOrder}
+          counts={counts}
+        />
+
+        {(viewMode === 'all' || viewMode === 'written') && (
+          <MyFeedbacks
             submissions={filteredData.submissions}
-            feedbacks={feedbacks}
-            expanded={expanded}
-            submittedIds={submittedIds}
-            onFeedbackChange={(id, value) => setFeedbacks(prev => ({ ...prev, [id]: value }))}
-            onSubmitFeedback={handleSubmitFeedback}
-            onToggleExpand={id => setExpanded(expanded === id ? null : id)}
+            feedbacks={filteredData.givenFeedbacks}
+            visibleCount={visibleMyFeedbacks}
+            onLoadMore={() => setVisibleMyFeedbacks(prev => prev + 3)}
+            totalCount={filteredData.givenFeedbacks.length}
           />
-        ))}
+        )}
 
-      <ScrollToTop />
-    </div>
+        {(viewMode === 'all' || viewMode === 'available') &&
+          (filteredData.submissions.length === 0 ? (
+            <p className="text-center py-8 text-gray-700 bg-white/80 rounded-lg shadow-sm">
+              🔍 검색 결과가 없습니다.
+            </p>
+          ) : (
+            <FeedbackList
+              submissions={filteredData.submissions}
+              feedbacks={feedbacks}
+              expanded={expanded}
+              submittedIds={submittedIds}
+              onFeedbackChange={(id, value) => setFeedbacks(prev => ({ ...prev, [id]: value }))}
+              onSubmitFeedback={handleSubmitFeedback}
+              onToggleExpand={id => setExpanded(expanded === id ? null : id)}
+            />
+          ))}
+
+        <ScrollToTop />
+      </div>
+    </Layout>
   );
 };
 

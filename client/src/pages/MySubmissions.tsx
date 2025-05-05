@@ -26,6 +26,7 @@ import { SubmissionStats } from '../components/SubmissionStats/SubmissionStats';
 import type { StatsData } from '../components/SubmissionStats/types';
 import { SubmissionFilterSection } from '../components/FilterSection/SubmissionFilterSection';
 import { useSubmissionFilter } from '../hooks/useSubmissionFilter';
+import Layout from '../components/Layout';
 
 type Submission = {
   _id: string;
@@ -385,118 +386,132 @@ const MySubmissions = () => {
   };
 
   if (!user) {
-    return <p className="msg-auth">로그인이 필요합니다.</p>;
+    return (
+      <Layout>
+        <p className="msg-auth relative pt-20">로그인이 필요합니다.</p>
+      </Layout>
+    );
   }
 
   if (authLoading) {
-    return <p className="msg-auth">로딩 중...</p>;
+    return (
+      <Layout>
+        <p className="msg-auth relative pt-20">로딩 중...</p>
+      </Layout>
+    );
   }
 
   if (noSubmissions) {
     return (
-      <p className="msg-submit-note">
+      <p className="msg-submit-note relative pt-20">
         ✍ 아직 글을 작성하지 않으셨어요.
         <br />
         매일 한 편씩 도전해 보세요!
       </p>
     );
   }
-  if (error) return <p className="msg-error">{error}</p>;
+  if (error)
+    return (
+      <Layout>
+        <p className="msg-error relative pt-20">{error}</p>
+      </Layout>
+    );
 
   return (
-    <ErrorBoundary>
-      <div className="max-w-4xl mx-auto p-4">
-        <h1 className="text-2xl sm:text-xl font-bold mb-6 text-center">📝 내가 쓴 글</h1>
-
-        <div className="mb-4 p-3 bg-blue-100/80 text-blue-800 rounded-lg text-base text-center font-medium">
-          ✍ 글을 쓰고 다른 사용자에게 피드백을 3개 작성하면, 내가 쓴 글의 피드백을 볼 수 있어요!
-        </div>
-
-        <TokenDisplay />
-        <WeeklyProgress />
-
-        {/* 작성 통계 섹션 */}
-        <SubmissionStats stats={stats} />
-
-        {/* 피드백 통계 섹션 */}
-        <FeedbackStats
-          feedbackStats={feedbackStats}
-          dailyFeedbackCount={dailyFeedbackCount}
-          weeklyGrowth={weeklyGrowth}
-        />
-
-        {/* 피드백 미션 현황 */}
-        {/* <FeedbackMissionPanel /> */}
-
-        {/* 필터 및 정렬 섹션 */}
-        <SubmissionFilterSection
-          activeTab={activeTab}
-          setActiveTab={setActiveTab}
-          feedbackFilter={feedbackFilter}
-          setFeedbackFilter={setFeedbackFilter}
-          sortBy={sortBy}
-          setSortBy={setSortBy}
-          sortOrder={sortOrder}
-          setSortOrder={setSortOrder}
-          searchQuery={inputValue}
-          setSearchQuery={setInputValue}
-          counts={counts}
-        />
-
-        {/* 글 목록 */}
-        {isLoading ? (
-          <div className="text-center py-8">
-            <p>로딩 중...</p>
+    <Layout>
+      <ErrorBoundary>
+        <div className="max-w-4xl mx-auto p-4">
+          <h1 className="text-2xl sm:text-xl font-bold mb-6 text-center">📝 내가 쓴 글</h1>
+          <div className="mb-4 p-3 bg-blue-100/80 text-blue-800 rounded-lg text-base text-center font-medium">
+            ✍ 글을 쓰고 다른 사용자에게 피드백을 3개 작성하면, 내가 쓴 글의 피드백을 볼 수 있어요!
           </div>
-        ) : error ? (
-          <div className="text-center py-8 text-red-600">
-            <p>{error}</p>
-          </div>
-        ) : filteredSubmissions.length === 0 ? (
-          <p className="text-center py-8 text-gray-700 bg-white/80 rounded-lg shadow-sm">
-            🔍 검색 결과가 없습니다.
-          </p>
-        ) : (
-          <div className="space-y-4">
-            {filteredSubmissions.map((submission, index) => (
-              <div
-                key={submission._id}
-                ref={index === filteredSubmissions.length - 1 ? lastSubmissionElementRef : null}
-              >
-                <SubmissionItem
-                  submission={submission}
-                  isExpanded={expandedId === submission._id}
-                  onToggleExpand={() => toggleExpand(submission._id)}
-                  onUnlockFeedback={() => handleUnlockFeedback(submission)}
-                  feedbacks={submission.feedbacks || []}
-                />
-              </div>
-            ))}
-            {isLoadingMore && (
-              <div className="text-center py-4">
-                <p>로딩 중...</p>
-              </div>
-            )}
-          </div>
-        )}
 
-        {/* UnlockModal 추가 */}
-        {selectedSubmission && (
-          <UnlockModal
-            isOpen={isUnlockModalOpen}
-            onClose={() => {
-              setIsUnlockModalOpen(false);
-              setSelectedSubmission(null);
-            }}
-            onUnlock={handleUnlock}
-            submissionTitle={selectedSubmission.title}
-            bonusTokens={tokens?.bonusTokens || 0}
+          <TokenDisplay />
+          <WeeklyProgress />
+
+          {/* 작성 통계 섹션 */}
+          <SubmissionStats stats={stats} />
+
+          {/* 피드백 통계 섹션 */}
+          <FeedbackStats
+            feedbackStats={feedbackStats}
+            dailyFeedbackCount={dailyFeedbackCount}
+            weeklyGrowth={weeklyGrowth}
           />
-        )}
 
-        <ScrollToTop />
-      </div>
-    </ErrorBoundary>
+          {/* 피드백 미션 현황 */}
+          {/* <FeedbackMissionPanel /> */}
+
+          {/* 필터 및 정렬 섹션 */}
+          <SubmissionFilterSection
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+            feedbackFilter={feedbackFilter}
+            setFeedbackFilter={setFeedbackFilter}
+            sortBy={sortBy}
+            setSortBy={setSortBy}
+            sortOrder={sortOrder}
+            setSortOrder={setSortOrder}
+            searchQuery={inputValue}
+            setSearchQuery={setInputValue}
+            counts={counts}
+          />
+
+          {/* 글 목록 */}
+          {isLoading ? (
+            <div className="text-center py-8">
+              <p>로딩 중...</p>
+            </div>
+          ) : error ? (
+            <div className="text-center py-8 text-red-600">
+              <p>{error}</p>
+            </div>
+          ) : filteredSubmissions.length === 0 ? (
+            <p className="text-center py-8 text-gray-700 bg-white/80 rounded-lg shadow-sm">
+              🔍 검색 결과가 없습니다.
+            </p>
+          ) : (
+            <div className="space-y-4">
+              {filteredSubmissions.map((submission, index) => (
+                <div
+                  key={submission._id}
+                  ref={index === filteredSubmissions.length - 1 ? lastSubmissionElementRef : null}
+                >
+                  <SubmissionItem
+                    submission={submission}
+                    isExpanded={expandedId === submission._id}
+                    onToggleExpand={() => toggleExpand(submission._id)}
+                    onUnlockFeedback={() => handleUnlockFeedback(submission)}
+                    feedbacks={submission.feedbacks || []}
+                  />
+                </div>
+              ))}
+              {isLoadingMore && (
+                <div className="text-center py-4">
+                  <p>로딩 중...</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* UnlockModal 추가 */}
+          {selectedSubmission && (
+            <UnlockModal
+              isOpen={isUnlockModalOpen}
+              onClose={() => {
+                setIsUnlockModalOpen(false);
+                setSelectedSubmission(null);
+              }}
+              onUnlock={handleUnlock}
+              submissionTitle={selectedSubmission.title}
+              bonusTokens={tokens?.bonusTokens || 0}
+            />
+          )}
+
+          <ScrollToTop />
+        </div>
+      </ErrorBoundary>
+    </Layout>
   );
 };
 

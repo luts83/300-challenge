@@ -5,6 +5,8 @@ import { useUser } from '../context/UserContext';
 import { CONFIG } from '../config';
 import { useNavigate } from 'react-router-dom';
 import { logger } from '../utils/logger';
+import Layout from '../components/Layout';
+import ScrollToTop from '../components/ScrollToTop';
 
 const Write300 = () => {
   const { user, loading } = useUser();
@@ -210,143 +212,146 @@ const Write300 = () => {
   const isMinLengthMet = charCount >= CONFIG.SUBMISSION.MODE_300.MIN_LENGTH;
 
   return (
-    <div className="max-w-2xl mx-auto p-4">
-      <h1 className="text-2xl font-bold mb-6 text-center">✍️ 300자 글쓰기</h1>
+    <Layout>
+      <div className="max-w-2xl mx-auto p-4">
+        <h1 className="text-2xl font-bold mb-6 text-center">✍️ 300자 글쓰기</h1>
 
-      {/* 토큰 현황 추가 */}
-      <div className="bg-blue-50 rounded-lg p-4 mb-6 flex items-center justify-between">
-        <span className="text-blue-800 font-medium">오늘의 토큰</span>
-        <div className="flex items-center gap-2">
-          <span className="text-2xl">🎫</span>
-          <span className="text-xl font-bold text-blue-600">{tokens ?? 0}</span>
-        </div>
-      </div>
-
-      {/* 제목과 주제 영역 */}
-      <div className="bg-white rounded-lg shadow-md p-4 mb-6">
-        {/* 오늘의 주제 */}
-        <div className="mb-4">
-          <h2 className="text-lg font-medium text-gray-800 mb-2">📝 오늘의 주제</h2>
-          <p className="text-gray-700 bg-blue-50 p-3 rounded-lg">
-            {dailyTopic || '주제를 불러오는 중...'}
-          </p>
-        </div>
-
-        {/* 제목 입력 */}
-        <div className="mb-4">
-          <h2 className="text-lg font-medium text-gray-800 mb-2">✏️ 제목 작성</h2>
-          <div className="relative">
-            <input
-              type="text"
-              value={title}
-              onChange={e => setTitle(e.target.value)}
-              placeholder="이 글의 제목을 입력해주세요"
-              maxLength={50}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-lg"
-            />
-            <span className="absolute right-3 bottom-3 text-sm text-gray-500">
-              {title.length}/50
-            </span>
+        {/* 토큰 현황 추가 */}
+        <div className="bg-blue-50 rounded-lg p-4 mb-6 flex items-center justify-between">
+          <span className="text-blue-800 font-medium">오늘의 토큰</span>
+          <div className="flex items-center gap-2">
+            <span className="text-2xl">🎫</span>
+            <span className="text-xl font-bold text-blue-600">{tokens ?? 0}</span>
           </div>
         </div>
-      </div>
 
-      {/* 글쓰기 영역 */}
-      <div className="bg-white rounded-lg shadow-md p-4">
-        <div className="relative mb-4">
-          <textarea
-            value={text}
-            onChange={e => {
-              setText(e.target.value);
-              if (!startTime) setStartTime(Date.now()); // 처음 입력 시 타이머 시작
-            }}
-            placeholder={`300자 이내로 자유롭게 작성해보세요.`}
-            className="w-full h-64 p-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-            maxLength={300}
-          />
-          <div className="absolute right-2 bottom-2 text-sm text-gray-500">{text.length}/300</div>
+        {/* 제목과 주제 영역 */}
+        <div className="bg-white rounded-lg shadow-md p-4 mb-6">
+          {/* 오늘의 주제 */}
+          <div className="mb-4">
+            <h2 className="text-lg font-medium text-gray-800 mb-2">📝 오늘의 주제</h2>
+            <p className="text-gray-700 bg-blue-50 p-3 rounded-lg">
+              {dailyTopic || '주제를 불러오는 중...'}
+            </p>
+          </div>
+
+          {/* 제목 입력 */}
+          <div className="mb-4">
+            <h2 className="text-lg font-medium text-gray-800 mb-2">✏️ 제목 작성</h2>
+            <div className="relative">
+              <input
+                type="text"
+                value={title}
+                onChange={e => setTitle(e.target.value)}
+                placeholder="이 글의 제목을 입력해주세요"
+                maxLength={50}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-lg"
+              />
+              <span className="absolute right-3 bottom-3 text-sm text-gray-500">
+                {title.length}/50
+              </span>
+            </div>
+          </div>
         </div>
 
-        {/* 타이머 및 버튼 영역 */}
-        <div className="flex justify-between items-center">
-          <Timer
-            remainingTime={remainingTime}
-            isActive={isStarted}
-            mode="300"
-            onTimeUp={() => handleSubmit(true)}
-          />
-          <div className="space-x-2">
-            <button
-              onClick={() => {
-                if (tokens === 0) {
-                  alert(
-                    '토큰이 모두 소진되었습니다.\n\n' +
-                      '토큰은 매일 1개씩 지급되며,\n' +
-                      '월-금 연속으로 글을 쓰면 추가 토큰 1개가 지급됩니다.'
-                  );
-                  return;
-                }
-                setIsStarted(true);
-                setSubmitted(false);
-                setScore(null);
-                setFeedback(null);
-                setText('');
-                setStartTime(null);
-                setRemainingTime(CONFIG.TIMER.DURATION_MINUTES * 60);
+        {/* 글쓰기 영역 */}
+        <div className="bg-white rounded-lg shadow-md p-4">
+          <div className="relative mb-4">
+            <textarea
+              value={text}
+              onChange={e => {
+                setText(e.target.value);
+                if (!startTime) setStartTime(Date.now()); // 처음 입력 시 타이머 시작
               }}
-              className={`px-4 py-2 rounded-lg ${
-                tokens === 0
-                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                  : 'bg-blue-500 text-white hover:bg-blue-600'
-              }`}
-              disabled={tokens === 0}
-            >
-              {tokens === 0 ? '토큰이 필요합니다' : '글쓰기 시작'}
-            </button>
-            <button
-              onClick={() => handleSubmit(false)}
-              disabled={!isMinLengthMet || submitted}
-              className={`px-4 py-2 rounded-lg ${
-                !isMinLengthMet || submitted
-                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                  : 'bg-blue-500 text-white hover:bg-blue-600'
-              }`}
-            >
-              제출하기
-            </button>
+              placeholder={`300자 이내로 자유롭게 작성해보세요.`}
+              className="w-full h-64 p-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+              maxLength={300}
+            />
+            <div className="absolute right-2 bottom-2 text-sm text-gray-500">{text.length}/300</div>
+          </div>
+
+          {/* 타이머 및 버튼 영역 */}
+          <div className="flex justify-between items-center">
+            <Timer
+              remainingTime={remainingTime}
+              isActive={isStarted}
+              mode="300"
+              onTimeUp={() => handleSubmit(true)}
+            />
+            <div className="space-x-2">
+              <button
+                onClick={() => {
+                  if (tokens === 0) {
+                    alert(
+                      '토큰이 모두 소진되었습니다.\n\n' +
+                        '토큰은 매일 1개씩 지급되며,\n' +
+                        '월-금 연속으로 글을 쓰면 추가 토큰 1개가 지급됩니다.'
+                    );
+                    return;
+                  }
+                  setIsStarted(true);
+                  setSubmitted(false);
+                  setScore(null);
+                  setFeedback(null);
+                  setText('');
+                  setStartTime(null);
+                  setRemainingTime(CONFIG.TIMER.DURATION_MINUTES * 60);
+                }}
+                className={`px-4 py-2 rounded-lg ${
+                  tokens === 0
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : 'bg-blue-500 text-white hover:bg-blue-600'
+                }`}
+                disabled={tokens === 0}
+              >
+                {tokens === 0 ? '토큰이 필요합니다' : '글쓰기 시작'}
+              </button>
+              <button
+                onClick={() => handleSubmit(false)}
+                disabled={!isMinLengthMet || submitted}
+                className={`px-4 py-2 rounded-lg ${
+                  !isMinLengthMet || submitted
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : 'bg-blue-500 text-white hover:bg-blue-600'
+                }`}
+              >
+                제출하기
+              </button>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* 안내 메시지 */}
-      <div className="mt-4 text-sm text-black-600">
-        <p>💡 제목과 내용을 모두 작성한 후 제출할 수 있습니다.</p>
-        <p>⏰ 제한 시간: 5분</p>
-      </div>
+        {/* 안내 메시지 */}
+        <div className="mt-4 text-sm text-black-600">
+          <p>💡 제목과 내용을 모두 작성한 후 제출할 수 있습니다.</p>
+          <p>⏰ 제한 시간: 5분</p>
+        </div>
 
-      {/* 제출 상태 표시 */}
-      {submissionState === 'submitting' && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 flex flex-col items-center space-y-6">
-            {subStep === 'loading' && (
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500" />
-            )}
+        {/* 제출 상태 표시 */}
+        {submissionState === 'submitting' && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 flex flex-col items-center space-y-6">
+              {subStep === 'loading' && (
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500" />
+              )}
 
-            {subStep === 'evaluating' && (
-              <div className="flex flex-col items-center space-y-4">
-                <div className="flex items-center justify-center space-x-4">
-                  <div className="text-4xl animate-spin">🤖</div>
-                  <div className="text-4xl animate-bounce">✨</div>
+              {subStep === 'evaluating' && (
+                <div className="flex flex-col items-center space-y-4">
+                  <div className="flex items-center justify-center space-x-4">
+                    <div className="text-4xl animate-spin">🤖</div>
+                    <div className="text-4xl animate-bounce">✨</div>
+                  </div>
+                  <p className="text-lg font-medium text-gray-800 text-center">
+                    {submissionProgress}
+                  </p>
                 </div>
-                <p className="text-lg font-medium text-gray-800 text-center">
-                  {submissionProgress}
-                </p>
-              </div>
-            )}
+              )}
+            </div>
           </div>
-        </div>
-      )}
-    </div>
+        )}
+      </div>
+      <ScrollToTop />
+    </Layout>
   );
 };
 

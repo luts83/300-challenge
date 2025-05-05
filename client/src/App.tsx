@@ -26,7 +26,7 @@ function App() {
             }}
           />
           {/* 흰색 반투명 오버레이 */}
-          <div className="absolute inset-0 bg-white bg-opacity-20" />
+          <div className="absolute inset-0 bg-white bg-opacity-5" />
         </div>
         <div className="min-h-screen bg-black/10">
           <Navbar />
