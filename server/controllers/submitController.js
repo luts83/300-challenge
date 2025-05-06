@@ -76,7 +76,7 @@ const evaluateSubmission = async (text, mode) => {
       {
         headers: {
           Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-          "HTTP-Referer": "https://edu-ocean.com",
+          "HTTP-Referer": "https://www.dwriting.com",
           "Content-Type": "application/json",
         },
       }
@@ -211,7 +211,6 @@ const handleSubmit = async (req, res) => {
       toSubmissionId: target._id,
       userUid: user.uid,
     }));
-
 
     // 토큰 차감
     userToken[tokenField] -= 1;

@@ -671,8 +671,8 @@ const Write1000 = () => {
         <div className="bg-white rounded-lg shadow-md p-4 mb-6">
           {/* 오늘의 주제 */}
           <div className="mb-4">
-            <h2 className="text-lg font-medium text-gray-800 mb-2">📝 오늘의 주제</h2>
-            <p className="text-gray-700 bg-blue-50 p-3 rounded-lg">
+            <h2 className="text-base md:text-lg font-medium text-gray-800 mb-2">📝 오늘의 주제</h2>
+            <p className="text-sm md:text-base text-gray-700 bg-blue-50 p-3 rounded-lg">
               {CONFIG.TOPIC.SHOW_ON_HOME_1000
                 ? dailyTopic || '주제를 불러오는 중...'
                 : '자유 주제입니다. 마음 가는 대로 글을 써보세요.'}
@@ -681,7 +681,7 @@ const Write1000 = () => {
 
           {/* 제목 입력 */}
           <div className="mb-4">
-            <h2 className="text-lg font-medium text-gray-800 mb-2">✏️ 제목 작성</h2>
+            <h2 className="text-base md:text-lg font-medium text-gray-800 mb-2">✏️ 제목 작성</h2>
             <div className="relative">
               <input
                 type="text"
@@ -689,9 +689,9 @@ const Write1000 = () => {
                 onChange={handleTitleChange}
                 placeholder="이 글의 제목을 입력해주세요"
                 maxLength={80}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-lg"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-base md:text-lg placeholder:text-base"
               />
-              <span className="absolute right-3 bottom-3 text-sm text-gray-500">
+              <span className="absolute right-3 bottom-3 text-xs md:text-sm text-gray-500">
                 {title.length}/80
               </span>
             </div>
@@ -701,7 +701,7 @@ const Write1000 = () => {
         {/* 글쓰기 영역 */}
         <div className="bg-white rounded-lg shadow-md p-4">
           {/* 세션 정보 */}
-          <div className="mb-4 flex justify-between text-sm text-gray-600">
+          <div className="mb-4 flex justify-between text-xs md:text-sm text-gray-600">
             <span>🧭 세션 {sessionCount}회차</span>
             <span>⏱ 누적 시간: {formatDuration(totalDuration + durationNow)}</span>
           </div>
@@ -711,28 +711,28 @@ const Write1000 = () => {
               value={text}
               onChange={handleTextChange}
               placeholder="1500자 이내로 자유롭게 작성해보세요."
-              className="w-full h-64 p-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+              className="w-full h-64 p-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none text-base placeholder:text-base"
               maxLength={MAX_LENGTH}
               disabled={isTokenDepleted}
             />
-            <div className="absolute right-2 bottom-2 text-sm text-gray-500">
+            <div className="absolute right-2 bottom-2 text-xs md:text-sm text-gray-500">
               {text.length}/{MAX_LENGTH}
             </div>
           </div>
 
           {/* 버튼 영역 */}
-          <div className="flex justify-between items-center">
-            <div className="text-sm text-gray-600">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div className="text-xs md:text-sm text-gray-600">
               {isTokenDepleted ? (
                 <span className="text-red-600">토큰이 모두 소진되었습니다</span>
               ) : (
                 <span>초기화 가능: {CONFIG.SUBMISSION.RESET_LIMIT_1000 - resetCount}회</span>
               )}
             </div>
-            <div className="space-x-2">
+            <div className="flex flex-wrap gap-2 w-full md:w-auto justify-end">
               <button
                 onClick={resetDraft}
-                className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
+                className="px-3 py-2 text-sm text-gray-600 hover:text-gray-800 transition-colors border border-gray-300 rounded-lg"
                 disabled={
                   isSubmitting ||
                   resetCount >= CONFIG.SUBMISSION.RESET_LIMIT_1000 ||
@@ -743,7 +743,7 @@ const Write1000 = () => {
               </button>
               <button
                 onClick={() => saveDraft(true)}
-                className="px-4 py-2 text-blue-600 hover:text-blue-800 transition-colors"
+                className="px-3 py-2 text-sm text-blue-600 hover:text-blue-800 transition-colors border border-blue-300 rounded-lg"
                 disabled={isSubmitting || text.trim().length === 0 || isTokenDepleted}
               >
                 임시저장
@@ -751,7 +751,7 @@ const Write1000 = () => {
 
               <button
                 onClick={submitFinal}
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
                 disabled={
                   isSubmitting ||
                   isTokenDepleted ||
@@ -766,7 +766,7 @@ const Write1000 = () => {
         </div>
 
         {/* 안내 메시지 */}
-        <div className="mt-4 text-sm text-black-600">
+        <div className="mt-4 text-xs md:text-sm text-black-600">
           <p>💡 제목과 내용을 모두 작성한 후 제출할 수 있습니다.</p>
           <p>📝 임시저장된 내용은 자동으로 불러와집니다.</p>
         </div>

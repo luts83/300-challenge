@@ -17,17 +17,17 @@ const streakRoute = require("./routes/streak");
 const logger = require("./utils/logger");
 const dashboardRouter = require("./routes/dashboard");
 
-
-
 app.use(
   cors({
     origin: [
       "http://localhost:5173",
       "http://localhost:5173/",
       "http://192.168.0.22:5173",
-      "http://192.168.0.163:5173",  // 현재 클라이언트 IP 추가
+      "http://192.168.0.163:5173", // 현재 클라이언트 IP 추가
       "https://write-challenge.pages.dev",
       "https://edu-ocean.com",
+      "https://www.dwriting.com",
+      "https://dwriting.com",
     ],
     credentials: true,
   })

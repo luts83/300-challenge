@@ -99,9 +99,9 @@ const RankingSection: React.FC<{
   return (
     <div className="mb-6">
       <div className="bg-white rounded-lg shadow p-2 sm:p-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 w-full max-w-full overflow-x-hidden">
           {/* 점수 랭킹 */}
-          <div className="p-2">
+          <div className="p-2 w-full">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4">
               <h3 className="text-lg font-semibold mb-2 sm:mb-0">평균 점수 랭킹</h3>
               <div className="flex gap-2 w-full sm:w-auto">
@@ -159,7 +159,7 @@ const RankingSection: React.FC<{
           </div>
 
           {/* 받은 피드백 랭킹 */}
-          <div>
+          <div className="w-full">
             <h3 className="text-lg font-semibold mb-4">받은 피드백 랭킹</h3>
             <div className="space-y-2">
               {rankings.feedbackRanking.received.map((rank, index) => (
@@ -191,7 +191,7 @@ const RankingSection: React.FC<{
           </div>
 
           {/* 작성한 피드백 랭킹 */}
-          <div>
+          <div className="w-full">
             <h3 className="text-lg font-semibold mb-4">작성한 피드백 랭킹</h3>
             <div className="space-y-2">
               {rankings.feedbackRanking.given.map((rank, index) => (
@@ -253,7 +253,7 @@ const RankingSection: React.FC<{
             </div>
           </div> */}
           {/* 좋아요 받은 랭킹 */}
-          <div>
+          <div className="w-full">
             <h3 className="text-lg font-semibold mb-4">💖 좋아요 받은 랭킹</h3>
             <div className="space-y-2">
               {likeReceivedRanking.map((rank, index) => (
@@ -422,7 +422,7 @@ const Dashboard = () => {
 
   return (
     <Layout>
-      <div className="max-w-7xl mx-auto px-2 sm:px-4 py-2 sm:py-4">
+      <div className="overflow-x-hidden max-w-7xl mx-auto px-2 sm:px-4 py-2 sm:py-4">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 sm:mb-6">
           <h1 className="text-xl sm:text-2xl font-bold mb-2 sm:mb-0">
             {isAdminView ? '관리자 대시보드' : '작성 현황'}
@@ -431,28 +431,35 @@ const Dashboard = () => {
 
         {isAdminView ? (
           // 관리자 뷰
-          <div className="space-y-8">
+          <div className="space-y-4 sm:space-y-6">
             {adminSubmissions.map(submission => (
-              <div key={submission._id} className="bg-white rounded-lg shadow p-6 mb-6">
+              <div
+                key={submission._id}
+                className="bg-white rounded-lg shadow p-3 sm:p-4 mb-4 sm:mb-6"
+              >
                 {/* 제출물 헤더 */}
-                <div className="mb-4">
-                  <div className="flex justify-between items-start mb-2">
-                    <div>
-                      <h2 className="text-xl font-semibold">{submission.title}</h2>
-                      <p className="text-gray-600">
-                        작성자: {submission.user.displayName} ({submission.user.email})
+                <div className="mb-3 sm:mb-4">
+                  <div className="flex flex-col sm:flex-row justify-between items-start gap-2 sm:gap-4">
+                    <div className="w-full sm:w-auto">
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                        <h2 className="text-lg sm:text-xl font-semibold">{submission.title}</h2>
+                        {submission.topic && (
+                          <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+                            {submission.topic}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm text-gray-600">작성자: {submission.user.displayName}</p>
+                      <p className="text-sm text-gray-600 hidden sm:block">
+                        ({submission.user.email})
                       </p>
-                      <p className="text-gray-600">
+                      <p className="text-sm text-gray-600">
                         작성 시간: {formatDateTime(submission.createdAt)}
                       </p>
-                      <p className="text-gray-600">
-                        소요 시간: {formatDuration(submission.duration)}
-                      </p>
-                      <p className="text-gray-600">주제: {submission.topic}</p>
                     </div>
-                    <div className="text-right">
+                    <div className="flex flex-row sm:flex-col items-center sm:items-end gap-2">
                       <span
-                        className={`px-3 py-1 rounded-full text-sm font-semibold ${
+                        className={`px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-semibold ${
                           submission.mode === 'mode_300'
                             ? 'bg-green-100 text-green-800'
                             : 'bg-blue-100 text-blue-800'
@@ -460,10 +467,9 @@ const Dashboard = () => {
                       >
                         {submission.mode === 'mode_300' ? '300자' : '1000자'}
                       </span>
-                      <div className="mt-2">
-                        <p className="font-semibold text-lg">{submission.score}점</p>
-                        <p className="text-sm text-gray-600">
-                          세션 수: {submission.sessionCount}회
+                      <div className="text-right">
+                        <p className="font-semibold text-base sm:text-lg">
+                          {submission.score !== undefined ? `${submission.score}점` : '미평가'}
                         </p>
                       </div>
                     </div>
@@ -471,38 +477,43 @@ const Dashboard = () => {
                 </div>
 
                 {/* 글 내용 */}
-                <div className="mb-6">
-                  <h3 className="text-lg font-semibold mb-2">내용</h3>
-                  <p className="whitespace-pre-wrap bg-gray-50 p-4 rounded">{submission.text}</p>
+                <div className="mb-3 sm:mb-4">
+                  <h3 className="text-base sm:text-lg font-semibold mb-2">내용</h3>
+                  <p className="whitespace-pre-wrap bg-gray-50 p-2 sm:p-4 rounded text-sm sm:text-base">
+                    {submission.text}
+                  </p>
                 </div>
 
                 {/* 피드백 섹션 */}
-                <div className="mt-6 border-t pt-4">
-                  <h3 className="text-lg font-semibold mb-4">
+                <div className="mt-3 sm:mt-4 border-t pt-3 sm:pt-4">
+                  <h3 className="text-base sm:text-lg font-semibold mb-2 sm:mb-4">
                     받은 피드백 ({submission.feedbackCount || 0})
                   </h3>
-                  {submission.feedbacks && submission.feedbacks.length > 0 ? (
-                    <div className="space-y-4">
-                      {submission.feedbacks.map((feedback, index) => (
-                        <div key={index} className="bg-gray-50 p-4 rounded-lg shadow-sm">
-                          <div className="flex justify-between items-start mb-2">
-                            <div>
-                              <p className="font-medium">{feedback.fromUser.displayName}</p>
-                              <p className="text-sm text-gray-600">{feedback.fromUser.email}</p>
-                            </div>
-                            <p className="text-sm text-gray-500">
-                              {formatDateTime(feedback.createdAt)}
+                  <div className="space-y-2 sm:space-y-3">
+                    {submission.feedbacks?.map(feedback => (
+                      <div
+                        key={feedback._id}
+                        className="bg-gray-50 p-2 sm:p-4 rounded-lg shadow-sm"
+                      >
+                        <div className="flex flex-col sm:flex-row justify-between items-start gap-1 sm:gap-2 mb-2">
+                          <div>
+                            <p className="font-medium text-sm sm:text-base">
+                              {feedback.fromUser.displayName}
+                            </p>
+                            <p className="text-xs sm:text-sm text-gray-600">
+                              {feedback.fromUser.email}
                             </p>
                           </div>
-                          <p className="mt-2 text-gray-700 whitespace-pre-wrap">
-                            {feedback.content}
+                          <p className="text-xs sm:text-sm text-gray-500">
+                            {new Date(feedback.createdAt).toLocaleString()}
                           </p>
                         </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-gray-500">아직 받은 피드백이 없습니다.</p>
-                  )}
+                        <p className="mt-2 text-sm sm:text-base text-gray-700 whitespace-pre-wrap">
+                          {feedback.content}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             ))}
@@ -536,7 +547,14 @@ const Dashboard = () => {
                     <div className="mb-4">
                       <div className="flex flex-col sm:flex-row justify-between items-start gap-2 sm:gap-4">
                         <div className="w-full sm:w-auto">
-                          <h2 className="text-lg sm:text-xl font-semibold">{submission.title}</h2>
+                          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                            <h2 className="text-lg sm:text-xl font-semibold">{submission.title}</h2>
+                            {submission.topic && (
+                              <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+                                {submission.topic}
+                              </span>
+                            )}
+                          </div>
                           <p className="text-sm text-gray-600">
                             작성자: {submission.user.displayName}
                           </p>
