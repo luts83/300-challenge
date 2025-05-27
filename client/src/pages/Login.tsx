@@ -31,9 +31,8 @@ const getErrorMessage = (errorCode: string): string => {
 
 // 현재 호스트의 IP 주소를 가져오는 함수
 const getCurrentHostIP = () => {
-  // window.location.hostname을 사용하여 현재 호스트의 IP 주소를 가져옴
   const hostname = window.location.hostname;
-  return `http://${hostname}:8080`;
+  return `https://${hostname}:8080`;
 };
 
 const Login = () => {

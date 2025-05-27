@@ -33,6 +33,8 @@ app.use(
       "https://dwriting.com",
       "http://192.168.219.180:5173",
       "http://192.168.45.65:5173",
+      "https://dwriting.com:8080", // 추가
+      "http://dwriting.com:8080", // 추가
     ],
     credentials: true,
   })
