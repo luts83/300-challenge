@@ -14,7 +14,7 @@ return res.status(200).json(
     },
     tokens: {
       regular: userToken[tokenField],
-      bonus: userToken.bonusTokens,
+      golden: userToken.goldenKeys,
     },
     streak: {
       progress: streak.weeklyProgress,

@@ -15,34 +15,57 @@ router.get("/:uid", async (req, res) => {
 
     const now = new Date();
     const today = now.toDateString();
+    const monday = new Date();
+    monday.setHours(0, 0, 0, 0);
+    monday.setDate(monday.getDate() - monday.getDay() + 1); // 이번 주 월요일
 
     let finalTokenEntry = tokenEntry;
     if (!finalTokenEntry) {
       finalTokenEntry = new Token({
         uid,
         tokens_300: TOKEN.DAILY_LIMIT_300,
-        tokens_1000: TOKEN.DAILY_LIMIT_1000,
-        bonusTokens: 0, // 보너스 토큰도 초기화
+        tokens_1000: TOKEN.WEEKLY_LIMIT_1000,
+        goldenKeys: 0,
         lastRefreshed: now,
+        lastWeeklyRefreshed: monday,
       });
     }
 
+    // 일일 토큰 리셋 (300자 모드)
     if (finalTokenEntry.lastRefreshed?.toDateString() !== today) {
       finalTokenEntry.tokens_300 = TOKEN.DAILY_LIMIT_300;
-      finalTokenEntry.tokens_1000 = TOKEN.DAILY_LIMIT_1000;
       finalTokenEntry.lastRefreshed = now;
-      await finalTokenEntry.save();
     }
+
+    // 주간 토큰 리셋 (1000자 모드)
+    if (finalTokenEntry.lastWeeklyRefreshed < monday) {
+      finalTokenEntry.tokens_1000 = TOKEN.WEEKLY_LIMIT_1000;
+      finalTokenEntry.lastWeeklyRefreshed = monday;
+    }
+
+    await finalTokenEntry.save();
 
     res.json({
       tokens_300: finalTokenEntry.tokens_300,
       tokens_1000: finalTokenEntry.tokens_1000,
-      bonusTokens: finalTokenEntry.bonusTokens, // Token 모델의 bonusTokens 사용
+      goldenKeys: finalTokenEntry.goldenKeys,
       lastRefreshed: finalTokenEntry.lastRefreshed,
+      lastWeeklyRefreshed: finalTokenEntry.lastWeeklyRefreshed,
     });
   } catch (error) {
     console.error("❌ 토큰 조회 실패:", error);
     res.status(500).json({ message: "서버 오류" });
+  }
+});
+
+// ✍ UID로 해당 유저의 토큰 히스토리 조회
+router.get("/history/:uid", async (req, res) => {
+  try {
+    const { uid } = req.params;
+    const history = await UserTokenHistory.findOne({ uid });
+    res.json(history);
+  } catch (error) {
+    res.status(500).json({ message: "토큰 히스토리 조회 실패" });
   }
 });
 

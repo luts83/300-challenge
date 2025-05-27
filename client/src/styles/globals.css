@@ -1,0 +1,46 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 다크모드 기본 스타일 */
+@layer base {
+  body {
+    @apply bg-white dark:bg-gray-800 text-black dark:text-white text-gray-900 dark:bg-gray-900 dark:text-gray-100;
+    @apply text-gray-800 dark:text-gray-100;
+  }
+}
+
+/* 커스텀 스타일 */
+@layer components {
+  .card {
+    @apply bg-white dark:bg-gray-800 text-black dark:text-white rounded-lg shadow-md p-4;
+    @apply text-gray-800 dark:text-gray-100;
+  }
+
+  .btn {
+    @apply px-4 py-2 rounded-md transition-colors;
+    @apply bg-white dark:bg-gray-800 text-black dark:text-white;
+  }
+
+  .btn-primary {
+    @apply bg-primary-500 text-white hover:bg-primary-600 
+           dark:bg-primary-600 dark:hover:bg-primary-700;
+    @apply text-gray-800 dark:text-gray-100;
+  }
+
+  .btn-auth {
+    @apply w-full py-2 px-4 rounded bg-blue-500 text-white hover:bg-blue-600;
+  }
+
+  .dark .btn-auth {
+    @apply bg-blue-700 hover:bg-blue-800;
+  }
+
+  .btn-google {
+    @apply w-full py-2 px-4 rounded bg-red-500 text-white hover:bg-red-600;
+  }
+
+  .dark .btn-google {
+    @apply bg-red-700 hover:bg-red-800;
+  }
+}

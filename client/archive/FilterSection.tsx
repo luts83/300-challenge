@@ -42,7 +42,7 @@ export const FilterSection: React.FC<FilterSectionProps> = ({
   totalGivenFeedbacks,
 }) => {
   return (
-    <div className="bg-white rounded-lg shadow-sm p-3 sm:p-4 mb-4 sm:mb-6">
+    <div className="bg-white dark:bg-gray-800 text-black dark:text-white rounded-lg shadow-sm p-3 sm:p-4 mb-4 sm:mb-6">
       {/* 모드 필터 */}
       <div className="flex flex-wrap gap-2 mb-3">
         <button

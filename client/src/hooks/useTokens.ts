@@ -6,7 +6,9 @@ import { logger } from '../utils/logger';
 interface TokenData {
   tokens_300: number;
   tokens_1000: number;
-  bonusTokens: number;
+  goldenKeys: number;
+  lastRefreshed?: string;
+  lastWeeklyRefreshed?: string;
 }
 
 export const useTokens = () => {
@@ -27,7 +29,9 @@ export const useTokens = () => {
       setTokens({
         tokens_300: Number(response.data.tokens_300) || 0,
         tokens_1000: Number(response.data.tokens_1000) || 0,
-        bonusTokens: Number(response.data.bonusTokens) || 0,
+        goldenKeys: Number(response.data.goldenKeys) || 0,
+        lastRefreshed: response.data.lastRefreshed,
+        lastWeeklyRefreshed: response.data.lastWeeklyRefreshed,
       });
       setError(null);
     } catch (err) {

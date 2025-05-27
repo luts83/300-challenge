@@ -60,11 +60,12 @@ const submissionSchema = new mongoose.Schema(
     likedUsers: [
       {
         uid: { type: String, required: true },
-        displayName: { type: String, required: true }
-      }
+        displayName: { type: String, required: true },
+      },
     ],
+    feedbackCount: { type: Number, default: 0 },
   },
-  
+
   {
     timestamps: true, // ✨ createdAt, updatedAt 자동 생성!
   }

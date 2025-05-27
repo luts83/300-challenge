@@ -1,3 +1,6 @@
+// SubmissionFilterSection.tsx
+import { useState, useEffect } from 'react';
+
 interface SubmissionFilterSectionProps {
   activeTab: 'all' | 'mode_300' | 'mode_1000';
   setActiveTab: (tab: 'all' | 'mode_300' | 'mode_1000') => void;
@@ -32,131 +35,138 @@ export const SubmissionFilterSection: React.FC<SubmissionFilterSectionProps> = (
   setSearchQuery,
   counts,
 }) => {
-  const handleFeedbackFilterToggle = (filter: string) => {
-    if (feedbackFilter === filter) {
-      setFeedbackFilter(null);
-    } else {
-      setFeedbackFilter(filter);
-    }
+  const [isMobileFilterExpanded, setIsMobileFilterExpanded] = useState(false);
+
+  // Counts가 업데이트될 때마다 콘솔에 로그 출력
+  // useEffect(() => {
+  //   console.log('Counts:', counts);
+  // }, [counts]);
+
+  // const handleFeedbackFilterToggle = (filter: string) => {
+  //   console.log('Filter:', filter);
+  //   setFeedbackFilter(feedbackFilter === filter ? null : filter);
+  // };
+
+  const modeLabelMap = {
+    all: '전체',
+    mode_300: '300자',
+    mode_1000: '1000자',
   };
 
+  const modeCountMap = {
+    all: counts.all,
+    mode_300: counts.mode_300,
+    mode_1000: counts.mode_1000,
+  };
+
+  // useEffect(() => {
+  //   console.log('Counts:', counts);
+  // }, [counts]);
+
   return (
-    <div className="bg-white rounded-lg shadow-sm p-3 sm:p-4 mb-4">
-      <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 mb-3">
+    <div className="bg-white dark:bg-gray-800 text-black dark:text-white rounded-lg shadow-sm p-3 sm:p-4 mb-4 border border-gray-100 dark:border-gray-700">
+      {/* 📱 모바일 필터 토글 */}
+      <div className="sm:hidden mb-2 flex items-center justify-between">
+        <h3 className="sm:text-lg font-semibold text-gray-700 dark:text-gray-200">🔍 필터</h3>
         <button
-          className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors flex items-center gap-2 ${
-            activeTab === 'all'
-              ? 'bg-blue-500 text-white'
-              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-          }`}
-          onClick={() => setActiveTab('all')}
+          onClick={() => setIsMobileFilterExpanded(!isMobileFilterExpanded)}
+          className="text-lg text-gray-600 dark:text-gray-300"
         >
-          전체
-          <span className="bg-white/20 px-2 py-0.5 rounded-full text-xs">{counts.all}</span>
-        </button>
-        <button
-          className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors flex items-center gap-2 ${
-            activeTab === 'mode_300'
-              ? 'bg-blue-500 text-white'
-              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-          }`}
-          onClick={() => setActiveTab('mode_300')}
-        >
-          300자
-          <span className="bg-white/20 px-2 py-0.5 rounded-full text-xs">{counts.mode_300}</span>
-        </button>
-        <button
-          className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors flex items-center gap-2 ${
-            activeTab === 'mode_1000'
-              ? 'bg-blue-500 text-white'
-              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-          }`}
-          onClick={() => setActiveTab('mode_1000')}
-        >
-          1000자
-          <span className="bg-white/20 px-2 py-0.5 rounded-full text-xs">{counts.mode_1000}</span>
-        </button>
-
-        <div className="hidden sm:block mx-1">|</div>
-
-        <button
-          className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors flex items-center gap-2 ${
-            feedbackFilter === 'has_feedback'
-              ? 'bg-green-500 text-white'
-              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-          }`}
-          onClick={() => handleFeedbackFilterToggle('has_feedback')}
-        >
-          💬 피드백 있음
-          <span
-            className={`px-2 py-0.5 rounded-full text-xs ${
-              feedbackFilter === 'has_feedback' ? 'bg-white/20' : 'bg-gray-500/20'
-            }`}
-          >
-            {counts.has_feedback}
-          </span>
-        </button>
-        <button
-          className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors flex items-center gap-2 ${
-            feedbackFilter === 'open_feedback'
-              ? 'bg-green-500 text-white'
-              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-          }`}
-          onClick={() => handleFeedbackFilterToggle('open_feedback')}
-        >
-          🔓 열린 피드백
-          <span
-            className={`px-2 py-0.5 rounded-full text-xs ${
-              feedbackFilter === 'open_feedback' ? 'bg-white/20' : 'bg-gray-500/20'
-            }`}
-          >
-            {counts.open_feedback}
-          </span>
-        </button>
-        <button
-          className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors flex items-center gap-2 ${
-            feedbackFilter === 'locked_feedback'
-              ? 'bg-green-500 text-white'
-              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-          }`}
-          onClick={() => handleFeedbackFilterToggle('locked_feedback')}
-        >
-          🔒 잠긴 피드백
-          <span
-            className={`px-2 py-0.5 rounded-full text-xs ${
-              feedbackFilter === 'locked_feedback' ? 'bg-white/20' : 'bg-gray-500/20'
-            }`}
-          >
-            {counts.locked_feedback}
-          </span>
+          {isMobileFilterExpanded ? '▼' : '▶'}
         </button>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-2">
-        <div className="flex-1 relative">
+      {(isMobileFilterExpanded || (typeof window !== 'undefined' && window.innerWidth >= 640)) && (
+        <>
+          {/* 필터 버튼 */}
+          <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 mb-2 sm:mb-3">
+            {(['all', 'mode_300', 'mode_1000'] as const).map(mode => (
+              <button
+                key={mode}
+                onClick={() => setActiveTab(mode)}
+                className={`px-3 py-1.5 rounded-full text-sm font-medium flex items-center gap-2 transition-colors ${
+                  activeTab === mode
+                    ? 'bg-blue-500 text-white dark:bg-blue-900/80 dark:text-blue-300'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
+                }`}
+              >
+                {
+                  {
+                    all: '전체',
+                    mode_300: '300자',
+                    mode_1000: '1000자',
+                  }[mode]
+                }
+                <span className="text-xs bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-400 px-2 py-0.5 rounded-full">
+                  {{
+                    all: counts.all,
+                    mode_300: counts.mode_300,
+                    mode_1000: counts.mode_1000,
+                  }[mode] ?? 0}
+                </span>
+              </button>
+            ))}
+
+            <span className="hidden sm:inline mx-2">|</span>
+
+            {(
+              [
+                ['has_feedback', '💬 피드백 있음', counts.has_feedback],
+                ['open_feedback', '🔓 열린 피드백', counts.open_feedback],
+                ['locked_feedback', '🔒 잠긴 피드백', counts.locked_feedback],
+              ] as const
+            ).map(([key, label, count]) => (
+              <button
+                key={key}
+                className={`px-3 py-1.5 rounded-full text-sm font-medium flex items-center gap-2 transition-colors ${
+                  feedbackFilter === key
+                    ? 'bg-green-500 text-white dark:bg-green-900/80 dark:text-green-300'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
+                }`}
+                onClick={() => handleFeedbackFilterToggle(key)}
+              >
+                {label}
+                <span className="text-xs bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-400 px-2 py-0.5 rounded-full">
+                  {count || 0}
+                </span>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* 🔍 검색창 + 정렬 (모바일 한줄 7:2:1, 데스크탑 유지) */}
+      <div className="flex flex-row gap-2 items-stretch w-full">
+        {/* 검색창 */}
+        <div className="flex-[7] sm:flex-[14] relative">
           <input
             type="text"
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
             placeholder="제목이나 내용으로 검색"
-            className="w-full px-3 py-2 pl-9 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full h-full px-3 py-2 pl-9 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-300 dark:text-gray-700 dark:border-gray-600"
           />
           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">🔍</span>
         </div>
 
-        <div className="flex shrink-0 gap-2">
+        {/* 드롭다운 */}
+        <div className="flex-[2] sm:w-[160px]">
           <select
             value={sortBy}
             onChange={e => setSortBy(e.target.value)}
-            className="px-3 py-2 border rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full h-full px-3 py-2 border rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-300 dark:text-gray-700 dark:border-gray-600"
           >
             <option value="date">작성일순</option>
             <option value="feedback">피드백순</option>
             <option value="likes">좋아요순</option>
           </select>
+        </div>
+
+        {/* 정렬 버튼 */}
+        <div className="flex-[1] sm:w-[60px]">
           <button
             onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-            className="px-3 py-2 border rounded-lg hover:bg-gray-50 text-sm"
+            className="w-full h-full px-3 py-2 border rounded-lg hover:bg-gray-50 text-sm dark:bg-gray-300 dark:text-gray-700 dark:border-gray-600"
           >
             {sortOrder === 'asc' ? '↑' : '↓'}
           </button>

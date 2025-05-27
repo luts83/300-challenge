@@ -1,3 +1,4 @@
+// useSubmissionFilter.ts
 import { useMemo } from 'react';
 
 interface Submission {
@@ -35,9 +36,9 @@ export const useSubmissionFilter = (
           case 'has_feedback':
             return hasFeedback;
           case 'open_feedback':
-            return hasFeedback && submission.feedbackUnlocked;
+            return submission.feedbackUnlocked;
           case 'locked_feedback':
-            return hasFeedback && !submission.feedbackUnlocked;
+            return !submission.feedbackUnlocked;
           default:
             return true;
         }

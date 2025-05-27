@@ -11,30 +11,34 @@ const TOTAL_DAYS = DAYS.length;
 
 // 스타일 상수
 const STYLES = {
-  container: 'bg-white rounded-lg p-3 sm:p-4 shadow-sm mb-4 sm:mb-6',
+  container:
+    'bg-white dark:bg-gray-800 text-black dark:text-white rounded-lg p-3 sm:p-4 shadow-sm mb-4 sm:mb-6 border border-gray-100 dark:border-gray-700',
   header: {
-    wrapper: 'flex items-center justify-between mb-2 sm:mb-3',
-    title: 'text-base sm:text-lg font-semibold flex items-center gap-1.5',
-    counter: 'text-xs sm:text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded-full',
+    wrapper: 'flex items-center justify-between mb-2 sm:mb-3 dark:text-gray-300',
+    title: 'text-base sm:text-lg font-semibold flex items-center gap-1.5 dark:text-gray-300',
+    counter:
+      'text-xs sm:text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded-full dark:text-gray-300 dark:bg-gray-800',
   },
-  daysGrid: 'grid grid-cols-5 gap-2 sm:gap-4',
+  daysGrid: 'grid grid-cols-5 gap-2 sm:gap-4 dark:text-gray-300',
   dayItem: {
-    base: 'flex flex-col items-center p-2 sm:p-3 rounded-lg transition-all',
-    completed: 'bg-green-100 text-green-800',
-    incomplete: 'bg-gray-50 text-gray-500',
-    label: 'text-xs sm:text-sm font-medium mb-1',
-    icon: 'text-base sm:text-xl',
+    base: 'flex flex-col items-center p-2 sm:p-3 rounded-lg transition-all dark:text-gray-300 dark:bg-gray-700',
+    completed: 'bg-green-100 text-green-800 dark:text-gray-300 dark:bg-green-900/50',
+    incomplete: 'bg-gray-50 text-gray-500 dark:text-gray-300 dark:bg-gray-700',
+    label: 'text-xs sm:text-sm font-medium mb-1 dark:text-gray-300 dark:bg-gray-700',
+    icon: 'text-base sm:text-xl dark:text-gray-300 dark:bg-gray-700',
   },
-  remainingMessage: 'mt-3 sm:mt-4 text-center text-xs sm:text-sm text-gray-600',
+  remainingMessage: 'mt-3 sm:mt-4 text-center text-xs sm:text-sm text-gray-600 dark:text-gray-300',
   celebration: {
-    overlay: 'fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4',
-    modal: 'bg-white rounded-lg p-4 sm:p-6 text-center transform shadow-xl max-w-md w-full mx-auto',
-    emoji: 'text-3xl sm:text-4xl mb-3 sm:mb-4',
-    title: 'text-xl sm:text-2xl font-bold mb-2 sm:mb-3',
-    message: 'text-base sm:text-lg mb-3 sm:mb-4',
-    bonus: 'text-blue-600 font-semibold mb-4 sm:mb-6 text-sm sm:text-base',
+    overlay:
+      'fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4 dark:text-gray-300',
+    modal:
+      'bg-white dark:bg-gray-800 text-black dark:text-white rounded-lg p-4 sm:p-6 text-center transform shadow-xl max-w-md w-full mx-auto border border-gray-100 dark:border-gray-700',
+    emoji: 'text-3xl sm:text-4xl mb-3 sm:mb-4 dark:text-gray-300',
+    title: 'text-xl sm:text-2xl font-bold mb-2 sm:mb-3 dark:text-gray-300',
+    message: 'text-base sm:text-lg mb-3 sm:mb-4 dark:text-gray-300',
+    bonus: 'text-blue-600 font-semibold mb-4 sm:mb-6 text-sm sm:text-base dark:text-gray-300',
     button:
-      'w-full sm:w-auto px-4 sm:px-6 py-2 bg-blue-500 text-white rounded-full hover:bg-blue-600 transition-colors text-sm sm:text-base font-medium',
+      'w-full sm:w-auto px-4 sm:px-6 py-2 bg-blue-500 text-white rounded-full hover:bg-blue-600 transition-colors text-sm sm:text-base font-medium dark:text-gray-300',
   },
 } as const;
 
@@ -120,7 +124,7 @@ export const WeeklyProgress: React.FC<WeeklyProgressProps> = ({ className = '' }
             <div className={STYLES.celebration.emoji}>🎉</div>
             <h2 className={STYLES.celebration.title}>축하합니다!</h2>
             <p className={STYLES.celebration.message}>이번 주 연속 작성 목표를 달성하셨어요!</p>
-            <div className={STYLES.celebration.bonus}>보너스 토큰 1개가 지급되었습니다! ✨</div>
+            <div className={STYLES.celebration.bonus}>황금열쇠 1개가 지급되었습니다! ✨</div>
             <button onClick={() => setShowCelebration(false)} className={STYLES.celebration.button}>
               확인
             </button>
@@ -153,9 +157,15 @@ export const WeeklyProgress: React.FC<WeeklyProgressProps> = ({ className = '' }
           ))}
         </div>
 
-        {remainingDays > 0 && (
+        {remainingDays > 0 ? (
           <div className={STYLES.remainingMessage}>
-            {remainingDays}일만 더 작성하면 보너스 토큰이 지급됩니다!
+            🎯 이번 주 목표를 달성하려면 {remainingDays}일 더 작성해야 합니다. 매일 꾸준히 작성하여
+            황금열쇠를 획득하세요!
+          </div>
+        ) : (
+          <div className={STYLES.remainingMessage}>
+            🌟 아쉽게도 이번 주엔 매일 글쓰기를 하지 못하셨네요. 그래도 포기하지 마시고 지금부터라도
+            다시 시작해요!
           </div>
         )}
       </div>

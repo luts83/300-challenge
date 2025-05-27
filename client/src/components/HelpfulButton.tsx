@@ -8,9 +8,9 @@ type HelpfulButtonProps = {
 };
 
 type LikeDisplayProps = {
-    likeCount: number;
-    likedUsernames?: string[];
-  };
+  likeCount: number;
+  likedUsernames?: string[];
+};
 
 // ❤️ 클릭 가능한 버튼
 const HelpfulButton = ({ submissionId }: HelpfulButtonProps) => {
@@ -54,13 +54,15 @@ const HelpfulButton = ({ submissionId }: HelpfulButtonProps) => {
 
   return (
     <button
-      onClick={(e) => {
+      onClick={e => {
         e.stopPropagation();
         toggleLike();
       }}
-      className="flex items-center text-sm text-gray-600 hover:text-red-500 transition-all"
+      className="flex items-center text-sm text-gray-600 hover:text-red-500 transition-all dark:text-gray-300 dark:hover:text-red-500"
     >
-      <span className={`text-xl ${liked ? 'text-red-500' : 'text-gray-400'}`}>
+      <span
+        className={`text-sm ${liked ? 'text-red-500 dark:text-red-400' : 'text-gray-400 dark:text-gray-300'}`}
+      >
         {liked ? '❤️' : '🤍'}
       </span>
       <span className="ml-1">{total}</span>
@@ -69,38 +71,33 @@ const HelpfulButton = ({ submissionId }: HelpfulButtonProps) => {
 };
 
 // ❤️ 결과만 보여주는 컴포넌트
-export const LikeDisplay = ({
-    likeCount,
-    likedUsernames = [],
-  }: LikeDisplayProps) => {
-    const [showTooltip, setShowTooltip] = useState(false);
-  
-    const isLiked = likeCount > 0;
-    const tooltipText =
-      likedUsernames.length > 0
-        ? `좋아요한 사람: ${likedUsernames.join(', ')}`
-        : '아직 아무도 좋아요를 누르지 않았어요';
-  
-    return (
-      <div
-        className="relative flex items-center text-sm text-gray-600"
-        onMouseEnter={() => setShowTooltip(true)}
-        onMouseLeave={() => setShowTooltip(false)}
-      >
-        <span className={`text-xl ${isLiked ? 'text-red-500' : 'text-gray-400'}`}>
-          {isLiked ? '❤️' : '🤍'}
-        </span>
-        <span className="ml-1">{likeCount}</span>
-  
-        {showTooltip && (
-          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max max-w-xs bg-black text-white text-xs rounded px-2 py-1 shadow-lg z-10 whitespace-pre-line">
-            {tooltipText}
-          </div>
-        )}
-      </div>
-    );
-  };
-  
-  
+export const LikeDisplay = ({ likeCount, likedUsernames = [] }: LikeDisplayProps) => {
+  const [showTooltip, setShowTooltip] = useState(false);
+
+  const isLiked = likeCount > 0;
+  const tooltipText =
+    likedUsernames.length > 0
+      ? `좋아요한 사람: ${likedUsernames.join(', ')}`
+      : '아직 아무도 좋아요를 누르지 않았어요';
+
+  return (
+    <div
+      className="relative flex items-center text-sm text-gray-600"
+      onMouseEnter={() => setShowTooltip(true)}
+      onMouseLeave={() => setShowTooltip(false)}
+    >
+      <span className={`text-sm ${isLiked ? 'text-red-500' : 'text-gray-400'}`}>
+        {isLiked ? '❤️' : '🤍'}
+      </span>
+      <span className="ml-1 dark:text-gray-300">{likeCount}</span>
+
+      {showTooltip && (
+        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max max-w-xs bg-black text-white text-xs rounded px-2 py-1 shadow-lg z-10 whitespace-pre-line">
+          {tooltipText}
+        </div>
+      )}
+    </div>
+  );
+};
 
 export default HelpfulButton;

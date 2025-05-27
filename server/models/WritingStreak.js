@@ -5,7 +5,7 @@ const writingStreakSchema = new Schema({
   uid: String,
   currentStreak: { type: Number, default: 0 },
   lastWrittenDate: { type: Date },
-  bonusTokens: { type: Number, default: 0 }, // 리셋되지 않는 보너스 토큰
+  goldenKeys: { type: Number, default: 0 }, // bonusTokens를 goldenKeys로 변경
   weeklyStreak: {
     // 이번 주의 연속 작성 현황
     monday: { type: Boolean, default: false },

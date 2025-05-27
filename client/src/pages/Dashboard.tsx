@@ -98,7 +98,7 @@ const RankingSection: React.FC<{
 
   return (
     <div className="mb-6">
-      <div className="bg-white rounded-lg shadow p-2 sm:p-4">
+      <div className="bg-white dark:bg-gray-800 text-black dark:text-white dark:bg-gray-800 text-black dark:text-white rounded-lg shadow p-2 sm:p-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 w-full max-w-full overflow-x-hidden">
           {/* 점수 랭킹 */}
           <div className="p-2 w-full">
@@ -107,7 +107,9 @@ const RankingSection: React.FC<{
               <div className="flex gap-2 w-full sm:w-auto">
                 <button
                   className={`flex-1 sm:flex-none px-3 py-1 text-sm rounded ${
-                    activeTab === '300' ? 'bg-blue-500 text-white' : 'bg-gray-100'
+                    activeTab === '300'
+                      ? 'bg-blue-500 text-white dark:bg-blue-900 dark:text-blue-100'
+                      : 'bg-gray-100 dark:bg-gray-700 dark:text-gray-100'
                   }`}
                   onClick={() => setActiveTab('300')}
                 >
@@ -115,7 +117,9 @@ const RankingSection: React.FC<{
                 </button>
                 <button
                   className={`flex-1 sm:flex-none px-3 py-1 text-sm rounded ${
-                    activeTab === '1000' ? 'bg-blue-500 text-white' : 'bg-gray-100'
+                    activeTab === '1000'
+                      ? 'bg-blue-500 text-white dark:bg-blue-900 dark:text-blue-100'
+                      : 'bg-gray-100 dark:bg-gray-700 dark:text-gray-100'
                   }`}
                   onClick={() => setActiveTab('1000')}
                 >
@@ -137,12 +141,12 @@ const RankingSection: React.FC<{
                       className={`w-6 h-6 flex items-center justify-center rounded-full
                       ${
                         index === 0
-                          ? 'bg-yellow-100 text-yellow-700'
+                          ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-100'
                           : index === 1
-                            ? 'bg-gray-100 text-gray-700'
+                            ? 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-100'
                             : index === 2
-                              ? 'bg-orange-100 text-orange-700'
-                              : 'text-gray-500'
+                              ? 'bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-100'
+                              : 'text-gray-500 dark:text-gray-100'
                       }`}
                     >
                       {index + 1}
@@ -172,12 +176,12 @@ const RankingSection: React.FC<{
                       className={`w-6 h-6 flex items-center justify-center rounded-full
                       ${
                         index === 0
-                          ? 'bg-yellow-100 text-yellow-700'
+                          ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-100'
                           : index === 1
-                            ? 'bg-gray-100 text-gray-700'
+                            ? 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-100'
                             : index === 2
-                              ? 'bg-orange-100 text-orange-700'
-                              : 'text-gray-500'
+                              ? 'bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-100'
+                              : 'text-gray-500 dark:text-gray-100'
                       }`}
                     >
                       {index + 1}
@@ -204,12 +208,12 @@ const RankingSection: React.FC<{
                       className={`w-6 h-6 flex items-center justify-center rounded-full
                       ${
                         index === 0
-                          ? 'bg-yellow-100 text-yellow-700'
+                          ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-100'
                           : index === 1
-                            ? 'bg-gray-100 text-gray-700'
+                            ? 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-100'
                             : index === 2
-                              ? 'bg-orange-100 text-orange-700'
-                              : 'text-gray-500'
+                              ? 'bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-100'
+                              : 'text-gray-500 dark:text-gray-100'
                       }`}
                     >
                       {index + 1}
@@ -266,12 +270,12 @@ const RankingSection: React.FC<{
                       className={`w-6 h-6 flex items-center justify-center rounded-full
             ${
               index === 0
-                ? 'bg-yellow-100 text-yellow-700'
+                ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-100'
                 : index === 1
-                  ? 'bg-gray-100 text-gray-700'
+                  ? 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-100'
                   : index === 2
-                    ? 'bg-orange-100 text-orange-700'
-                    : 'text-gray-500'
+                    ? 'bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-100'
+                    : 'text-gray-500 dark:text-gray-100'
             }`}
                     >
                       {index + 1}
@@ -435,7 +439,7 @@ const Dashboard = () => {
             {adminSubmissions.map(submission => (
               <div
                 key={submission._id}
-                className="bg-white rounded-lg shadow p-3 sm:p-4 mb-4 sm:mb-6"
+                className="bg-white dark:bg-gray-800 text-black dark:text-white rounded-lg shadow p-3 sm:p-4 mb-4 sm:mb-6"
               >
                 {/* 제출물 헤더 */}
                 <div className="mb-3 sm:mb-4">
@@ -449,11 +453,11 @@ const Dashboard = () => {
                           </span>
                         )}
                       </div>
-                      <p className="text-sm text-gray-600">작성자: {submission.user.displayName}</p>
-                      <p className="text-sm text-gray-600 hidden sm:block">
+                      <p className="text-sm text-gray-400">작성자: {submission.user.displayName}</p>
+                      <p className="text-sm text-gray-400 hidden sm:block">
                         ({submission.user.email})
                       </p>
-                      <p className="text-sm text-gray-600">
+                      <p className="text-sm text-gray-400">
                         작성 시간: {formatDateTime(submission.createdAt)}
                       </p>
                     </div>
@@ -500,7 +504,7 @@ const Dashboard = () => {
                             <p className="font-medium text-sm sm:text-base">
                               {feedback.fromUser.displayName}
                             </p>
-                            <p className="text-xs sm:text-sm text-gray-600">
+                            <p className="text-xs sm:text-sm text-gray-400">
                               {feedback.fromUser.email}
                             </p>
                           </div>
@@ -525,7 +529,7 @@ const Dashboard = () => {
             {/* 사용자 선택 드롭다운 반응형 수정 */}
             <div className="mb-4 sm:mb-6">
               <select
-                className="w-full p-2 border rounded text-sm sm:text-base"
+                className="w-full p-2 dark:border-gray-700 rounded text-sm sm:text-base dark:bg-gray-800 text-black dark:text-gray-300"
                 value={selectedUser}
                 onChange={e => handleUserChange(e.target.value)}
               >
@@ -542,7 +546,10 @@ const Dashboard = () => {
             {!loading && filteredSubmissions.length > 0 && (
               <div className="space-y-4 sm:space-y-8">
                 {filteredSubmissions.map(submission => (
-                  <div key={submission._id} className="bg-white rounded-lg shadow p-3 sm:p-6">
+                  <div
+                    key={submission._id}
+                    className="bg-white dark:bg-gray-800 text-black dark:text-white rounded-lg shadow p-3 sm:p-6"
+                  >
                     {/* 제출물 헤더 */}
                     <div className="mb-4">
                       <div className="flex flex-col sm:flex-row justify-between items-start gap-2 sm:gap-4">
@@ -550,18 +557,18 @@ const Dashboard = () => {
                           <div className="flex flex-col sm:flex-row sm:items-center gap-2">
                             <h2 className="text-lg sm:text-xl font-semibold">{submission.title}</h2>
                             {submission.topic && (
-                              <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+                              <span className="text-xs text-gray-500 dark:text-gray-200 bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded-full">
                                 {submission.topic}
                               </span>
                             )}
                           </div>
-                          <p className="text-sm text-gray-600">
+                          <p className="text-sm text-gray-400">
                             작성자: {submission.user.displayName}
                           </p>
-                          <p className="text-sm text-gray-600 hidden sm:block">
+                          <p className="text-sm text-gray-400 hidden sm:block">
                             ({submission.user.email})
                           </p>
-                          <p className="text-sm text-gray-600">
+                          <p className="text-sm text-gray-400">
                             작성 시간: {formatDateTime(submission.createdAt)}
                           </p>
                         </div>
@@ -569,14 +576,14 @@ const Dashboard = () => {
                           <span
                             className={`px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-semibold ${
                               submission.mode === 'mode_300'
-                                ? 'bg-green-100 text-green-800'
-                                : 'bg-blue-100 text-blue-800'
+                                ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100'
+                                : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100'
                             }`}
                           >
                             {submission.mode === 'mode_300' ? '300자' : '1000자'}
                           </span>
                           <div className="text-right">
-                            <p className="font-semibold text-base sm:text-lg">
+                            <p className="font-semibold text-base sm:text-lg text-gray-300">
                               {submission.score !== undefined ? `${submission.score}점` : '미평가'}
                             </p>
                           </div>
@@ -586,15 +593,17 @@ const Dashboard = () => {
 
                     {/* 글 내용 */}
                     <div className="mb-4 sm:mb-6">
-                      <h3 className="text-base sm:text-lg font-semibold mb-2">내용</h3>
-                      <p className="whitespace-pre-wrap bg-gray-50 p-2 sm:p-4 rounded text-sm sm:text-base">
+                      <h3 className="text-base sm:text-lg font-semibold mb-2 text-gray-300">
+                        내용
+                      </h3>
+                      <p className="whitespace-pre-wrap bg-gray-50 p-2 sm:p-4 rounded text-sm sm:text-base dark:bg-gray-700 text-black dark:text-white">
                         {submission.text}
                       </p>
                     </div>
 
                     {/* 피드백 섹션 */}
                     <div className="mt-4 sm:mt-6 border-t pt-4">
-                      <h3 className="text-base sm:text-lg font-semibold mb-2 sm:mb-4">
+                      <h3 className="text-base sm:text-lg font-semibold mb-2 sm:mb-4 text-gray-300">
                         받은 피드백 ({submission.feedbackCount || 0})
                       </h3>
                       <div className="space-y-3">
@@ -608,7 +617,7 @@ const Dashboard = () => {
                                 <p className="font-medium text-sm sm:text-base">
                                   {feedback.fromUser.displayName}
                                 </p>
-                                <p className="text-xs sm:text-sm text-gray-600">
+                                <p className="text-xs sm:text-sm text-gray-400">
                                   {feedback.fromUser.email}
                                 </p>
                               </div>

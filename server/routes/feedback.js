@@ -8,7 +8,7 @@ const config = require("../config");
 const { submitFeedback } = require("../controllers/feedbackController");
 const WritingStreak = require("../models/WritingStreak");
 const Token = require("../models/Token");
-const TokenHistory = require("../models/TokenHistory");
+const { handleTokenChange } = require("../utils/tokenHistory");
 const HelpfulVote = require("../models/HelpfulVote");
 
 // 피드백할 글 추천 (모드 동일 + 적게 받은 글 우선)
@@ -279,68 +279,6 @@ router.get("/given/:uid", async (req, res) => {
   }
 });
 
-// 전체 글 리스트 + 피드백 수 + 내가 피드백했는지 여부 반환
-router.get("/all-submissions/:uid", async (req, res) => {
-  const { uid } = req.params;
-
-  if (!uid || typeof uid !== "string") {
-    return res.status(400).json({ message: "유효하지 않은 UID입니다." });
-  }
-
-  try {
-    const submissions = await Submission.find({
-      "user.uid": { $ne: uid },
-    }).lean();
-
-    const feedbackCounts = await Feedback.aggregate([
-      {
-        $match: { toSubmissionId: { $in: submissions.map((s) => s._id) } },
-      },
-      {
-        $group: {
-          _id: "$toSubmissionId",
-          count: { $sum: 1 },
-        },
-      },
-    ]);
-
-    const countMap = {};
-    feedbackCounts.forEach((fc) => {
-      countMap[fc._id.toString()] = fc.count;
-    });
-
-    const myFeedbacks = await Feedback.find({ fromUid: uid }).select(
-      "toSubmissionId"
-    );
-    const myFeedbackSet = new Set(
-      myFeedbacks.map((fb) =>
-        mongoose.Types.ObjectId.isValid(fb.toSubmissionId)
-          ? fb.toSubmissionId.toString()
-          : null
-      )
-    );
-
-    const results = submissions.map((sub) => ({
-      _id: sub._id,
-      title: sub.title,
-      topic: sub.topic,
-      text: sub.text,
-      user: sub.user,
-      createdAt: sub.createdAt,
-      feedbackCount: countMap[sub._id.toString()] || 0,
-      hasGivenFeedback: myFeedbackSet.has(sub._id.toString()),
-      mode: sub.mode,
-      submissionDate: sub.submissionDate,
-      likeCount: sub.likeCount || 0,
-    }));
-
-    res.json(results);
-  } catch (err) {
-    console.error("❌ 전체 글 + 피드백 수 조회 실패:", err);
-    res.status(500).json({ message: `서버 오류: ${err.message}` });
-  }
-});
-
 // 유저 활동 통계 조회
 router.get("/stats/:uid", async (req, res) => {
   const { uid } = req.params;
@@ -480,17 +418,17 @@ router.get("/unlock-status/:uid", async (req, res) => {
   }
 });
 
-// 보너스 토큰으로 피드백 언락하기
+// 황금열쇠드백 언락하기
 router.post("/unlock-feedback", async (req, res) => {
   const { uid, unlockType, submissionId } = req.body;
   const requiredTokens = unlockType === "single" ? 1 : 2;
 
   try {
-    // Token 모델에서 보너스 토큰 확인
+    // Token 모델에서 황금열쇠 확인
     const userToken = await Token.findOne({ uid });
-    if (!userToken || userToken.bonusTokens < requiredTokens) {
+    if (!userToken || userToken.goldenKeys < requiredTokens) {
       return res.status(403).json({
-        message: `보너스 토큰이 부족합니다. (필요: ${requiredTokens}개)`,
+        message: `황금열쇠가 부족합니다. (필요: ${requiredTokens}개)`,
       });
     }
 
@@ -511,15 +449,15 @@ router.post("/unlock-feedback", async (req, res) => {
       );
     }
 
-    // 보너스 토큰 차감
-    userToken.bonusTokens -= requiredTokens;
+    // 황금열쇠 차감
+    userToken.goldenKeys -= requiredTokens;
     await userToken.save();
 
-    // 토큰 히스토리 기록
-    await TokenHistory.create({
-      uid,
+    // 토큰 히스토리 기록 (새로운 방식)
+    await handleTokenChange(uid, {
       type: "FEEDBACK_UNLOCK",
       amount: -requiredTokens,
+      mode: unlockType === "single" ? "single_unlock" : "period_unlock",
       timestamp: new Date(),
     });
 
@@ -528,7 +466,7 @@ router.post("/unlock-feedback", async (req, res) => {
         unlockType === "single"
           ? "피드백이 성공적으로 언락되었습니다."
           : "선택한 글을 포함한 과거의 모든 피드백이 언락되었습니다.",
-      remainingBonusTokens: userToken.bonusTokens,
+      remainingGoldenKeys: userToken.goldenKeys,
     });
   } catch (error) {
     console.error("피드백 언락 실패:", error);
@@ -603,6 +541,127 @@ router.get("/:submissionId/like-status", async (req, res) => {
   } catch (err) {
     console.error("좋아요 상태 조회 실패:", err);
     res.status(500).json({ message: "서버 오류" });
+  }
+});
+
+// 전체 피드백 가능한 글 목록 (페이지네이션 + 검색 + 모드 필터 지원)
+router.get("/all-submissions/:uid", async (req, res) => {
+  const { uid } = req.params;
+  const page = req.query.page ? parseInt(req.query.page) : 1;
+  const limit = req.query.limit ? parseInt(req.query.limit) : 10;
+  const search = req.query.search;
+  const mode = req.query.mode;
+
+  try {
+    // 1. 먼저 전체 피드백 가능한 글 수 계산 (필터링 없음)
+    const baseQuery = {
+      "user.uid": { $ne: uid }, // 본인 글 제외
+      isDeleted: { $ne: true }, // 삭제된 글 제외
+    };
+
+    // 내가 작성한 피드백 목록 조회
+    const myFeedbacks = await Feedback.find({ fromUid: uid })
+      .select("toSubmissionId")
+      .lean();
+
+    const myFeedbackSet = new Set(
+      myFeedbacks.map((fb) => fb.toSubmissionId?.toString()).filter(Boolean)
+    );
+
+    // 전체 피드백 가능한 글 수 계산 (필터링 없음)
+    const allSubmissions = await Submission.find(baseQuery).lean();
+    const totalFeedbackAvailableCount = allSubmissions.filter(
+      (sub) => !myFeedbackSet.has(sub._id.toString())
+    ).length;
+
+    // 2. 필터링된 쿼리 생성
+    const filteredQuery = { ...baseQuery };
+    if (search) {
+      filteredQuery.$or = [
+        { title: { $regex: search, $options: "i" } },
+        { text: { $regex: search, $options: "i" } },
+      ];
+    }
+    if (mode === "mode_300" || mode === "mode_1000") {
+      filteredQuery.mode = mode;
+    }
+
+    const skip = (page - 1) * limit;
+
+    // 3. 필터링된 결과에 대한 페이지네이션
+    const [
+      totalCount,
+      mode300Count,
+      mode1000Count,
+      feedbackGivenCount,
+      feedbackAvailableCount_300,
+      feedbackAvailableCount_1000,
+    ] = await Promise.all([
+      Submission.countDocuments(baseQuery), // 전체
+      Submission.countDocuments({ ...baseQuery, mode: "mode_300" }),
+      Submission.countDocuments({ ...baseQuery, mode: "mode_1000" }),
+      Feedback.countDocuments({ fromUid: uid }),
+      Submission.countDocuments({
+        ...baseQuery,
+        mode: "mode_300",
+        _id: { $nin: Array.from(myFeedbackSet) },
+      }),
+      Submission.countDocuments({
+        ...baseQuery,
+        mode: "mode_1000",
+        _id: { $nin: Array.from(myFeedbackSet) },
+      }),
+    ]);
+
+    const submissions = await Submission.find(filteredQuery)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean();
+
+    const feedbackCounts = await Feedback.aggregate([
+      {
+        $match: {
+          toSubmissionId: {
+            $in: submissions.map((s) => s._id),
+          },
+        },
+      },
+      {
+        $group: {
+          _id: "$toSubmissionId",
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    const countMap = {};
+    feedbackCounts.forEach((fc) => {
+      countMap[fc._id.toString()] = fc.count;
+    });
+
+    const hasMore = skip + submissions.length < totalCount;
+
+    const results = submissions.map((sub) => ({
+      ...sub,
+      feedbackCount: countMap[sub._id.toString()] || 0,
+      hasGivenFeedback: myFeedbackSet.has(sub._id.toString()),
+    }));
+
+    res.json({
+      submissions: results,
+      hasMore,
+      totalCount,
+      mode300Count,
+      mode1000Count,
+      feedbackGivenCount,
+      feedbackAvailableCount: totalFeedbackAvailableCount,
+      feedbackAvailableCount_300,
+      feedbackAvailableCount_1000,
+    });
+  } catch (err) {
+    console.error("❌ 전체 글 목록 조회 실패:", err);
+    res.status(500).json({ message: "서버 오류입니다." });
   }
 });
 

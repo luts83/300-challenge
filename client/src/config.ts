@@ -3,8 +3,8 @@ export const CONFIG = {
   // ✍ 글쓰기 토큰 제한 (글쓰기 모드별로 관리)
   TOKEN: {
     DAILY_LIMIT_300: 1, // 300자 글쓰기 하루 횟수
-    DAILY_LIMIT_1000: 1, // 1000자 글쓰기 하루 횟수
-    STREAK_BONUS: 1, // 주간 목표 달성 시 보너스 토큰 수
+    WEEKLY_LIMIT_1000: 1, // 1000자 글쓰기 주간 횟수
+    GOLDEN_KEY: 1, // 주간 목표 달성 시 황금열쇠 수
   },
 
   // ✍ 글자 수 제한
@@ -57,6 +57,6 @@ export const CONFIG = {
   // 📌 주제 표시 여부
   TOPIC: {
     SHOW_ON_HOME_300: true,
-    SHOW_ON_HOME_1000: false,
+    SHOW_ON_HOME_1000: true,
   },
 };

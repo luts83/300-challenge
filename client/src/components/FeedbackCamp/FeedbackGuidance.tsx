@@ -25,13 +25,13 @@ export const FeedbackGuidance: React.FC<FeedbackGuidanceProps> = ({
       return {
         emoji: '✅',
         statusText: '오늘 피드백 미션 완료!',
-        textColor: 'text-green-600',
+        textColor: 'text-green-600 dark:text-green-300',
       };
     }
     return {
       emoji: '✨',
       statusText: '오늘의 피드백 미션',
-      textColor: 'text-gray-800',
+      textColor: 'text-gray-800 dark:text-gray-300',
     };
   };
 
@@ -82,21 +82,23 @@ export const FeedbackGuidance: React.FC<FeedbackGuidanceProps> = ({
   const guidanceMessage = getFeedbackGuidanceMessage();
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-3 sm:p-4 mb-4 sm:mb-6">
+    <div className="bg-white dark:bg-gray-800 text-black dark:text-white rounded-lg shadow-sm border border-gray-100 p-3 sm:p-4 mb-4 sm:mb-6 dark:border-gray-700">
       <div className="flex items-center justify-between cursor-pointer" onClick={onToggleExpand}>
         <div className="flex items-center gap-1.5 sm:gap-2">
           <span className="text-base sm:text-lg">{statusInfo.emoji}</span>
           <div>
-            <h3 className={`text-sm sm:text-base font-medium ${statusInfo.textColor}`}>
+            <h3 className={`text-base sm:text-lg font-medium ${statusInfo.textColor}`}>
               {statusInfo.statusText}
             </h3>
-            <p className="text-xs sm:text-sm text-gray-500">
+            <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-300">
               {dailyFeedbackCount}/{CONFIG.FEEDBACK.REQUIRED_COUNT} 완료
               {dailyFeedbackCount >= CONFIG.FEEDBACK.REQUIRED_COUNT && ' 🎉'}
             </p>
           </div>
         </div>
-        <span className="text-gray-400">{isExpanded ? '▼' : '▶'}</span>
+        <span className="text-gray-400 dark:text-gray-300 dark:hover:text-gray-100">
+          {isExpanded ? '▼' : '▶'}
+        </span>
       </div>
 
       {isExpanded && (
@@ -109,8 +111,8 @@ export const FeedbackGuidance: React.FC<FeedbackGuidanceProps> = ({
                   key={mode}
                   className={`text-xs sm:text-sm px-2 py-0.5 rounded-full ${
                     mode === 'mode_300'
-                      ? 'bg-blue-100 text-blue-800'
-                      : 'bg-green-100 text-green-800'
+                      ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/80 dark:text-blue-300'
+                      : 'bg-green-100 text-green-800 dark:bg-green-900/80 dark:text-green-300'
                   }`}
                 >
                   {mode === 'mode_300' ? '300자' : '1000자'} 글쓰기
@@ -121,7 +123,7 @@ export const FeedbackGuidance: React.FC<FeedbackGuidanceProps> = ({
 
           <div className="space-y-1.5">
             {/* 피드백 작성 가능 모드 안내 */}
-            <p className="text-xs sm:text-sm text-gray-600">
+            <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-300">
               {availableModes.size > 0 ? (
                 CONFIG.FEEDBACK.CROSS_MODE_FEEDBACK.ENABLED ? (
                   <>
@@ -139,7 +141,7 @@ export const FeedbackGuidance: React.FC<FeedbackGuidanceProps> = ({
             </p>
 
             {/* 피드백 규칙 안내 */}
-            <ul className="text-xs sm:text-sm text-gray-600 space-y-1">
+            <ul className="text-xs sm:text-sm text-gray-600 dark:text-gray-300 space-y-1">
               <li className="flex items-center gap-1">
                 <span className="text-blue-500">•</span>
                 하루 {CONFIG.FEEDBACK.REQUIRED_COUNT}개의 피드백을 작성하면 당일 작성한 글의
@@ -147,8 +149,7 @@ export const FeedbackGuidance: React.FC<FeedbackGuidanceProps> = ({
               </li>
               <li className="flex items-center gap-1">
                 <span className="text-blue-500">•</span>
-                주간 목표(월-금 5일) 달성 시 {CONFIG.TOKEN.STREAK_BONUS}개의 보너스 토큰이
-                지급됩니다.
+                주간 목표(월-금 5일) 달성 시 {CONFIG.TOKEN.GOLDEN_KEY}개의 황금열쇠가 지급됩니다.
               </li>
               <li className="flex items-center gap-1">
                 <span className="text-blue-500">•</span>

@@ -32,7 +32,7 @@ const FeedbackMissionPanel = () => {
   if (!user || loading) return null;
 
   return (
-    <div className="bg-white rounded-xl shadow-sm p-4 mb-6">
+    <div className="bg-white dark:bg-gray-800 text-black dark:text-white rounded-xl shadow-sm p-4 mb-6">
       {/* 미션 진행 상황 */}
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-lg font-semibold">🎯 오늘의 피드백 미션</h2>

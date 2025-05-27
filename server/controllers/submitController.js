@@ -1,12 +1,12 @@
 // server/controllers/submitController.js
 const Submission = require("../models/Submission");
 const Token = require("../models/Token");
-const TokenHistory = require("../models/TokenHistory");
 const { TOKEN, SUBMISSION, FEEDBACK } = require("../config");
 const axios = require("axios");
 const WritingStreak = require("../models/WritingStreak");
 const mongoose = require("mongoose");
 const logger = require("../utils/logger");
+const { handleTokenChange } = require("../utils/tokenHistory");
 
 // 1. 먼저 함수 정의를 파일 상단에 추가
 const checkFirstSubmissionOfDay = async (uid) => {
@@ -53,11 +53,18 @@ const unlockFeedback = async (req, res) => {
   }
 };
 
-// AI 평가 함수 추가
-const evaluateSubmission = async (text, mode) => {
+// AI 평가 함수 수정
+const evaluateSubmission = async (text, mode, topic) => {
   const { AI } = require("../config");
 
   try {
+    // 주제 로깅 추가 (debug 사용)
+    logger.debug("🔍 주제 확인:", {
+      topic,
+      type: typeof topic,
+      length: topic ? topic.length : 0,
+    });
+
     const response = await axios.post(
       "https://openrouter.ai/api/v1/chat/completions",
       {
@@ -69,7 +76,7 @@ const evaluateSubmission = async (text, mode) => {
           },
           {
             role: "user",
-            content: AI.PROMPT_TEMPLATE[mode](text, ""),
+            content: AI.PROMPT_TEMPLATE[mode](text, topic),
           },
         ],
       },
@@ -86,7 +93,7 @@ const evaluateSubmission = async (text, mode) => {
     try {
       const parsed = JSON.parse(evaluation);
       return {
-        score: parsed.overall_score, // overall_score를 score로 사용
+        score: parsed.overall_score,
         feedback: JSON.stringify(parsed, null, 2),
       };
     } catch (parseError) {
@@ -151,30 +158,60 @@ const handleSubmit = async (req, res) => {
     const tokenField = mode === "mode_1000" ? "tokens_1000" : "tokens_300";
     let streak = null;
 
+    // 월요일 날짜 계산
+    const monday = new Date();
+    const day = monday.getDay();
+    const diff = monday.getDate() - day + (day === 0 ? -6 : 1); // adjust when day is sunday
+    monday.setDate(diff);
+    monday.setHours(0, 0, 0, 0);
+
     // 토큰 처리
     let userToken = await Token.findOne({ uid: user.uid });
     if (!userToken) {
       userToken = await Token.create({
         uid: user.uid,
         tokens_300: TOKEN.DAILY_LIMIT_300,
-        tokens_1000: TOKEN.DAILY_LIMIT_1000,
-        bonusTokens: 0,
+        tokens_1000: TOKEN.WEEKLY_LIMIT_1000,
+        goldenKeys: 0,
         lastRefreshed: now,
+        lastWeeklyRefreshed: new Date(),
       });
     }
 
     // 토큰 리셋 체크
     if (userToken.lastRefreshed?.toDateString() !== today) {
       userToken.tokens_300 = TOKEN.DAILY_LIMIT_300;
-      userToken.tokens_1000 = TOKEN.DAILY_LIMIT_1000;
       userToken.lastRefreshed = now;
+
+      await handleTokenChange(user.uid, {
+        type: "DAILY_RESET",
+        amount: TOKEN.DAILY_LIMIT_300,
+        mode: "mode_300",
+        timestamp: now,
+      });
+    }
+
+    // 주간 토큰 리셋 체크
+    if (userToken.lastWeeklyRefreshed < monday) {
+      userToken.tokens_1000 = TOKEN.WEEKLY_LIMIT_1000;
+      userToken.lastWeeklyRefreshed = monday;
+
+      await handleTokenChange(user.uid, {
+        type: "WEEKLY_RESET",
+        amount: TOKEN.WEEKLY_LIMIT_1000,
+        mode: "mode_1000",
+        timestamp: now,
+      });
     }
 
     // 토큰 체크
     if (userToken[tokenField] <= 0) {
-      return res
-        .status(403)
-        .json({ message: "오늘의 토큰이 모두 소진되었습니다." });
+      return res.status(403).json({
+        message:
+          mode === "mode_1000"
+            ? "이번 주 토큰이 모두 소진되었습니다."
+            : "오늘의 토큰이 모두 소진되었습니다.",
+      });
     }
 
     // 제출물 저장
@@ -191,7 +228,7 @@ const handleSubmit = async (req, res) => {
     await submission.save();
 
     // AI 평가 실행
-    const { score, feedback } = await evaluateSubmission(text, mode);
+    const { score, feedback } = await evaluateSubmission(text, mode, topic);
     submission.score = score;
     submission.aiFeedback = feedback;
     await submission.save();
@@ -214,7 +251,12 @@ const handleSubmit = async (req, res) => {
 
     // 토큰 차감
     userToken[tokenField] -= 1;
-    await userToken.save();
+    await handleTokenChange(user.uid, {
+      type: "WRITING_USE",
+      amount: -1,
+      mode,
+      timestamp: now,
+    });
 
     // 스트릭 처리
     const dayOfWeek = now.getDay();
@@ -250,25 +292,42 @@ const handleSubmit = async (req, res) => {
           // 모든 날짜가 완료되었는지 체크
           const allDaysCompleted = streak.weeklyProgress.every((day) => day);
           if (allDaysCompleted && !streak.celebrationShown) {
-            // Token 모델의 bonusTokens 업데이트
-            const userToken = await Token.findOne({ uid: user.uid });
-            if (userToken) {
-              userToken.bonusTokens =
-                (userToken.bonusTokens || 0) + TOKEN.STREAK_BONUS;
-              await userToken.save();
-            }
+            // 황금열쇠 지급
+            userToken.goldenKeys += TOKEN.GOLDEN_KEY;
+            await handleTokenChange(
+              user.uid,
+              {
+                type: "GOLDEN_KEY",
+                amount: TOKEN.GOLDEN_KEY,
+                mode: "streak_completion",
+                timestamp: now,
+              },
+              { session }
+            );
 
             streak.celebrationShown = true;
             streak.lastStreakCompletion = now;
           }
 
           await streak.save();
-        } else {
         }
       } catch (error) {
         console.error("❌ Streak 업데이트 중 오류:", error);
       }
     }
+
+    // 1000자 모드 글 작성 시 황금열쇠 지급
+    if (mode === "mode_1000") {
+      userToken.goldenKeys += TOKEN.GOLDEN_KEY;
+      await handleTokenChange(user.uid, {
+        type: "GOLDEN_KEY",
+        amount: TOKEN.GOLDEN_KEY,
+        mode: "mode_1000",
+        timestamp: now,
+      });
+    }
+
+    await userToken.save();
 
     // 응답
     return res.status(200).json({
@@ -276,7 +335,7 @@ const handleSubmit = async (req, res) => {
       data: {
         submissionId: submission._id,
         tokens: userToken[tokenField],
-        bonusTokens: userToken.bonusTokens,
+        goldenKeys: userToken.goldenKeys,
         streak: streak
           ? {
               progress: streak.weeklyProgress,
@@ -307,8 +366,8 @@ const handleStreakCompletion = async (user, streak, userToken) => {
   session.startTransaction();
 
   try {
-    // 보너스 토큰 지급 및 기록
-    userToken.bonusTokens += TOKEN.STREAK_BONUS;
+    // 황금열쇠 지급 및 기록
+    userToken.goldenKeys += TOKEN.GOLDEN_KEY;
     await userToken.save({ session });
 
     // 스트릭 상태 업데이트
@@ -317,15 +376,14 @@ const handleStreakCompletion = async (user, streak, userToken) => {
     await streak.save({ session });
 
     // 히스토리 기록
-    await TokenHistory.create(
-      [
-        {
-          uid: user.uid,
-          type: "STREAK_BONUS",
-          amount: TOKEN.STREAK_BONUS,
-          timestamp: new Date(),
-        },
-      ],
+    await handleTokenChange(
+      user.uid,
+      {
+        type: "GOLDEN_KEY",
+        amount: TOKEN.GOLDEN_KEY,
+        mode: "streak_completion",
+        timestamp: new Date(),
+      },
       { session }
     );
 

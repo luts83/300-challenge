@@ -16,18 +16,23 @@ const recordsRoutes = require("./routes/records"); // 추가
 const streakRoute = require("./routes/streak");
 const logger = require("./utils/logger");
 const dashboardRouter = require("./routes/dashboard");
+const authRoutes = require("./routes/auth");
+const { ACCESS_CONTROL } = require("./config");
+const fetchAllowedEmailsFromSheet = require("./utils/fetchAllowedEmails");
 
 app.use(
   cors({
     origin: [
       "http://localhost:5173",
       "http://localhost:5173/",
-      "http://192.168.0.22:5173",
-      "http://192.168.0.163:5173", // 현재 클라이언트 IP 추가
+      // "http://192.168.0.22:5173",
+      // "http://192.168.0.163:5173",
       "https://write-challenge.pages.dev",
       "https://edu-ocean.com",
       "https://www.dwriting.com",
       "https://dwriting.com",
+      "http://192.168.219.180:5173",
+      "http://192.168.45.65:5173",
     ],
     credentials: true,
   })
@@ -46,7 +51,7 @@ app.use("/api/feedback", feedbackRoute);
 app.use("/api/stats", statsRoute);
 app.use("/api/streak", streakRoute);
 app.use("/api/dashboard", dashboardRouter);
-
+app.use("/api/auth", authRoutes);
 // MongoDB 연결
 mongoose
   .connect(process.env.MONGO_URI, {
@@ -64,6 +69,16 @@ mongoose
 app.get("/", (req, res) => {
   res.send("👋 Hello World!");
 });
+
+(async () => {
+  try {
+    const emails = await fetchAllowedEmailsFromSheet();
+    ACCESS_CONTROL.ALLOWED_EMAILS = emails;
+    console.log("✅ 이메일 목록 로딩 성공:", emails);
+  } catch (error) {
+    console.log("❌ 이메일 목록 로딩 실패:", error);
+  }
+})();
 
 app.listen(PORT, () => {
   console.log(`✅ Server is running on port ${PORT}`);

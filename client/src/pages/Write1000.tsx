@@ -325,9 +325,11 @@ const Write1000 = () => {
         setIsStarted,
         setLastInputTime,
         setLastSavedAt,
-        setHasWrittenThisSession,
-        setResetCount
+        setHasWrittenThisSession
       );
+
+      // 서버에서 받은 draft의 resetCount로 상태 갱신
+      setResetCount(newDraft.resetCount);
 
       if (timerRef.current) {
         clearInterval(timerRef.current);
@@ -362,11 +364,17 @@ const Write1000 = () => {
       autosaveRef.current = null;
     }
 
+    // 메시지 전환을 부드럽게 하기 위해 setTimeout을 사용하여 단계별로 메시지를 표시
+    setTimeout(() => {
+      setSubmissionProgress('🔑 1000자 글쓰기를 완료하여 황금열쇠를 받았습니다!');
+    }, 1000);
+
     setTimeout(() => {
       const message = [
         '✨ 글 작성이 완료되었습니다!\n',
         score ? `🎯 AI 평가 점수: ${score}점` : '',
         feedback ? `💬 AI 피드백: ${feedback}\n` : '',
+        '🔑 1000자 글쓰기를 완료하여 황금열쇠를 받았습니다!\n',
         '\n📝 다음은 어떤 활동을 해보시겠어요?',
         '1. 피드백 미션에서 다른 사람의 글에 피드백 남기기',
         '2. 내가 작성한 글 확인하기',
@@ -656,11 +664,13 @@ const Write1000 = () => {
   return (
     <Layout>
       <div className="max-w-2xl mx-auto p-4">
-        <h1 className="text-2xl font-bold mb-6 text-center">✍️ 1000자 글쓰기</h1>
+        <h1 className="text-2xl font-bold mb-6 text-center text-gray-800 dark:text-gray-300">
+          ✍️ 1000자 글쓰기
+        </h1>
 
         {/* 토큰 현황 */}
-        <div className="bg-blue-50 rounded-lg p-4 mb-6 flex items-center justify-between">
-          <span className="text-blue-800 font-medium">오늘의 토큰</span>
+        <div className="bg-blue-50 rounded-lg p-4 mb-6 flex items-center justify-between dark:bg-gray-800">
+          <span className="text-blue-800 font-medium dark:text-gray-300">오늘의 토큰</span>
           <div className="flex items-center gap-2">
             <span className="text-2xl">🎫</span>
             <span className="text-xl font-bold text-blue-600">{tokens ?? 0}</span>
@@ -668,11 +678,13 @@ const Write1000 = () => {
         </div>
 
         {/* 제목과 주제 영역 */}
-        <div className="bg-white rounded-lg shadow-md p-4 mb-6">
+        <div className="bg-white dark:bg-gray-800 text-black dark:text-white rounded-lg shadow-md p-4 mb-6">
           {/* 오늘의 주제 */}
           <div className="mb-4">
-            <h2 className="text-base md:text-lg font-medium text-gray-800 mb-2">📝 오늘의 주제</h2>
-            <p className="text-sm md:text-base text-gray-700 bg-blue-50 p-3 rounded-lg">
+            <h2 className="text-base md:text-lg font-medium text-gray-800 mb-2 dark:text-gray-300">
+              📝 오늘의 주제
+            </h2>
+            <p className="text-sm md:text-base text-gray-700 bg-blue-50 p-3 rounded-lg dark:bg-gray-500 dark:text-gray-300">
               {CONFIG.TOPIC.SHOW_ON_HOME_1000
                 ? dailyTopic || '주제를 불러오는 중...'
                 : '자유 주제입니다. 마음 가는 대로 글을 써보세요.'}
@@ -681,7 +693,9 @@ const Write1000 = () => {
 
           {/* 제목 입력 */}
           <div className="mb-4">
-            <h2 className="text-base md:text-lg font-medium text-gray-800 mb-2">✏️ 제목 작성</h2>
+            <h2 className="text-base md:text-lg font-medium text-gray-800 mb-2 dark:text-gray-300">
+              ✏️ 제목 작성
+            </h2>
             <div className="relative">
               <input
                 type="text"
@@ -689,7 +703,7 @@ const Write1000 = () => {
                 onChange={handleTitleChange}
                 placeholder="이 글의 제목을 입력해주세요"
                 maxLength={80}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-base md:text-lg placeholder:text-base"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-base md:text-lg placeholder:text-base dark:bg-gray-600 dark:text-gray-300"
               />
               <span className="absolute right-3 bottom-3 text-xs md:text-sm text-gray-500">
                 {title.length}/80
@@ -699,9 +713,9 @@ const Write1000 = () => {
         </div>
 
         {/* 글쓰기 영역 */}
-        <div className="bg-white rounded-lg shadow-md p-4">
+        <div className="bg-white dark:bg-gray-800 text-black dark:text-white rounded-lg shadow-md p-4">
           {/* 세션 정보 */}
-          <div className="mb-4 flex justify-between text-xs md:text-sm text-gray-600">
+          <div className="mb-4 flex justify-between text-xs md:text-sm text-gray-600 dark:text-gray-300">
             <span>🧭 세션 {sessionCount}회차</span>
             <span>⏱ 누적 시간: {formatDuration(totalDuration + durationNow)}</span>
           </div>
@@ -711,7 +725,7 @@ const Write1000 = () => {
               value={text}
               onChange={handleTextChange}
               placeholder="1500자 이내로 자유롭게 작성해보세요."
-              className="w-full h-64 p-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none text-base placeholder:text-base"
+              className="w-full h-64 p-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none text-base placeholder:text-base dark:bg-gray-600 dark:text-gray-300"
               maxLength={MAX_LENGTH}
               disabled={isTokenDepleted}
             />
@@ -722,9 +736,9 @@ const Write1000 = () => {
 
           {/* 버튼 영역 */}
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-            <div className="text-xs md:text-sm text-gray-600">
+            <div className="text-xs md:text-sm text-gray-600 dark:text-gray-300">
               {isTokenDepleted ? (
-                <span className="text-red-600">토큰이 모두 소진되었습니다</span>
+                <span className="text-red-600 dark:text-red-400">토큰이 모두 소진되었습니다</span>
               ) : (
                 <span>초기화 가능: {CONFIG.SUBMISSION.RESET_LIMIT_1000 - resetCount}회</span>
               )}
@@ -751,7 +765,7 @@ const Write1000 = () => {
 
               <button
                 onClick={submitFinal}
-                className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+                className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 dark:bg-blue-700 dark:hover:bg-blue-800"
                 disabled={
                   isSubmitting ||
                   isTokenDepleted ||
@@ -766,7 +780,7 @@ const Write1000 = () => {
         </div>
 
         {/* 안내 메시지 */}
-        <div className="mt-4 text-xs md:text-sm text-black-600">
+        <div className="mt-4 text-xs md:text-sm text-gray-800 dark:text-gray-300">
           <p>💡 제목과 내용을 모두 작성한 후 제출할 수 있습니다.</p>
           <p>📝 임시저장된 내용은 자동으로 불러와집니다.</p>
         </div>
@@ -774,11 +788,13 @@ const Write1000 = () => {
         {/* 저장 메시지 */}
         {saveMessage && (
           <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg shadow-lg p-6 max-w-sm w-full text-center">
+            <div className="bg-white dark:bg-gray-800 text-black dark:text-white rounded-lg shadow-lg p-6 max-w-sm w-full text-center">
               <div className="text-2xl mb-4">
                 {saveMessage.includes('❌') ? '⚠️' : saveMessage.includes('✨') ? '✅' : 'ℹ️'}
               </div>
-              <div className="text-lg font-semibold text-gray-800">{saveMessage}</div>
+              <div className="text-lg font-semibold text-gray-800 dark:text-gray-300">
+                {saveMessage}
+              </div>
             </div>
           </div>
         )}
@@ -798,7 +814,7 @@ const Write1000 = () => {
         {/* 제출 상태 표시 */}
         {submissionState !== 'idle' && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="bg-white dark:bg-gray-800 text-black dark:text-white rounded-lg p-6 max-w-md w-full mx-4">
               <div className="flex flex-col items-center">
                 {submissionState === 'submitting' && (
                   <div className="flex flex-col items-center space-y-4 mb-4">
@@ -812,7 +828,7 @@ const Write1000 = () => {
                           <div className="text-4xl animate-spin">🤖</div>
                           <div className="text-4xl animate-bounce">✨</div>
                         </div>
-                        <p className="text-lg font-medium text-gray-800 text-center">
+                        <p className="text-lg font-medium text-gray-800 text-center dark:text-gray-300">
                           {submissionProgress}
                         </p>
                       </div>

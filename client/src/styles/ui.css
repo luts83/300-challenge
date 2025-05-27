@@ -31,7 +31,7 @@
   /* 🔷 Card: 카드 스타일 */
   /* ────────────────────────────── */
   .card-default {
-    @apply bg-white/90 rounded shadow-lg p-4 transition-all hover:shadow-xl;
+    @apply bg-white dark:bg-gray-800 text-black dark:text-white/90 rounded shadow-lg p-4 transition-all hover:shadow-xl;
   }
 
   .card-highlight {
@@ -140,7 +140,7 @@
   }
 
   .textarea-main {
-    @apply w-full h-[calc(100vh-300px)] md:h-96 p-2 border border-gray-300 rounded mb-4 overflow-y-auto bg-white/90 shadow-lg resize-y;
+    @apply w-full h-[calc(100vh-300px)] md:h-96 p-2 border border-gray-300 rounded mb-4 overflow-y-auto bg-white dark:bg-gray-800 text-black dark:text-white/90 shadow-lg resize-y;
   }
 
   /* ────────────────────────────── */
@@ -181,7 +181,7 @@
   }
 
   .feedback-summary-box {
-    @apply bg-white/80 shadow rounded p-4 mb-6;
+    @apply bg-white dark:bg-gray-800 text-black dark:text-white/80 shadow rounded p-4 mb-6;
   }
 
   .feedback-comment {
@@ -204,11 +204,11 @@
   }
 
   .textarea-writing {
-    @apply w-full h-[calc(100vh-300px)] md:h-96 p-2 border border-gray-300 rounded mb-4 overflow-y-auto bg-white/90 shadow-lg scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 resize-y;
+    @apply w-full h-[calc(100vh-300px)] md:h-96 p-2 border border-gray-300 rounded mb-4 overflow-y-auto bg-white dark:bg-gray-800 text-black dark:text-white/90 shadow-lg scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 resize-y;
   }
 
   .ai-feedback-box {
-    @apply flex-none mt-4 p-4 bg-white/90 rounded shadow-lg w-full;
+    @apply flex-none mt-4 p-4 bg-white dark:bg-gray-800 text-black dark:text-white/90 rounded shadow-lg w-full;
   }
 
   .ai-score {

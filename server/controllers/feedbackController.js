@@ -184,8 +184,11 @@ exports.submitFeedback = async (req, res) => {
       writtenDate: today,
     });
 
-    // 7. 피드백이 3개 이상이면 오늘 작성한 모든 글의 피드백 열람 가능
-    if (feedbackCount >= CONFIG.FEEDBACK.REQUIRED_COUNT) {
+    // 7. 피드백이 3개 이상이거나 1000자 글에 피드백 1개 이상이면 피드백 열람 가능
+    if (
+      feedbackCount >= CONFIG.FEEDBACK.REQUIRED_COUNT ||
+      (targetSubmission.mode === "mode_1000" && feedbackCount >= 1)
+    ) {
       await Submission.updateMany(
         {
           "user.uid": fromUid,

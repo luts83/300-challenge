@@ -27,6 +27,7 @@ import type { StatsData } from '../components/SubmissionStats/types';
 import { SubmissionFilterSection } from '../components/FilterSection/SubmissionFilterSection';
 import { useSubmissionFilter } from '../hooks/useSubmissionFilter';
 import Layout from '../components/Layout';
+import FeedbackNotice from '../components/FeedbackNotice';
 
 type Submission = {
   _id: string;
@@ -211,6 +212,7 @@ const MySubmissions = () => {
   };
 
   const [feedbackFilter, setFeedbackFilter] = useState<FeedbackFilterType>(null);
+
   const [counts, setCounts] = useState({
     all: 0,
     mode_300: 0,
@@ -220,21 +222,21 @@ const MySubmissions = () => {
     locked_feedback: 0,
   });
 
-  // 피드백 카운트를 업데이트하는 함수
-  const updateCounts = (submissions: Submission[]) => {
-    const newCounts = {
-      all: submissions.length,
-      mode_300: submissions.filter(s => s.mode === 'mode_300').length,
-      mode_1000: submissions.filter(s => s.mode === 'mode_1000').length,
-      has_feedback: submissions.filter(s => (s.feedbacks?.length || 0) > 0).length,
-      open_feedback: submissions.filter(s => s.feedbackUnlocked && (s.feedbacks?.length || 0) > 0)
-        .length,
-      locked_feedback: submissions.filter(
-        s => !s.feedbackUnlocked && (s.feedbacks?.length || 0) > 0
-      ).length,
-    };
-    setCounts(newCounts);
+  const fetchSummaryCounts = async () => {
+    if (!user) return;
+    try {
+      const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/submit/summary/${user.uid}`);
+      setCounts(res.data);
+    } catch (err) {
+      logger.error('📊 summary count fetch 실패:', err);
+    }
   };
+
+  useEffect(() => {
+    if (user) {
+      fetchSummaryCounts();
+    }
+  }, [user]);
 
   // 필터링된 submissions를 커스텀 훅으로 관리
   const filteredSubmissions = useSubmissionFilter(
@@ -254,39 +256,58 @@ const MySubmissions = () => {
 
     try {
       const [submissionsRes, feedbackRes] = await Promise.all([
-        axios.get(`${import.meta.env.VITE_API_URL}/api/submit/user/${user.uid}`),
+        axios.get(`${import.meta.env.VITE_API_URL}/api/submit/user/${user.uid}`, {
+          params: {
+            page: pageNum,
+            limit: ITEMS_PER_PAGE,
+            search: searchQuery || undefined, // 🔍 검색어 추가
+            feedbackFilter: feedbackFilter || undefined,
+          },
+        }),
         axios.get(`${import.meta.env.VITE_API_URL}/api/feedback/stats/${user.uid}`),
       ]);
 
-      const newSubmissions = submissionsRes.data;
+      // console.log('🔍 요청 params', {
+      //   page: pageNum,
+      //   limit: ITEMS_PER_PAGE,
+      //   search: searchQuery || undefined,
+      //   feedbackFilter: feedbackFilter || undefined,
+      // });
+
+      const { submissions: newSubmissions, hasMore: more } = submissionsRes.data;
       const feedbackData = feedbackRes.data.receivedFeedbackDetails || [];
 
-      // 피드백 데이터를 submissions에 매핑
-      const submissionsWithFeedback = newSubmissions.map(submission => {
-        const submissionFeedbacks = feedbackData.filter(
-          feedback => feedback.submissionId === submission._id
-        );
+      const submissionsWithFeedback = newSubmissions.map((submission: Submission) => {
+        const matchedFeedbacks = feedbackData.filter((feedback: any) => {
+          const feedbackId = feedback.toSubmissionId || feedback.submissionId;
+          return feedbackId?.toString() === submission._id.toString();
+        });
 
         return {
           ...submission,
-          feedbacks: submissionFeedbacks.map(feedback => ({
-            content: feedback.feedbackContent,
-            createdAt: feedback.feedbackDate,
+          feedbacks: matchedFeedbacks.map((feedback: any) => ({
+            content: feedback.content || feedback.feedbackContent,
+            createdAt: feedback.createdAt || feedback.feedbackDate,
             writer: {
-              displayName: feedback.fromUser.displayName,
+              displayName: feedback.fromUser?.displayName || '익명',
             },
           })),
         };
       });
 
-      // 전체 submissions 업데이트 및 카운트 업데이트
-      setSubmissions(submissionsWithFeedback);
-      updateCounts(submissionsWithFeedback);
+      if (pageNum === 1) {
+        setSubmissions(submissionsWithFeedback);
+      } else {
+        setSubmissions(prev => [...prev, ...submissionsWithFeedback]);
+      }
+
+      setHasMore(more);
     } catch (err) {
       setError('데이터를 불러오는데 실패했습니다.');
-      logger.error('데이터 불러오기 실패:', err);
+      logger.error('❌ fetchData 실패:', err);
     } finally {
       setIsLoading(false);
+      setIsLoadingMore(false);
     }
   };
 
@@ -422,9 +443,8 @@ const MySubmissions = () => {
       <ErrorBoundary>
         <div className="max-w-4xl mx-auto p-4">
           <h1 className="text-2xl sm:text-xl font-bold mb-6 text-center">📝 내가 쓴 글</h1>
-          <div className="mb-4 p-3 bg-blue-100/80 text-blue-800 rounded-lg text-base text-center font-medium">
-            ✍ 글을 쓰고 다른 사용자에게 피드백을 3개 작성하면, 내가 쓴 글의 피드백을 볼 수 있어요!
-          </div>
+
+          <FeedbackNotice />
 
           <TokenDisplay />
           <WeeklyProgress />
@@ -460,7 +480,10 @@ const MySubmissions = () => {
           {/* 글 목록 */}
           {isLoading ? (
             <div className="text-center py-8">
-              <p>로딩 중...</p>
+              <div className="inline-block">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">로딩 중...</p>
+              </div>
             </div>
           ) : error ? (
             <div className="text-center py-8 text-red-600">
@@ -488,7 +511,10 @@ const MySubmissions = () => {
               ))}
               {isLoadingMore && (
                 <div className="text-center py-4">
-                  <p>로딩 중...</p>
+                  <div className="inline-block">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                    <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">로딩 중...</p>
+                  </div>
                 </div>
               )}
             </div>
@@ -504,7 +530,7 @@ const MySubmissions = () => {
               }}
               onUnlock={handleUnlock}
               submissionTitle={selectedSubmission.title}
-              bonusTokens={tokens?.bonusTokens || 0}
+              goldenKeys={tokens?.goldenKeys || 0}
             />
           )}
 

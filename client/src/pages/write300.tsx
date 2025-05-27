@@ -84,17 +84,24 @@ const Write300 = () => {
 
     const finalDuration = startTime ? Math.floor((Date.now() - startTime) / 1000) : 0;
 
-    // 일반 제출 시에만 글자 수 검증
+    // 글자 수 검증
+    const charCount = getCharCount(text);
+    const isMinLengthMet = charCount >= CONFIG.SUBMISSION.MODE_300.MIN_LENGTH;
+
     if (!forceSubmit) {
       if (!text.trim()) {
         return alert('내용을 입력해주세요.');
       }
 
-      const charCount = getCharCount(text);
-      if (charCount < CONFIG.SUBMISSION.MODE_300.MIN_LENGTH) {
+      if (!isMinLengthMet) {
         return alert(
           `${CONFIG.SUBMISSION.MODE_300.MIN_LENGTH}자 이상 입력해주세요. (현재: ${charCount}자)`
         );
+      }
+    } else {
+      // 자동 제출 시에도 최소 글자 수 확인
+      if (!isMinLengthMet) {
+        return alert('자동 제출이 불가능합니다. 최소 글자 수를 충족하지 않았습니다.');
       }
     }
 
@@ -114,9 +121,6 @@ const Write300 = () => {
     }, 1200); // 1.2초 뒤 평가로 전환
 
     try {
-      const charCount = getCharCount(text);
-      const isMinLengthMet = charCount >= CONFIG.SUBMISSION.MODE_300.MIN_LENGTH;
-
       const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/submit`, {
         title,
         text,
@@ -145,7 +149,7 @@ const Write300 = () => {
       handleSubmitComplete(res);
     } catch (err) {
       logger.error('제출 중 오류 발생:', err.response?.data || err);
-      alert('오류가 발생했습니다: ' + (err.response?.data?.message || err.message));
+      alert('제출 중 오류가 발생했습니다. 다시 시도해 주세요.');
       setSubmissionState('idle');
       setSubmissionProgress('');
       submissionInProgress.current = false;
@@ -214,11 +218,13 @@ const Write300 = () => {
   return (
     <Layout>
       <div className="max-w-2xl mx-auto p-4">
-        <h1 className="text-2xl font-bold mb-6 text-center">✍️ 300자 글쓰기</h1>
+        <h1 className="text-2xl font-bold mb-6 text-center text-gray-800 dark:text-gray-300">
+          ✍️ 300자 글쓰기
+        </h1>
 
         {/* 토큰 현황 추가 */}
-        <div className="bg-blue-50 rounded-lg p-4 mb-6 flex items-center justify-between">
-          <span className="text-blue-800 font-medium">오늘의 토큰</span>
+        <div className="bg-blue-50 rounded-lg p-4 mb-6 flex items-center justify-between dark:bg-gray-800">
+          <span className="text-blue-800 font-medium dark:text-gray-300">오늘의 토큰</span>
           <div className="flex items-center gap-2">
             <span className="text-2xl">🎫</span>
             <span className="text-xl font-bold text-blue-600">{tokens ?? 0}</span>
@@ -226,18 +232,22 @@ const Write300 = () => {
         </div>
 
         {/* 제목과 주제 영역 */}
-        <div className="bg-white rounded-lg shadow-md p-4 mb-6">
+        <div className="bg-white dark:bg-gray-800 text-black dark:text-gray-300 rounded-lg shadow-md p-4 mb-6 dark:bg-gray-800">
           {/* 오늘의 주제 */}
           <div className="mb-4">
-            <h2 className="text-base md:text-lg font-medium text-gray-800 mb-2">📝 오늘의 주제</h2>
-            <p className="text-sm md:text-base text-gray-700 bg-blue-50 p-3 rounded-lg">
+            <h2 className="text-base md:text-lg font-medium text-gray-800 mb-2 dark:text-gray-300">
+              📝 오늘의 주제
+            </h2>
+            <p className="text-sm md:text-base text-gray-700 bg-blue-50 p-3 rounded-lg dark:bg-gray-500 dark:text-gray-300">
               {dailyTopic || '주제를 불러오는 중...'}
             </p>
           </div>
 
           {/* 제목 입력 */}
           <div className="mb-4">
-            <h2 className="text-base md:text-lg font-medium text-gray-800 mb-2">✏️ 제목 작성</h2>
+            <h2 className="text-base md:text-lg font-medium text-gray-800 mb-2 dark:text-gray-300">
+              ✏️ 제목 작성
+            </h2>
             <div className="relative">
               <input
                 type="text"
@@ -245,7 +255,7 @@ const Write300 = () => {
                 onChange={e => setTitle(e.target.value)}
                 placeholder="이 글의 제목을 입력해주세요"
                 maxLength={50}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-base md:text-lg placeholder:text-base"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-base md:text-lg placeholder:text-base dark:bg-gray-600 dark:text-gray-300"
               />
               <span className="absolute right-3 bottom-3 text-xs md:text-sm text-gray-500">
                 {title.length}/50
@@ -255,7 +265,7 @@ const Write300 = () => {
         </div>
 
         {/* 글쓰기 영역 */}
-        <div className="bg-white rounded-lg shadow-md p-4">
+        <div className="bg-white dark:bg-gray-800 text-black dark:text-gray-300 rounded-lg shadow-md p-4">
           <div className="relative mb-2">
             <textarea
               value={text}
@@ -264,7 +274,7 @@ const Write300 = () => {
                 if (!startTime) setStartTime(Date.now()); // 처음 입력 시 타이머 시작
               }}
               placeholder={`300자 이내로 자유롭게 작성해보세요.`}
-              className="w-full h-64 p-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none text-base placeholder:text-base"
+              className="w-full h-64 p-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none text-base placeholder:text-base dark:bg-gray-600 dark:text-gray-300"
               maxLength={300}
             />
             <div className="absolute right-2 bottom-2 text-xs md:text-sm text-gray-500">
@@ -302,7 +312,7 @@ const Write300 = () => {
                 className={`px-3 py-1.5 text-sm rounded-lg ${
                   tokens === 0
                     ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    : 'bg-blue-500 text-white hover:bg-blue-600'
+                    : 'bg-blue-500 text-white hover:bg-blue-600 dark:bg-blue-700 dark:hover:bg-blue-800'
                 }`}
                 disabled={tokens === 0}
               >
@@ -313,8 +323,8 @@ const Write300 = () => {
                 disabled={!isMinLengthMet || submitted}
                 className={`px-3 py-1.5 text-sm rounded-lg ${
                   !isMinLengthMet || submitted
-                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    : 'bg-blue-500 text-white hover:bg-blue-600'
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed dark:bg-gray-700 dark:text-gray-400'
+                    : 'bg-blue-500 text-white hover:bg-blue-600 dark:bg-blue-800 dark:hover:bg-blue-900'
                 }`}
               >
                 제출하기
@@ -324,7 +334,7 @@ const Write300 = () => {
         </div>
 
         {/* 안내 메시지 */}
-        <div className="mt-2 text-xs md:text-sm text-gray-600">
+        <div className="mt-2 text-xs md:text-sm text-gray-800 dark:text-gray-300">
           <p>💡 제목과 내용을 모두 작성한 후 제출할 수 있습니다.</p>
           <p>⏰ 제한 시간: 5분</p>
         </div>
@@ -332,7 +342,7 @@ const Write300 = () => {
         {/* 제출 상태 표시 */}
         {submissionState === 'submitting' && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 flex flex-col items-center space-y-6">
+            <div className="bg-white dark:bg-gray-800 text-black dark:text-gray-300 rounded-lg p-6 max-w-md w-full mx-4 flex flex-col items-center space-y-6">
               {subStep === 'loading' && (
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500" />
               )}
@@ -343,7 +353,7 @@ const Write300 = () => {
                     <div className="text-4xl animate-spin">🤖</div>
                     <div className="text-4xl animate-bounce">✨</div>
                   </div>
-                  <p className="text-lg font-medium text-gray-800 text-center">
+                  <p className="text-lg font-medium text-gray-800 text-center dark:text-gray-300">
                     {submissionProgress}
                   </p>
                 </div>

@@ -7,8 +7,9 @@ import { toast } from 'react-hot-toast';
 interface TokenData {
   tokens_300: number;
   tokens_1000: number;
-  bonusTokens: number;
+  goldenKeys: number;
   lastRefreshed?: string;
+  lastWeeklyRefreshed?: string;
 }
 
 const TokenDisplay = () => {
@@ -16,7 +17,7 @@ const TokenDisplay = () => {
   const [tokens, setTokens] = useState<TokenData>({
     tokens_300: 0,
     tokens_1000: 0,
-    bonusTokens: 0,
+    goldenKeys: 0,
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -33,7 +34,9 @@ const TokenDisplay = () => {
       setTokens({
         tokens_300: Number(response.data.tokens_300) || 0,
         tokens_1000: Number(response.data.tokens_1000) || 0,
-        bonusTokens: Number(response.data.bonusTokens) || 0,
+        goldenKeys: Number(response.data.goldenKeys) || 0,
+        lastRefreshed: response.data.lastRefreshed,
+        lastWeeklyRefreshed: response.data.lastWeeklyRefreshed,
       });
       setError(null);
     } catch (error) {
@@ -55,7 +58,7 @@ const TokenDisplay = () => {
     <button
       onClick={fetchTokens}
       disabled={loading}
-      className="absolute top-2 sm:top-4 right-2 sm:right-4 p-1.5 sm:p-2 text-gray-500 hover:text-gray-700 transition-colors"
+      className="absolute top-2 sm:top-4 right-2 sm:right-4 p-1.5 sm:p-2 text-gray-500 hover:text-gray-700 transition-colors dark:text-gray-300 dark:hover:text-gray-100"
       aria-label="토큰 정보 새로고침"
     >
       <svg
@@ -74,17 +77,20 @@ const TokenDisplay = () => {
 
   if (loading) {
     return (
-      <div className="bg-white rounded-lg p-3 sm:p-4 shadow-sm mb-4 sm:mb-6 relative">
+      <div className="bg-white rounded-lg p-3 sm:p-4 shadow-sm mb-4 sm:mb-6 relative dark:text-gray-300 text-gray-800 border border-gray-100 dark:border-gray-700">
         <RefreshButton />
-        <h3 className="text-base sm:text-lg font-semibold mb-2 sm:mb-3 flex items-center gap-1.5">
+        <h3 className="text-base sm:text-lg font-semibold mb-2 sm:mb-3 flex items-center gap-1.5 dark:text-gray-300 text-gray-800">
           <span>🎫</span>
           <span>보유 토큰</span>
         </h3>
-        <div className="grid grid-cols-3 gap-2 sm:gap-4">
+        <div className="grid grid-cols-3 gap-2 sm:gap-4 dark:text-gray-300">
           {[1, 2, 3].map(i => (
-            <div key={i} className="text-center p-2 sm:p-3 bg-gray-50 rounded-lg animate-pulse">
-              <div className="h-3 sm:h-4 bg-gray-200 rounded w-12 sm:w-16 mx-auto mb-1.5 sm:mb-2"></div>
-              <div className="h-5 sm:h-6 bg-gray-200 rounded w-6 sm:w-8 mx-auto"></div>
+            <div
+              key={i}
+              className="text-center p-2 sm:p-3 bg-gray-50 rounded-lg animate-pulse dark:bg-gray-700"
+            >
+              <div className="h-3 sm:h-4 bg-gray-200 rounded w-12 sm:w-16 mx-auto mb-1.5 sm:mb-2 dark:bg-gray-700 dark:text-gray-300"></div>
+              <div className="h-5 sm:h-6 bg-gray-200 rounded w-6 sm:w-8 mx-auto dark:bg-gray-700 dark:text-gray-300"></div>
             </div>
           ))}
         </div>
@@ -94,7 +100,7 @@ const TokenDisplay = () => {
 
   if (error) {
     return (
-      <div className="bg-white rounded-lg p-3 sm:p-4 shadow-sm mb-4 sm:mb-6 relative">
+      <div className="bg-white dark:bg-gray-800 text-black dark:text-white rounded-lg p-3 sm:p-4 shadow-sm mb-4 sm:mb-6 relative border border-gray-100 dark:border-gray-700">
         <RefreshButton />
         <div className="text-sm sm:text-base text-red-500 text-center">{error}</div>
       </div>
@@ -102,41 +108,51 @@ const TokenDisplay = () => {
   }
 
   return (
-    <div className="bg-white rounded-lg p-3 sm:p-4 shadow-sm mb-4 sm:mb-6 relative">
+    <div className="bg-white dark:bg-gray-800 text-black dark:text-white rounded-lg p-3 sm:p-4 shadow-sm mb-4 sm:mb-6 relative border border-gray-100 dark:border-gray-700">
       <RefreshButton />
-      <h3 className="text-base sm:text-lg font-semibold mb-2 sm:mb-3 flex items-center gap-1.5">
+      <h3 className="text-base sm:text-lg font-semibold mb-2 sm:mb-3 flex items-center gap-1.5 dark:text-gray-300">
         <span>🎫</span>
         <span>보유 토큰</span>
       </h3>
       <div className="grid grid-cols-3 gap-2 sm:gap-4">
-        <div className="text-center p-2 sm:p-3 bg-blue-50 rounded-lg">
-          <div className="text-xs sm:text-sm text-gray-600 mb-0.5 sm:mb-1">300자</div>
+        <div className="text-center p-2 sm:p-3 bg-blue-50 rounded-lg dark:bg-blue-900/50">
+          <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-300 mb-0.5 sm:mb-1">
+            300자
+          </div>
           <div className="text-lg sm:text-xl font-bold text-blue-600 leading-none">
             {tokens.tokens_300}
           </div>
         </div>
-        <div className="text-center p-2 sm:p-3 bg-purple-50 rounded-lg">
-          <div className="text-xs sm:text-sm text-gray-600 mb-0.5 sm:mb-1">1000자</div>
+        <div className="text-center p-2 sm:p-3 bg-purple-50 rounded-lg dark:bg-purple-900/60">
+          <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-300 mb-0.5 sm:mb-1">
+            1000자
+          </div>
           <div className="text-lg sm:text-xl font-bold text-purple-600 leading-none">
             {tokens.tokens_1000}
           </div>
         </div>
-        <div className="text-center p-2 sm:p-3 bg-yellow-50 rounded-lg">
-          <div className="text-xs sm:text-sm text-gray-600 mb-0.5 sm:mb-1">보너스</div>
+        <div className="text-center p-2 sm:p-3 bg-yellow-50 rounded-lg dark:bg-yellow-900/50">
+          <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-300 mb-0.5 sm:mb-1">
+            황금열쇠
+          </div>
           <div className="text-lg sm:text-xl font-bold text-yellow-600 leading-none">
-            {tokens.bonusTokens}
+            {tokens.goldenKeys}
           </div>
         </div>
       </div>
 
-      <div className="hidden sm:block mt-3 text-xs text-gray-500 space-y-1">
+      <div className="hidden sm:block mt-3 text-xs text-gray-500 space-y-1 dark:text-gray-300">
         <p className="flex items-center gap-1.5">
           <span>ℹ️</span>
-          매일 자정에 300자/1000자 토큰이 1개씩 지급됩니다
+          매일 자정에 300자 토큰이 1개씩 지급됩니다
+        </p>
+        <p className="flex items-center gap-1.5">
+          <span>📅</span>
+          매주 월요일에 1000자 토큰이 1개씩 지급됩니다
         </p>
         <p className="flex items-center gap-1.5">
           <span>✨</span>
-          보너스 토큰은 주간 목표 달성 시 지급됩니다
+          황금열쇠는 주간 목표 달성 시와 1000자 글 작성 시 지급됩니다
         </p>
       </div>
     </div>
