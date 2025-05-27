@@ -22,20 +22,7 @@ const fetchAllowedEmailsFromSheet = require("./utils/fetchAllowedEmails");
 
 app.use(
   cors({
-    origin: [
-      "http://localhost:5173",
-      "http://localhost:5173/",
-      // "http://192.168.0.22:5173",
-      // "http://192.168.0.163:5173",
-      "https://write-challenge.pages.dev",
-      "https://edu-ocean.com",
-      "https://www.dwriting.com",
-      "https://dwriting.com",
-      "http://192.168.219.180:5173",
-      "http://192.168.45.65:5173",
-      "https://dwriting.com:8080", // 추가
-      "http://dwriting.com:8080", // 추가
-    ],
+    origin: true, // 모든 도메인 허용
     credentials: true,
   })
 );
