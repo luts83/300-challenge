@@ -11,7 +11,8 @@ if (!admin.apps.length) {
     });
   } catch (error) {
     console.error("Firebase 초기화 에러:", error);
-    throw error;
+    // 에러를 throw하지 않고 계속 진행
+    console.log("Firebase 초기화 실패, 기본 설정으로 진행");
   }
 }
 
