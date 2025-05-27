@@ -19,10 +19,25 @@ const dashboardRouter = require("./routes/dashboard");
 const authRoutes = require("./routes/auth");
 const { ACCESS_CONTROL } = require("./config");
 const fetchAllowedEmailsFromSheet = require("./utils/fetchAllowedEmails");
+const cookieParser = require("cookie-parser");
+
+app.use(cookieParser());
+
+const allowedOrigins = [
+  "https://dwriting.com",
+  "https://www.dwriting.com",
+  "https://write-challenge.pages.dev",
+];
 
 app.use(
   cors({
-    origin: true, // 모든 도메인 허용
+    origin: function (origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("CORS 오류: 허용되지 않은 도메인"));
+      }
+    },
     credentials: true,
   })
 );

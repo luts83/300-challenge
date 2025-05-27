@@ -45,7 +45,8 @@ const Login = () => {
   const { setUser } = useUser();
   const navigate = useNavigate();
 
-  const API_BASE_URL = getCurrentHostIP();
+  // const API_BASE_URL = getCurrentHostIP();
+  const API_BASE_URL = import.meta.env.VITE_API_URL;
 
   // 실시간 유효성 검사
   const validateEmail = (email: string): boolean => {

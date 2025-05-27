@@ -17,6 +17,15 @@ router.post("/login", async (req, res) => {
       });
     }
 
+    // ✅ 쿠키 설정 추가 (예: Firebase UID 사용)
+    res.cookie("token", idToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production", // 개발 환경에서는 false 가능
+      sameSite: "None",
+      maxAge: 1000 * 60 * 60 * 24,
+    });
+    res.status(200).json({ uid: decoded.uid, email });
+
     res.status(200).json({ uid: decoded.uid, email });
   } catch (error) {
     console.error("Login error:", error);
