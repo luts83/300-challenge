@@ -1,3 +1,4 @@
+// client/src/pages/Login.tsx
 import React, { useState, FormEvent } from 'react';
 import {
   createUserWithEmailAndPassword,
@@ -83,22 +84,27 @@ const Login = () => {
   };
 
   const verifyWithServer = async (idToken: string) => {
-    const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-      },
-      credentials: 'include',
-      body: JSON.stringify({ idToken }),
-    });
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({ idToken }),
+      });
 
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}));
-      throw new Error(error.message || '서버 인증 실패');
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.message || '서버 인증 실패');
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('로그인 에러:', error);
+      throw error;
     }
-
-    return response.json();
   };
 
   const handleSubmit = async (e: FormEvent) => {

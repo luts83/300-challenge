@@ -26,12 +26,13 @@ app.use(cookieParser());
 const allowedOrigins = [
   "https://dwriting.com",
   "https://www.dwriting.com",
-  "https://write-challenge.pages.dev",
+  "http://localhost:5173",
 ];
 
 app.use(
   cors({
     origin: function (origin, callback) {
+      // origin이 undefined인 경우도 허용 (예: 모바일 앱)
       if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
@@ -41,6 +42,7 @@ app.use(
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization", "Accept"],
+    exposedHeaders: ["Access-Control-Allow-Origin"],
   })
 );
 
