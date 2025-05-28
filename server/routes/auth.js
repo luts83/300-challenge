@@ -17,19 +17,19 @@ router.post("/login", async (req, res) => {
       });
     }
 
-    // ✅ 쿠키 설정 추가 (예: Firebase UID 사용)
+    // 쿠키 설정
     res.cookie("token", idToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production", // 개발 환경에서는 false 가능
+      secure: process.env.NODE_ENV === "production",
       sameSite: "None",
       maxAge: 1000 * 60 * 60 * 24,
     });
-    res.status(200).json({ uid: decoded.uid, email });
 
-    res.status(200).json({ uid: decoded.uid, email });
+    // 응답은 한 번만 보내기
+    return res.status(200).json({ uid: decoded.uid, email });
   } catch (error) {
     console.error("Login error:", error);
-    res.status(401).json({ message: "인증 실패" });
+    return res.status(401).json({ message: "인증 실패" });
   }
 });
 
