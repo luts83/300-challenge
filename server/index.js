@@ -27,6 +27,7 @@ const allowedOrigins = [
   "https://dwriting.com",
   "https://www.dwriting.com",
   "http://localhost:5173",
+  "http://192.168.45.65:5173",
 ];
 
 app.use(

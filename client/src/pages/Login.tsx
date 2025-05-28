@@ -9,6 +9,7 @@ import {
 import { auth } from '../firebase';
 import { useUser } from '../context/UserContext';
 import { useNavigate } from 'react-router-dom';
+import { signOut } from 'firebase/auth';
 
 // Firebase 에러 코드에 따른 사용자 친화적 메시지
 const getErrorMessage = (errorCode: string): string => {
@@ -96,13 +97,22 @@ const Login = () => {
       });
 
       if (!response.ok) {
-        const error = await response.json().catch(() => ({}));
-        throw new Error(error.message || '서버 인증 실패');
+        const errorData = await response.json().catch(() => ({}));
+        const message =
+          errorData.message ||
+          (response.status === 403
+            ? '현재는 초대된 사용자만 접근할 수 있습니다.'
+            : '서버 인증 실패');
+
+        // ✅ 서버 인증 실패 시 Firebase 로그아웃!
+        await signOut(auth);
+
+        throw new Error(message);
       }
 
       return response.json();
     } catch (error) {
-      console.error('로그인 에러:', error);
+      console.error('서버 인증 에러:', error);
       throw error;
     }
   };
@@ -129,8 +139,14 @@ const Login = () => {
       navigate('/');
     } catch (err: any) {
       console.error('인증 오류:', err.code || err.message);
-      setUser(null); // ❗ 서버 인증 실패 시 로그인 상태 초기화
-      setError(getErrorMessage(err.code) || err.message);
+      setUser(null);
+
+      // 서버 인증 에러 메시지 우선 적용
+      if (err.message === '현재는 초대된 사용자만 접근할 수 있습니다.') {
+        setError(err.message);
+      } else {
+        setError(getErrorMessage(err.code) || err.message);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -153,8 +169,13 @@ const Login = () => {
       navigate('/');
     } catch (err: any) {
       console.error('Google 인증 오류:', err.code || err.message);
-      setUser(null); // ❗ 실패 시 상태 초기화
-      setError(getErrorMessage(err.code) || err.message);
+      setUser(null);
+
+      if (err.message === '현재는 초대된 사용자만 접근할 수 있습니다.') {
+        setError(err.message);
+      } else {
+        setError(getErrorMessage(err.code) || err.message);
+      }
     } finally {
       setIsLoading(false);
     }

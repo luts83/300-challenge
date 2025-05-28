@@ -1,18 +1,23 @@
-// server/firebaseAdmin.js
 const admin = require("firebase-admin");
 
 if (!admin.apps.length) {
   try {
-    // 환경 변수에서 서비스 계정 정보를 가져옴
-    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+    let serviceAccount;
+
+    if (process.env.NODE_ENV === "production") {
+      // 프로덕션 환경에서는 환경 변수에서 가져옴
+      serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+    } else {
+      // 개발 환경에서는 파일에서 직접 읽음
+      serviceAccount = require("./firebase-service-account.json");
+    }
 
     admin.initializeApp({
       credential: admin.credential.cert(serviceAccount),
     });
   } catch (error) {
     console.error("Firebase 초기화 에러:", error);
-    // 에러를 throw하지 않고 계속 진행
-    console.log("Firebase 초기화 실패, 기본 설정으로 진행");
+    throw error;
   }
 }
 

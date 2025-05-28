@@ -3,20 +3,29 @@ const { google } = require("googleapis");
 const path = require("path");
 
 const SCOPES = ["https://www.googleapis.com/auth/spreadsheets.readonly"];
-const SERVICE_ACCOUNT_FILE = path.join(
-  __dirname,
-  "../firebase-service-account.json"
-);
-
 const SPREADSHEET_ID = "1XSERza9LA11zgTDbx02rMQeFo1erCXtvuuLNFLJileE";
-const RANGE = "Sheet1!A2:B"; // 이메일 + enabled 컬럼
+const RANGE = "Sheet1!A2:B";
 
 async function fetchAllowedEmailsFromSheet() {
   try {
-    const auth = new google.auth.GoogleAuth({
-      credentials: JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT),
-      scopes: SCOPES,
-    });
+    let auth;
+
+    // 환경 변수가 있으면 환경 변수 사용, 없으면 파일 사용
+    if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+      auth = new google.auth.GoogleAuth({
+        credentials: JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT),
+        scopes: SCOPES,
+      });
+    } else {
+      const SERVICE_ACCOUNT_FILE = path.join(
+        __dirname,
+        "../firebase-service-account.json"
+      );
+      auth = new google.auth.GoogleAuth({
+        keyFile: SERVICE_ACCOUNT_FILE,
+        scopes: SCOPES,
+      });
+    }
 
     const sheets = google.sheets({
       version: "v4",
@@ -38,7 +47,7 @@ async function fetchAllowedEmailsFromSheet() {
   } catch (error) {
     console.error("❌ 이메일 목록 가져오기 실패:", error);
     // 실패 시 기본 이메일 목록 반환
-    return ["ehshin0126@gmail.com"]; // 여기에 기본 허용 이메일 추가
+    return ["ehshin0126@gmail.com"]; // 기본 허용 이메일
   }
 }
 

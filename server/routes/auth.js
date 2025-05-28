@@ -11,13 +11,16 @@ router.post("/login", async (req, res) => {
     const decoded = await admin.auth().verifyIdToken(idToken);
     const email = decoded.email;
 
+    // ✅ 이메일 허용 체크 먼저!
     if (!checkEmailAccess(email)) {
+      console.warn("허용되지 않은 이메일 시도:", email);
+      // ✅ 절대 쿠키 설정 없이 종료해야 함
       return res.status(403).json({
         message: "현재는 초대된 사용자만 접근할 수 있습니다.",
       });
     }
 
-    // 쿠키 설정
+    // ✅ 허용된 이메일만 쿠키 설정
     res.cookie("token", idToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
@@ -25,10 +28,10 @@ router.post("/login", async (req, res) => {
       maxAge: 1000 * 60 * 60 * 24,
     });
 
-    // 응답은 한 번만 보내기
     return res.status(200).json({ uid: decoded.uid, email });
   } catch (error) {
     console.error("Login error:", error);
+    // ✅ 실패 시 쿠키도 남기지 않도록 종료
     return res.status(401).json({ message: "인증 실패" });
   }
 });

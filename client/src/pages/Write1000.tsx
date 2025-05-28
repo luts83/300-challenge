@@ -724,7 +724,7 @@ const Write1000 = () => {
             <textarea
               value={text}
               onChange={handleTextChange}
-              placeholder="1500자 이내로 자유롭게 작성해보세요."
+              placeholder="1000자 이내로 자유롭게 작성해보세요."
               className="w-full h-64 p-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none text-base placeholder:text-base dark:bg-gray-600 dark:text-gray-300"
               maxLength={MAX_LENGTH}
               disabled={isTokenDepleted}
