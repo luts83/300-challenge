@@ -71,12 +71,12 @@ const FeedbackNotice = () => {
             <h3 className="font-semibold mt-4">✅ 기본 구조</h3>
             <ul className="list-disc list-inside">
               <li>
-                <strong>300자 글쓰기:</strong> 매일 1개 토큰 리프레시, AI 피드백 제공, 3개 피드백 후
-                열람
+                <strong>300자 글쓰기:</strong> 매일 1개 토큰 리프레시, AI 피드백 제공, 다른 참여자
+                글에 3개 피드백 후 내 글의 피드백 열람 가능
               </li>
               <li>
-                <strong>1000자 글쓰기:</strong> 주 1개 토큰 리프레시, 세션 저장/분할 작성, 1개
-                피드백 후 열람
+                <strong>1000자 글쓰기:</strong> 주 1개 토큰 리프레시, 세션 자동 저장/분할 작성 가능,
+                1개 피드백 후 열람
               </li>
             </ul>
 
@@ -88,7 +88,7 @@ const FeedbackNotice = () => {
 
             <h3 className="font-semibold mt-4">🪙 황금열쇠란?</h3>
             <ul className="list-disc list-inside">
-              <li>피드백 없이도 내 글의 피드백을 볼 수 있는 패스권</li>
+              <li>피드백 없이도 내 글의 피드백을 볼 수 있는 열람권</li>
               <li>지급 조건: 평일 5일 연속 글쓰기 or 1000자 글쓰기 1회</li>
               <li>사용처: 1개 → 특정 글 열람, 2개 → 전체 열람</li>
             </ul>
@@ -102,8 +102,8 @@ const FeedbackNotice = () => {
             <h3 className="font-semibold mt-4">📌 자주 묻는 질문</h3>
             <ul className="list-disc list-inside">
               <li>Q. 하루에 여러 개 쓰고 싶어요 → 현재는 1일 1편</li>
-              <li>Q. 피드백 2개만 했어요 → 3개 완료해야 열람 가능</li>
-              <li>Q. 글 수정은 안 되나요? → 300자는 불가, 1000자는 세이브 가능</li>
+              <li>Q. 피드백 2개만 했어요 → 3개 완료해야 내 글의 피드백 열람 가능 해요</li>
+              <li>Q. 글 수정은 안 되나요? → 300자는 불가, 1000자는 세이브 가능 해요</li>
             </ul>
 
             <p className="mt-6 font-semibold text-center text-blue-600 dark:text-blue-300">
