@@ -186,7 +186,7 @@ const Login = () => {
       {/* 배경 이미지 컨테이너 */}
       <div className="fixed top-0 left-0 w-full h-full z-[-1]">
         <div
-          className="absolute inset-0 bg-white dark:bg-gray-900 bg-center bg-no-repeat"
+          className="absolute inset-0 bg-white dark:bg-gray-900 bg-cover bg-no-repeat"
           style={{
             backgroundImage: `url('/images/sub-background-image.png')`,
           }}

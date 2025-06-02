@@ -28,6 +28,7 @@ const allowedOrigins = [
   "https://www.dwriting.com",
   "http://localhost:5173",
   "http://192.168.45.65:5173",
+  "http://192.168.0.172:5173",
 ];
 
 app.use(
@@ -37,6 +38,10 @@ app.use(
       if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
+        console.log("❌ CORS 오류 발생:");
+        console.log("- 시도한 도메인:", origin);
+        console.log("- 허용된 도메인:", allowedOrigins);
+        console.log("- 요청 시간:", new Date().toISOString());
         callback(new Error("CORS 오류: 허용되지 않은 도메인"));
       }
     },
