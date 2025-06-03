@@ -21,25 +21,19 @@ router.post("/save", async (req, res) => {
   }
 
   try {
-    const updateData = {
-      uid,
-      title: title || "",
-      text: text || "",
-      sessionCount,
-      totalDuration,
-      resetCount,
-      lastInputTime,
-      lastSavedAt,
-      updatedAt: new Date(),
-      status: "active",
-    };
+    const draft = (await Draft.findOne({ uid })) || new Draft({ uid });
+    draft.title = title || "";
+    draft.text = text || "";
+    draft.sessionCount = sessionCount;
+    draft.totalDuration = totalDuration;
+    draft.resetCount = resetCount;
+    draft.lastInputTime = lastInputTime;
+    draft.lastSavedAt = lastSavedAt;
+    draft.updatedAt = new Date();
+    draft.status = "active";
+    await draft.save();
 
-    const updated = await Draft.findOneAndUpdate({ uid }, updateData, {
-      upsert: true,
-      new: true,
-    });
-
-    res.json(updated);
+    res.json(draft);
   } catch (err) {
     console.error("Draft save error:", err);
     res.status(500).json({
