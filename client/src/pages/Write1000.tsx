@@ -177,12 +177,12 @@ const Write1000 = () => {
         setTotalDuration(0);
         setIsStarted(false);
         setResetCount(0);
-
         return;
       }
 
       setTitle(draft.title ?? '');
       setText(draft.text ?? '');
+
       setSessionCount(Number(draft.sessionCount) || 0);
       setTotalDuration(Number(draft.totalDuration) || 0);
       setResetCount(Number(draft.resetCount) || 0);
@@ -190,6 +190,7 @@ const Write1000 = () => {
       setIsStarted(false);
       setIsPageReentered(true);
     } catch (err) {
+      console.error('📱 fetchDraft 에러:', err);
       if (axios.isAxiosError(err) && err.response?.status === 404) {
         localStorage.removeItem('write1000_draft');
         localStorage.removeItem('write1000_session');
@@ -541,7 +542,7 @@ const Write1000 = () => {
     localStorage.removeItem('write1000_submitted');
 
     if (!startTime) {
-      setStartTime(now); // 무조건 타이머 다시 시작
+      setStartTime(now);
     }
 
     if (!hasWrittenThisSession) {
@@ -649,7 +650,8 @@ const Write1000 = () => {
   // 컴포넌트 마운트 시 초기화 상태 확인
   useEffect(() => {
     const checkResetStatus = async () => {
-      if (resetCount > 0) {
+      if (resetCount > 0 && !isPageReentered) {
+        // isPageReentered 체크 추가
         setText('');
         setSessionCount(0);
         setTotalDuration(0);
@@ -659,7 +661,7 @@ const Write1000 = () => {
     };
 
     checkResetStatus();
-  }, [resetCount]);
+  }, [resetCount, isPageReentered]); // isPageReentered 의존성 추가
 
   return (
     <Layout>
@@ -724,6 +726,7 @@ const Write1000 = () => {
             <textarea
               value={text}
               onChange={handleTextChange}
+              onFocus={() => console.log('📱 textarea 포커스, 현재 text:', text)}
               placeholder="1000자 이내로 자유롭게 작성해보세요."
               className="w-full h-64 p-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none text-base placeholder:text-base dark:bg-gray-600 dark:text-gray-300"
               maxLength={MAX_LENGTH}
