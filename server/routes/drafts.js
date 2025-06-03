@@ -130,6 +130,7 @@ router.post("/:uid/reset", async (req, res) => {
     draft.lastSavedAt = 0;
     draft.updatedAt = new Date();
     draft.resetCount = (draft.resetCount || 0) + 1;
+    draft.status = "active";
 
     await draft.save();
 
