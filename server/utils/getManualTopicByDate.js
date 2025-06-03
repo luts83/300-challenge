@@ -18,7 +18,13 @@ function getManualTopicByDate(mode = "300") {
   const today = new Date();
   const dayOfWeek = today.getDay(); // 0: 일요일, 6: 토요일
   const diffDays = Math.floor((today - base) / (1000 * 60 * 60 * 24));
-  const interval = config.TOPIC.INTERVAL_DAYS || 1;
+
+  // 모드별로 다른 interval 적용
+  const interval =
+    mode === "1000"
+      ? config.TOPIC.INTERVAL_DAYS.MODE_1000
+      : config.TOPIC.INTERVAL_DAYS.MODE_300;
+
   const index = Math.floor(diffDays / interval);
 
   // 주말인 경우 주말 주제 사용
