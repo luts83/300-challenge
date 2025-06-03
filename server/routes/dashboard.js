@@ -1,14 +1,13 @@
+//server/routes/dashboard.js
 const express = require("express");
 const router = express.Router();
 const Submission = require("../models/Submission");
 const Feedback = require("../models/Feedback");
 const { startOfDay } = require("date-fns");
 
-// 모든 사용자 목록 조회 (제출물이 있는 사용자만)
-// 이 라우트를 맨 위로 이동하고 경로를 /users에서 /stats/users로 변경
+// 모든 사용자 목록 조회
 router.get("/stats/users", async (req, res) => {
   try {
-    // 제출물이 있는 고유한 사용자 목록 조회
     const users = await Submission.aggregate([
       {
         $group: {
@@ -102,34 +101,38 @@ router.get("/all", async (req, res) => {
 // 모든 제출물과 피드백 조회
 router.get("/all-submissions/:uid", async (req, res) => {
   try {
-    // 1. 모든 제출물 가져오기
-    const submissions = await Submission.find()
+    const { start, end } = req.query;
+    const targetUid = req.params.uid;
+
+    const dateFilter = {};
+    if (start && end) {
+      dateFilter.createdAt = {
+        $gte: new Date(`${start}T00:00:00.000Z`),
+        $lte: new Date(`${end}T23:59:59.999Z`),
+      };
+    }
+
+    const submissions = await Submission.find(dateFilter)
       .select(
         "_id title text user mode sessionCount duration createdAt topic score ai_feedback"
-      ) // ai_feedback 필드도 추가
+      )
       .sort({ createdAt: -1 });
 
-    // console.log("서버에서 조회된 제출물:", submissions[0]); // 첫 번째 제출물 데이터 확인용 로그
-
-    // 2. 각 제출물의 피드백 가져오기
     const submissionIds = submissions.map((sub) => sub._id);
     const allFeedbacks = await Feedback.find({
       toSubmissionId: { $in: submissionIds },
     });
 
-    // 3. 피드백 작성자 정보 가져오기
     const feedbackWriterUids = [...new Set(allFeedbacks.map((f) => f.fromUid))];
     const feedbackWriters = await Submission.find({
       "user.uid": { $in: feedbackWriterUids },
     }).select("user");
 
-    // 4. 작성자 정보 매핑
     const writerMap = {};
     feedbackWriters.forEach((writer) => {
       writerMap[writer.user.uid] = writer.user;
     });
 
-    // 5. 제출물에 피드백 매핑
     const submissionsWithFeedback = submissions.map((sub) => {
       const feedbacks = allFeedbacks
         .filter((fb) => fb.toSubmissionId.toString() === sub._id.toString())
@@ -157,22 +160,19 @@ router.get("/all-submissions/:uid", async (req, res) => {
 // 랭킹 정보 조회
 router.get("/rankings", async (req, res) => {
   try {
-    // 모든 제출물 가져오기
-    const submissions = await Submission.find();
+    const { start, end } = req.query;
 
-    // 점수 데이터 확인을 위한 로그
-    // console.log("\n=== 점수 데이터 확인 ===");
-    // submissions.forEach((sub) => {
-    //   console.log({
-    //     title: sub.title,
-    //     mode: sub.mode,
-    //     score: sub.score,
-    //     user: {
-    //       displayName: sub.user.displayName,
-    //       uid: sub.user.uid,
-    //     },
-    //   });
-    // });
+    // 날짜 필터 설정
+    const dateFilter = {};
+    if (start && end) {
+      dateFilter.createdAt = {
+        $gte: new Date(`${start}T00:00:00.000Z`),
+        $lte: new Date(`${end}T23:59:59.999Z`),
+      };
+    }
+
+    // 날짜 필터가 적용된 제출물 가져오기
+    const submissions = await Submission.find(dateFilter);
 
     // score 필드가 있는 제출물만 필터링
     const validSubmissions = submissions.filter(
@@ -227,10 +227,12 @@ router.get("/rankings", async (req, res) => {
       .sort((a, b) => b.score - a.score)
       .slice(0, 5);
 
-    // 피드백 랭킹 계산 부분 수정
-    const feedbacks = await Feedback.find();
+    // 피드백 랭킹 계산 - 수정된 부분
+    const feedbacks = await Feedback.find({
+      ...(dateFilter.createdAt && { createdAt: dateFilter.createdAt }),
+    });
 
-    // 받은 피드백 수 집계
+    // 받은 피드백 수 집계 - 수정된 부분
     const receivedFeedbackCounts = {};
     feedbacks.forEach((fb) => {
       const submission = submissions.find(
@@ -248,7 +250,7 @@ router.get("/rankings", async (req, res) => {
       }
     });
 
-    // 작성한 피드백 수 집계
+    // 작성한 피드백 수 집계 - 수정된 부분
     const givenFeedbackCounts = {};
     feedbacks.forEach((fb) => {
       const uid = fb.fromUid;
@@ -278,9 +280,8 @@ router.get("/rankings", async (req, res) => {
       .sort((a, b) => b.feedbackCount - a.feedbackCount)
       .slice(0, 5);
 
-    // 좋아요 랭킹 계산
+    // 좋아요 랭킹 계산 - 수정된 부분
     const likeCounts = {};
-
     submissions.forEach((submission) => {
       (submission.likedUsers || []).forEach((user) => {
         const uid = user.uid;
@@ -298,8 +299,6 @@ router.get("/rankings", async (req, res) => {
       .filter((item) => item.user)
       .sort((a, b) => b.likeCount - a.likeCount)
       .slice(0, 5);
-
-    // console.log("유저별 좋아요 랭킹:", likeRanking);
 
     // 최종 응답
     res.json({
@@ -319,17 +318,45 @@ router.get("/rankings", async (req, res) => {
   }
 });
 
-// 좋아요 많이 받은 사람 랭킹
+// 좋아요 많이 받은 사람 랭킹 - 수정된 부분
 router.get("/rankings/likes-received", async (req, res) => {
   try {
-    const submissions = await Submission.find();
+    const { start, end } = req.query;
+    const dateFilter = {};
 
+    if (start && end) {
+      dateFilter.createdAt = {
+        $gte: new Date(`${start}T00:00:00.000Z`),
+        $lte: new Date(`${end}T23:59:59.999Z`),
+      };
+    }
+
+    const submissions = await Submission.find(dateFilter);
     const likeReceivedCounts = {};
 
     submissions.forEach((submission) => {
       const uid = submission.user.uid;
       const user = submission.user;
-      const likeCount = submission.likedUsers?.length || 0;
+
+      // 좋아요 수 계산 시 시간 정보 확인
+      const likeCount =
+        submission.likedUsers?.reduce((count, like) => {
+          // likedAt이 있는 경우 (새로운 데이터)
+          if (like.likedAt) {
+            const likedDate = new Date(like.likedAt);
+            if (start && end) {
+              const startDate = new Date(`${start}T00:00:00.000Z`);
+              const endDate = new Date(`${end}T23:59:59.999Z`);
+              if (likedDate >= startDate && likedDate <= endDate) {
+                return count + 1;
+              }
+            } else {
+              return count + 1;
+            }
+          }
+          // likedAt이 없는 경우 (기존 데이터)
+          return count + 1;
+        }, 0) || 0;
 
       if (!likeReceivedCounts[uid]) {
         likeReceivedCounts[uid] = {
@@ -352,6 +379,144 @@ router.get("/rankings/likes-received", async (req, res) => {
     res
       .status(500)
       .json({ error: "좋아요 받은 랭킹을 불러오는 데 실패했습니다." });
+  }
+});
+
+// 주간 통계 조회
+router.get("/weekly", async (req, res) => {
+  try {
+    const { start, end } = req.query;
+
+    // 날짜 필터 설정
+    const dateFilter = {};
+    if (start && end) {
+      dateFilter.createdAt = {
+        $gte: new Date(`${start}T00:00:00.000Z`),
+        $lte: new Date(`${end}T23:59:59.999Z`),
+      };
+    }
+
+    // 날짜 필터가 적용된 제출물 가져오기
+    const submissions = await Submission.find(dateFilter).sort({
+      createdAt: -1,
+    });
+
+    res.json(submissions);
+  } catch (error) {
+    console.error("Error fetching weekly data:", error);
+    res.status(500).json({ error: "주간 데이터를 불러오는데 실패했습니다." });
+  }
+});
+
+// 주제별 랭킹 조회
+router.get("/rankings/topics", async (req, res) => {
+  try {
+    const { start, end } = req.query;
+
+    const dateFilter = {};
+    if (start && end) {
+      dateFilter.createdAt = {
+        $gte: new Date(`${start}T00:00:00.000Z`),
+        $lte: new Date(`${end}T23:59:59.999Z`),
+      };
+    }
+
+    const submissions = await Submission.find(dateFilter).sort({
+      createdAt: 1,
+    });
+
+    const topicStats = {};
+
+    submissions.forEach((sub) => {
+      if (!sub.topic) return;
+
+      if (!topicStats[sub.topic]) {
+        topicStats[sub.topic] = {
+          topic: sub.topic,
+          count: 0,
+          totalScore: 0,
+          mode: sub.mode,
+          dates: new Set(),
+        };
+      }
+
+      topicStats[sub.topic].count += 1;
+      topicStats[sub.topic].totalScore += sub.score || 0;
+      topicStats[sub.topic].dates.add(
+        sub.createdAt.toISOString().split("T")[0]
+      );
+    });
+
+    const topicRanking = Object.values(topicStats)
+      .map((topic) => ({
+        topic: topic.topic,
+        count: topic.count,
+        averageScore: Math.round(topic.totalScore / topic.count),
+        mode: topic.mode,
+        dates: Array.from(topic.dates).sort(),
+      }))
+      .sort((a, b) => b.count - a.count);
+
+    res.json({ topicRanking });
+  } catch (error) {
+    console.error("Error fetching topic rankings:", error);
+    res.status(500).json({ error: "주제 랭킹을 불러오는데 실패했습니다." });
+  }
+});
+
+// 특정 날짜의 주제 조회
+router.get("/topic/:date", async (req, res) => {
+  try {
+    const { date } = req.params;
+    const targetDate = new Date(date);
+    const dayOfWeek = targetDate.getDay();
+
+    // 수동 주제 가져오기
+    const { topic, isManualTopic } = getManualTopicByDate("300", targetDate);
+
+    if (isManualTopic) {
+      return res.json({
+        topic,
+        isWeekend: dayOfWeek === 0 || dayOfWeek === 6,
+        isManualTopic: true,
+      });
+    }
+
+    // 수동 주제가 없는 경우 AI 주제 생성
+    const aiTopic = await getTodayAIBasedTopic();
+    return res.json({
+      topic: aiTopic.topic_300,
+      isWeekend: dayOfWeek === 0 || dayOfWeek === 6,
+      isManualTopic: false,
+      writing_tips: aiTopic.writing_tips,
+    });
+  } catch (error) {
+    console.error("Error fetching topic:", error);
+    res.status(500).json({ error: "주제를 불러오는데 실패했습니다." });
+  }
+});
+
+// 작성된 날짜 목록 조회 API 수정
+router.get("/submission-dates", async (req, res) => {
+  try {
+    const submissions = await Submission.find()
+      .select("createdAt")
+      .sort({ createdAt: 1 });
+
+    const dates = [
+      ...new Set(
+        submissions.map(
+          (sub) => new Date(sub.createdAt).toISOString().split("T")[0]
+        )
+      ),
+    ];
+
+    res.json({ dates });
+  } catch (error) {
+    console.error("Error fetching submission dates:", error);
+    res
+      .status(500)
+      .json({ error: "작성 날짜 목록을 불러오는데 실패했습니다." });
   }
 });
 

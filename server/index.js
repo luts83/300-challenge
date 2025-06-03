@@ -34,7 +34,6 @@ const allowedOrigins = [
 app.use(
   cors({
     origin: function (origin, callback) {
-      // origin이 undefined인 경우도 허용 (예: 모바일 앱)
       if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
@@ -47,8 +46,23 @@ app.use(
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "Accept"],
-    exposedHeaders: ["Access-Control-Allow-Origin"],
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "Accept",
+      "Cache-Control",
+      "X-Requested-With",
+      "Expires",
+      "Pragma",
+      "Origin",
+      "Access-Control-Request-Method",
+      "Access-Control-Request-Headers",
+    ],
+    exposedHeaders: [
+      "Access-Control-Allow-Origin",
+      "Access-Control-Allow-Credentials",
+    ],
+    maxAge: 86400,
   })
 );
 

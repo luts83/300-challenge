@@ -9,6 +9,8 @@ import { isAdmin } from '../utils/admin';
 import { useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
 import ScrollToTop from '../components/ScrollToTop';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 
 interface User {
   uid: string;
@@ -293,19 +295,44 @@ const RankingSection: React.FC<{
   );
 };
 
+const styles = `
+  .react-datepicker__day--highlighted {
+    background-color: #4CAF50 !important;
+    color: white !important;
+    border-radius: 50% !important;
+  }
+  
+  .react-datepicker__day--highlighted:hover {
+    background-color: #45a049 !important;
+  }
+
+  .highlighted {
+    background-color: #4CAF50 !important;
+    color: white !important;
+    border-radius: 50% !important;
+  }
+
+  .react-datepicker__day.highlighted {
+    background-color: #4CAF50 !important;
+    color: white !important;
+    border-radius: 50% !important;
+  }
+`;
+
 const Dashboard = () => {
   const { user } = useUser();
   const navigate = useNavigate();
 
-  useEffect(() => {
-    if (user && !isAdmin(user.uid)) {
-      navigate('/'); // 비관리자는 홈으로 리디렉션
-    }
-  }, [user, navigate]);
-  const [users, setUsers] = useState<User[]>([]);
+  // 상태 선언을 먼저
+  const [startDate, setStartDate] = useState<Date | null>(null);
+  const [endDate, setEndDate] = useState<Date | null>(null);
+  const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [users, setUsers] = useState<Array<{ uid: string; displayName: string; email: string }>>(
+    []
+  );
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [selectedUser, setSelectedUser] = useState<string>('');
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [stats, setStats] = useState<any>(null);
   const [isAdminView, setIsAdminView] = useState(false);
@@ -313,7 +340,15 @@ const Dashboard = () => {
   const [likeReceivedRanking, setLikeReceivedRanking] = useState<
     { user: { displayName: string; uid: string }; likeCount: number }[]
   >([]);
-
+  const [topicRanking, setTopicRanking] = useState<
+    {
+      topic: string;
+      mode: 'mode_300' | 'mode_1000';
+      count: number;
+      averageScore: number;
+      firstDate?: string;
+    }[]
+  >([]);
   const [rankings, setRankings] = useState<RankingStats>({
     scoreRanking: {
       mode300: [],
@@ -325,49 +360,83 @@ const Dashboard = () => {
     },
     likeRanking: [],
   });
+  const [submissionDates, setSubmissionDates] = useState<Date[]>([]);
+  const [displayCount, setDisplayCount] = useState(20); // 표시할 글 개수 상태 추가
+  const ITEMS_PER_PAGE = 20; // 한 번에 표시할 글 개수
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const start = startDate || new Date(1970, 0, 1);
+        const end = endDate || new Date();
+
+        const [chartRes, topicRes] = await Promise.all([
+          axios.get(
+            `${import.meta.env.VITE_API_URL}/api/dashboard/weekly?start=${format(start, 'yyyy-MM-dd')}&end=${format(end, 'yyyy-MM-dd')}`
+          ),
+          axios.get(
+            `${import.meta.env.VITE_API_URL}/api/dashboard/rankings/topics?start=${format(start, 'yyyy-MM-dd')}&end=${format(end, 'yyyy-MM-dd')}`
+          ),
+        ]);
+
+        setSubmissions(chartRes.data);
+        setTopicRanking(topicRes.data.topicRanking);
+
+        if (start.getTime() === end.getTime()) {
+          const filtered = topicRes.data.topicRanking.filter(
+            (t: any) => t.mode === 'mode_300' || t.mode === 'mode_1000'
+          );
+
+          const mostFrequent = filtered.sort((a: any, b: any) => b.count - a.count)[0];
+          setSelectedTopic(mostFrequent?.topic || '주제 없음');
+        } else {
+          setSelectedTopic(null);
+        }
+      } catch (error) {
+        console.error('주제 랭킹 불러오기 실패:', error);
+        setError('데이터를 불러오는 데 실패했습니다.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [startDate, endDate]);
+
+  useEffect(() => {
+    if (user && !isAdmin(user.uid)) {
+      navigate('/'); // 비관리자는 홈으로 리디렉션
+    }
+  }, [user, navigate]);
 
   // 모든 데이터 가져오기
-  const fetchAllData = async () => {
-    if (!user) return;
+  const fetchAllData = async (start?: Date | null, end?: Date | null, userId?: string) => {
+    if (!user && !userId) return; // 로그인하지 않은 상태에서 userId도 없는 경우
 
     setLoading(true);
     try {
+      const params: any = {};
+      if (start) params.start = format(start, 'yyyy-MM-dd');
+      if (end) params.end = format(end, 'yyyy-MM-dd');
+
+      // API 호출 시 선택된 사용자의 UID 사용
+      const targetUid = userId || user?.uid;
+
       const [submissionsRes, statsRes, rankingsRes] = await Promise.all([
-        axios.get(`${import.meta.env.VITE_API_URL}/api/dashboard/all-submissions/${user.uid}`),
-        axios.get(`${import.meta.env.VITE_API_URL}/api/dashboard/stats/${user.uid}`),
-        axios.get(`${import.meta.env.VITE_API_URL}/api/dashboard/rankings`),
-        axios.get(`${import.meta.env.VITE_API_URL}/api/dashboard/rankings/likes-received`),
+        axios.get(`${import.meta.env.VITE_API_URL}/api/dashboard/all-submissions/${targetUid}`, {
+          params,
+        }),
+        axios.get(`${import.meta.env.VITE_API_URL}/api/dashboard/stats/${targetUid}`, { params }),
+        axios.get(`${import.meta.env.VITE_API_URL}/api/dashboard/rankings`, { params }),
       ]);
 
-      // console.log('서버 응답 데이터:', submissionsRes.data);
-
-      // 사용자 목록 추출
-      const uniqueUsers = Array.from(new Set(submissionsRes.data.map(sub => sub.user.uid))).map(
-        uid => {
-          const submission = submissionsRes.data.find(sub => sub.user.uid === uid);
-          return {
-            uid: submission.user.uid,
-            displayName: submission.user.displayName,
-            email: submission.user.email,
-          };
-        }
-      );
-
-      setUsers(uniqueUsers);
-
-      // 선택된 사용자의 제출물만 필터링
-      const filteredSubmissions = selectedUser
-        ? submissionsRes.data.filter(sub => sub.user.uid === selectedUser)
-        : submissionsRes.data;
-
-      // console.log('필터링된 제출물:', filteredSubmissions); // 필터링된 데이터 확인용 로그
-
-      setSubmissions(filteredSubmissions);
+      setSubmissions(submissionsRes.data);
       setStats(statsRes.data);
       setRankings(rankingsRes.data);
-    } catch (error) {
-      // console.error('Failed to fetch data:', error);
-      setError('데이터를 불러오는 중 오류가 발생했습니다.');
+    } catch (e) {
+      console.error(e);
+      setError('데이터 불러오기 실패');
     } finally {
       setLoading(false);
     }
@@ -377,6 +446,12 @@ const Dashboard = () => {
   useEffect(() => {
     fetchAllData();
   }, [user]);
+
+  useEffect(() => {
+    if (user) {
+      fetchTopicRanking();
+    }
+  }, [startDate, endDate]);
 
   useEffect(() => {
     const fetchLikesReceived = async () => {
@@ -396,6 +471,14 @@ const Dashboard = () => {
   // 사용자 선택 시
   const handleUserChange = (uid: string) => {
     setSelectedUser(uid);
+    // 선택된 사용자의 데이터만 가져오도록 fetchAllData 호출
+    if (uid) {
+      // 특정 사용자 선택 시
+      fetchAllData(startDate, endDate, uid);
+    } else {
+      // "모든 사용자" 선택 시
+      fetchAllData(startDate, endDate);
+    }
   };
 
   // 날짜/시간 포맷팅 함수
@@ -419,10 +502,116 @@ const Dashboard = () => {
     fetchAllData();
   };
 
-  // 필터링된 제출물을 계산하는 부분 추가
+  const fetchTopicRanking = async () => {
+    try {
+      const params: any = {};
+      if (startDate) params.start = format(startDate, 'yyyy-MM-dd');
+      if (endDate) params.end = format(endDate, 'yyyy-MM-dd');
+
+      const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/dashboard/rankings/topics`, {
+        params,
+      });
+
+      if (res.data && res.data.topicRanking) {
+        setTopicRanking(res.data.topicRanking);
+      } else {
+        setTopicRanking([]);
+      }
+    } catch (e) {
+      console.error('주제 랭킹 불러오기 실패:', e);
+      setTopicRanking([]);
+    }
+  };
+
+  // 더보기 버튼 클릭 핸들러 추가
+  const handleLoadMore = () => {
+    setDisplayCount(prev => prev + ITEMS_PER_PAGE);
+  };
+
+  // 필터링된 제출물을 계산하는 부분 수정
   const filteredSubmissions = selectedUser
     ? submissions.filter(sub => sub.user.uid === selectedUser)
     : submissions;
+
+  // 표시할 제출물만 선택
+  const displayedSubmissions = filteredSubmissions.slice(0, displayCount);
+
+  // 날짜 유틸 함수
+  const getStartOfWeek = (date: Date) => {
+    const d = new Date(date);
+    const day = d.getDay();
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1); // 월요일 시작
+    return new Date(d.setDate(diff));
+  };
+
+  const handleThisWeek = () => {
+    const now = new Date();
+    const start = getStartOfWeek(now);
+    setStartDate(start);
+    setEndDate(now);
+    fetchAllData(start, now);
+  };
+
+  const handleThisMonth = () => {
+    const now = new Date();
+    const first = new Date(now.getFullYear(), now.getMonth(), 1);
+    setStartDate(first);
+    setEndDate(now);
+    fetchAllData(first, now);
+  };
+
+  const handleClear = () => {
+    setStartDate(null);
+    setEndDate(null);
+    fetchAllData(null, null);
+  };
+
+  // 사용자 목록을 가져오는 함수 추가
+  const fetchUsers = async () => {
+    try {
+      const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/dashboard/stats/users`);
+      setUsers(response.data);
+    } catch (error) {
+      console.error('사용자 목록을 불러오는데 실패했습니다:', error);
+    }
+  };
+
+  // 작성된 날짜를 가져오는 함수 수정
+  const fetchSubmissionDates = async () => {
+    try {
+      const response = await axios.get(
+        `${import.meta.env.VITE_API_URL}/api/dashboard/submission-dates`
+      );
+
+      const dates = response.data.dates.map((dateStr: string) => {
+        const [year, month, day] = dateStr.split('-').map(Number);
+        const date = new Date(year, month - 1, day);
+        date.setHours(0, 0, 0, 0);
+        return date;
+      });
+
+      setSubmissionDates(dates);
+    } catch (error) {
+      console.error('작성 날짜 목록을 불러오는데 실패했습니다:', error);
+    }
+  };
+
+  // useEffect 수정
+  useEffect(() => {
+    fetchUsers();
+    fetchAllData();
+    fetchSubmissionDates();
+  }, []);
+
+  // 스타일 적용
+  useEffect(() => {
+    const styleSheet = document.createElement('style');
+    styleSheet.innerText = styles;
+    document.head.appendChild(styleSheet);
+    return () => {
+      document.head.removeChild(styleSheet);
+    };
+  }, []);
 
   return (
     <Layout>
@@ -431,6 +620,58 @@ const Dashboard = () => {
           <h1 className="text-xl sm:text-2xl font-bold mb-2 sm:mb-0">
             {isAdminView ? '관리자 대시보드' : '작성 현황'}
           </h1>
+        </div>
+
+        <div className="mb-6 bg-white dark:bg-gray-800 p-4 rounded shadow">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <DatePicker
+                selected={startDate}
+                onChange={date => {
+                  if (date) {
+                    setStartDate(date);
+                    setEndDate(date);
+                    fetchAllData(date, date);
+                  }
+                }}
+                dateFormat="yyyy-MM-dd"
+                placeholderText="날짜 선택"
+                className="px-3 py-1 border rounded text-sm dark:bg-gray-900 dark:text-white"
+                highlightDates={submissionDates}
+                calendarClassName="dark:bg-gray-800"
+                dayClassName={date => {
+                  const dateStr = format(date, 'yyyy-MM-dd');
+                  const isHighlighted = submissionDates.some(
+                    d => format(d, 'yyyy-MM-dd') === dateStr
+                  );
+                  return isHighlighted ? 'highlighted' : undefined;
+                }}
+              />
+              <button onClick={fetchAllData} className="btn-filter">
+                조회
+              </button>
+            </div>
+            <div className="flex gap-2 flex-wrap">
+              <button onClick={handleThisWeek} className="btn-filter">
+                이번 주
+              </button>
+              <button onClick={handleThisMonth} className="btn-filter">
+                이번 달
+              </button>
+              <button onClick={handleClear} className="btn-filter">
+                전체 보기
+              </button>
+            </div>
+          </div>
+
+          {selectedTopic && (
+            <div className="mt-4 p-4 bg-yellow-100 border border-yellow-400 rounded">
+              <p>
+                📅 <strong>{format(startDate, 'yyyy년 MM월 dd일')}</strong>의 대표 주제는
+                <span className="mx-1 font-semibold">{selectedTopic}</span>입니다.
+              </p>
+            </div>
+          )}
         </div>
 
         {isAdminView ? (
@@ -526,6 +767,43 @@ const Dashboard = () => {
           <>
             <RankingSection rankings={rankings} likeReceivedRanking={likeReceivedRanking} />
 
+            {topicRanking.length > 0 && (
+              <div className="bg-white dark:bg-gray-800 p-4 rounded shadow mb-6">
+                <h3 className="text-lg font-bold mb-4">🔥 주제별 랭킹</h3>
+
+                {['mode_300', 'mode_1000'].map(mode => (
+                  <div key={mode} className="mb-4">
+                    <h4 className="text-md font-semibold mb-2">
+                      {mode === 'mode_300' ? '🟢 300자 모드' : '🔵 1000자 모드'}
+                    </h4>
+                    <div className="space-y-1">
+                      {topicRanking
+                        .filter(item => item.mode === mode)
+                        .sort((a, b) => b.count - a.count)
+                        .map((item, index) => (
+                          <div
+                            key={`${mode}-${item.topic}`}
+                            className="flex flex-col text-sm border-b pb-2"
+                          >
+                            <div className="flex justify-between">
+                              <div>
+                                <span className="font-semibold">{index + 1}위</span>. {item.topic}
+                              </div>
+                              <div className="text-gray-500">
+                                {item.count}회 / 평균 {item.averageScore.toFixed(1)}점
+                              </div>
+                            </div>
+                            <div className="text-gray-400 mt-1 text-xs">
+                              🗓️ {Array.from(new Set(item.dates)).join(', ')}
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {/* 사용자 선택 드롭다운 반응형 수정 */}
             <div className="mb-4 sm:mb-6">
               <select
@@ -534,18 +812,24 @@ const Dashboard = () => {
                 onChange={e => handleUserChange(e.target.value)}
               >
                 <option value="">모든 사용자</option>
-                {users.map(user => (
-                  <option key={user.uid} value={user.uid}>
-                    {user.displayName} ({user.email})
+                {users && users.length > 0 ? (
+                  users.map(user => (
+                    <option key={user.uid} value={user.uid}>
+                      {user.displayName || '익명'} ({user.email})
+                    </option>
+                  ))
+                ) : (
+                  <option value="" disabled>
+                    사용자 목록을 불러오는 중...
                   </option>
-                ))}
+                )}
               </select>
             </div>
 
-            {/* 제출물 목록 반응형 수정 */}
-            {!loading && filteredSubmissions.length > 0 && (
+            {/* 제출물 목록 수정 */}
+            {!loading && displayedSubmissions.length > 0 && (
               <div className="space-y-4 sm:space-y-8">
-                {filteredSubmissions.map(submission => (
+                {displayedSubmissions.map(submission => (
                   <div
                     key={submission._id}
                     className="bg-white dark:bg-gray-800 text-black dark:text-white rounded-lg shadow p-3 sm:p-6"
@@ -634,6 +918,18 @@ const Dashboard = () => {
                     </div>
                   </div>
                 ))}
+
+                {/* 더보기 버튼 */}
+                {filteredSubmissions.length > displayCount && (
+                  <div className="flex justify-center mt-6">
+                    <button
+                      onClick={handleLoadMore}
+                      className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                    >
+                      더보기 ({displayCount}/{filteredSubmissions.length})
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 
@@ -645,7 +941,7 @@ const Dashboard = () => {
             )}
 
             {/* 데이터 없음 상태 */}
-            {!loading && filteredSubmissions.length === 0 && (
+            {!loading && displayedSubmissions.length === 0 && (
               <div className="text-center py-8 text-gray-500">작성된 글이 없습니다.</div>
             )}
           </>

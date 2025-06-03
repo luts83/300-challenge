@@ -58,13 +58,6 @@ const evaluateSubmission = async (text, mode, topic) => {
   const { AI } = require("../config");
 
   try {
-    // 주제 로깅 추가 (debug 사용)
-    logger.debug("🔍 주제 확인:", {
-      topic,
-      type: typeof topic,
-      length: topic ? topic.length : 0,
-    });
-
     const response = await axios.post(
       "https://openrouter.ai/api/v1/chat/completions",
       {
@@ -90,14 +83,28 @@ const evaluateSubmission = async (text, mode, topic) => {
     );
 
     const evaluation = response.data.choices[0].message.content;
+
+    // 응답 로깅 추가
+    logger.debug("AI 응답:", evaluation);
+
+    // 응답 정제
+    const cleaned = evaluation
+      .replace(/```json|```/g, "") // 마크다운 코드 블록 제거
+      .replace(/[<>]/g, "") // 꺾쇠 괄호 제거
+      .trim();
+
     try {
-      const parsed = JSON.parse(evaluation);
+      const parsed = JSON.parse(cleaned);
       return {
         score: parsed.overall_score,
         feedback: JSON.stringify(parsed, null, 2),
       };
     } catch (parseError) {
-      logger.error("AI 응답 파싱 오류:", parseError);
+      logger.error("AI 응답 파싱 오류:", {
+        error: parseError,
+        original: evaluation,
+        cleaned: cleaned,
+      });
       return {
         score: null,
         feedback: "AI 응답을 처리하는 중 오류가 발생했습니다.",

@@ -59,8 +59,10 @@ const submissionSchema = new mongoose.Schema(
     },
     likedUsers: [
       {
-        uid: { type: String, required: true },
-        displayName: { type: String, required: true },
+        uid: String,
+        displayName: String,
+        email: String,
+        likedAt: { type: Date, default: Date.now },
       },
     ],
     feedbackCount: { type: Number, default: 0 },

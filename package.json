@@ -21,6 +21,7 @@
     "@types/node": "^22.14.1",
     "cookie-parser": "^1.4.7",
     "date-fns": "^4.1.0",
-    "react-confetti": "^6.4.0"
+    "react-confetti": "^6.4.0",
+    "react-datepicker": "^8.4.0"
   }
 }
