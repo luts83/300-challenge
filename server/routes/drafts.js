@@ -22,15 +22,18 @@ router.post("/save", async (req, res) => {
 
   try {
     const updateData = {
-      uid,
-      title: title || "",
-      text: text || "",
-      sessionCount,
-      totalDuration,
-      resetCount,
-      lastInputTime,
-      lastSavedAt,
-      updatedAt: new Date(),
+      $set: {
+        uid,
+        title: title || "",
+        text: text || "",
+        sessionCount,
+        totalDuration,
+        resetCount,
+        lastInputTime,
+        lastSavedAt,
+        updatedAt: new Date(),
+        status: "active",
+      },
     };
 
     // upsert 옵션으로 없으면 생성, 있으면 업데이트
