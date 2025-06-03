@@ -16,6 +16,8 @@ router.post("/save", async (req, res) => {
     resetCount,
   } = req.body;
 
+  console.log("📝 저장 API 요청:", { uid, title, text });
+
   if (!uid) {
     return res.status(400).json({ error: "사용자 ID가 필요합니다." });
   }
@@ -31,7 +33,10 @@ router.post("/save", async (req, res) => {
     draft.lastSavedAt = lastSavedAt;
     draft.updatedAt = new Date();
     draft.status = "active";
+
+    console.log("📝 저장 전 draft:", draft);
     await draft.save();
+    console.log("📝 저장 후 draft:", draft);
 
     res.json(draft);
   } catch (err) {
@@ -47,12 +52,15 @@ router.post("/save", async (req, res) => {
 router.get("/:uid", async (req, res) => {
   const { uid } = req.params;
 
+  console.log("📖 불러오기 API 요청:", { uid });
+
   if (!uid) {
     return res.status(400).json({ error: "사용자 ID가 필요합니다." });
   }
 
   try {
     const draft = await Draft.findOne({ uid });
+    console.log("📖 불러온 draft:", draft);
 
     if (!draft) {
       return res.status(404).json({ message: "초안 없음" });
@@ -112,11 +120,14 @@ router.post("/:uid/reset", async (req, res) => {
   try {
     const { uid } = req.params;
 
+    console.log("🔄 초기화 API 요청:", { uid });
+
     if (!uid) {
       return res.status(400).json({ error: "사용자 ID가 필요합니다." });
     }
 
     const draft = await Draft.findOne({ uid });
+    console.log("🔄 초기화 전 draft:", draft);
 
     if (!draft) {
       return res.status(404).json({ error: "초안이 존재하지 않습니다." });
@@ -133,6 +144,7 @@ router.post("/:uid/reset", async (req, res) => {
     draft.status = "active";
 
     await draft.save();
+    console.log("🔄 초기화 후 draft:", draft);
 
     res.json({
       success: true,
