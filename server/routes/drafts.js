@@ -22,21 +22,18 @@ router.post("/save", async (req, res) => {
 
   try {
     const updateData = {
-      $set: {
-        uid,
-        title: title || "",
-        text: text || "",
-        sessionCount,
-        totalDuration,
-        resetCount,
-        lastInputTime,
-        lastSavedAt,
-        updatedAt: new Date(),
-        status: "active",
-      },
+      uid,
+      title: title || "",
+      text: text || "",
+      sessionCount,
+      totalDuration,
+      resetCount,
+      lastInputTime,
+      lastSavedAt,
+      updatedAt: new Date(),
+      status: "active",
     };
 
-    // upsert 옵션으로 없으면 생성, 있으면 업데이트
     const updated = await Draft.findOneAndUpdate({ uid }, updateData, {
       upsert: true,
       new: true,
@@ -61,7 +58,7 @@ router.get("/:uid", async (req, res) => {
   }
 
   try {
-    const draft = await Draft.findOne({ uid, status: "active" });
+    const draft = await Draft.findOne({ uid });
 
     if (!draft) {
       return res.status(404).json({ message: "초안 없음" });
