@@ -24,11 +24,20 @@ const cookieParser = require("cookie-parser");
 app.use(cookieParser());
 
 const allowedOrigins = [
+  "http://dwriting.ai",
+  "https://dwriting.ai",
+  "http://www.dwriting.ai",
+  "https://www.dwriting.ai",
   "https://dwriting.com",
   "https://www.dwriting.com",
+  "http://dwriting.com",
+  "http://www.dwriting.com",
+  "https://edu-ocean.com",
+  "https://www.edu-ocean.com",
   "http://localhost:5173",
   "http://192.168.45.65:5173",
   "http://192.168.0.172:5173",
+  "http://192.168.0.181:5173",
 ];
 
 app.use(
@@ -80,6 +89,18 @@ app.use("/api/stats", statsRoute);
 app.use("/api/streak", streakRoute);
 app.use("/api/dashboard", dashboardRouter);
 app.use("/api/auth", authRoutes);
+
+// 도메인 리다이렉션 미들웨어
+app.use((req, res, next) => {
+  if (
+    req.hostname === "edu-ocean.com" ||
+    req.hostname === "www.edu-ocean.com"
+  ) {
+    return res.redirect(301, `https://dwriting.com${req.url}`);
+  }
+  next();
+});
+
 // MongoDB 연결
 mongoose
   .connect(process.env.MONGO_URI, {

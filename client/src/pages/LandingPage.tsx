@@ -1,18 +1,57 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../context/ThemeContext';
+import { useInView } from 'react-intersection-observer';
+import '../styles/globals.css';
 
 const LandingPage = () => {
   const navigate = useNavigate();
   const [isVideoLoaded, setIsVideoLoaded] = useState(false);
   const [isVideoEnded, setIsVideoEnded] = useState(false);
+  const [showArrow, setShowArrow] = useState(true);
   const videoRef = useRef<HTMLVideoElement>(null);
   const { isDarkMode } = useTheme();
+  const [showContent, setShowContent] = useState(false);
 
   // 비디오가 끝나면 상태 업데이트
   const handleVideoEnded = () => {
     setIsVideoEnded(true);
   };
+
+  // 스크롤 이벤트 핸들러
+  const handleScroll = () => {
+    if (window.scrollY > 0) {
+      setShowArrow(false);
+    }
+  };
+
+  useEffect(() => {
+    // 초기 스크롤 비활성화
+    document.body.style.overflow = 'hidden';
+
+    // 비디오가 끝나면 스크롤 활성화
+    if (isVideoEnded) {
+      document.body.style.overflow = 'auto';
+    }
+
+    // 컴포넌트가 언마운트될 때 overflow를 초기화하는 정리 함수
+    return () => {
+      document.body.style.overflow = 'auto';
+    };
+  }, [isVideoEnded]);
+
+  useEffect(() => {
+    window.addEventListener('scroll', handleScroll);
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+    };
+  }, []);
+
+  // Intersection Observer 설정
+  const { ref: contentRef, inView: contentInView } = useInView({
+    triggerOnce: true, // 한 번만 트리거
+    threshold: 0.1, // 10% 보일 때 트리거
+  });
 
   return (
     <div className="min-h-screen">
@@ -76,57 +115,82 @@ const LandingPage = () => {
             </button>
           </div>
         </div>
+
+        {/* 아래로 스크롤하라는 화살표 */}
+        {showContent && isVideoEnded && showArrow && (
+          <div className="fixed bottom-10 left-1/2 transform -translate-x-1/2">
+            <svg
+              className="w-6 h-6 text-blue-800 dark:text-blue-600 animate-bounce"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M19 9l-7 7-7-7"
+              ></path>
+            </svg>
+          </div>
+        )}
       </div>
 
-      {/* 기존 컨텐츠는 주석 처리 */}
-      {/* 
-      <div className="max-w-4xl mx-auto px-3 sm:px-4 py-4 sm:py-6">
-        <h1 className="text-2xl sm:text-xl font-bold mb-6 text-center dark:text-gray-300">
-          환영합니다!
-        </h1>
-        <p className="mb-4 p-2 sm:p-3 bg-blue-100/80 text-blue-800 rounded-lg text-sm sm:text-base text-center font-medium leading-relaxed sm:leading-normal dark:bg-blue-900/80 dark:text-gray-300">
-          ✍ 회원가입 후 글을 작성하고, 다른 사람의 글에 피드백을 남겨보세요!
-          <br className="hidden sm:block" />
-          매일 한 편씩 글을 쓰고, 피드백을 통해 성장할 수 있습니다.
-          <br className="hidden sm:block" />
-          <button
-            onClick={() => navigate('/login')}
-            className="mt-3 inline-block w-full sm:w-auto px-3 py-1.5 sm:px-4 sm:py-2 bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-800 text-white text-xs sm:text-sm rounded-lg transition"
-          >
-            로그인하러 가기
-          </button>
-        </p>
+      {/* 에니메이션 이후 나타나는 컨텐츠 */}
+      {showContent && (
+        <div
+          ref={contentRef}
+          className={`max-w-4xl mx-auto px-3 sm:px-4 py-4 sm:py-6 transition-opacity duration-1000 ${
+            contentInView ? 'opacity-100' : 'opacity-0'
+          }`}
+        >
+          <h1 className="text-2xl sm:text-xl font-bold mb-6 text-center dark:text-gray-300">
+            환영합니다!
+          </h1>
+          <p className="mb-4 p-2 sm:p-3 bg-blue-100/80 text-blue-800 rounded-lg text-sm sm:text-base text-center font-medium leading-relaxed sm:leading-normal dark:bg-blue-900/80 dark:text-gray-300">
+            ✍ 회원가입 후 글을 작성하고, 다른 사람의 글에 피드백을 남겨보세요!
+            <br className="hidden sm:block" />
+            매일 한 편씩 글을 쓰고, 피드백을 통해 성장할 수 있습니다.
+            <br className="hidden sm:block" />
+            <button
+              onClick={() => navigate('/login')}
+              className="mt-3 inline-block w-full sm:w-auto px-3 py-1.5 sm:px-4 sm:py-2 bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-800 text-white text-xs sm:text-sm rounded-lg transition"
+            >
+              로그인하러 가기
+            </button>
+          </p>
 
-        <div className="mt-8">
-          <h3 className="text-base font-semibold mb-4 text-gray-800 dark:text-gray-200">
-            사용자 후기
-          </h3>
-          <div className="space-y-3">
-            <div className="border border-gray-200 dark:border-gray-700 rounded-md p-4 bg-white dark:bg-gray-900/80 shadow-sm">
-              <p className="text-sm text-gray-700 dark:text-gray-300">
-                "이 제품을 사용하고 나서 글쓰기 실력이 많이 향상되었어요!" - 사용자 A
-              </p>
-            </div>
-            <div className="border border-gray-200 dark:border-gray-700 rounded-md p-4 bg-white dark:bg-gray-900/80 shadow-sm">
-              <p className="text-sm text-gray-700 dark:text-gray-300">
-                "피드백을 통해 많은 것을 배울 수 있었습니다." - 사용자 B
-              </p>
+          <div className="mt-8">
+            <h3 className="text-base font-semibold mb-4 text-gray-800 dark:text-gray-200">
+              사용자 후기
+            </h3>
+            <div className="space-y-3">
+              <div className="border border-gray-200 dark:border-gray-700 rounded-md p-4 bg-white dark:bg-gray-900/80 shadow-sm">
+                <p className="text-sm text-gray-700 dark:text-gray-300">
+                  "이 제품을 사용하고 나서 글쓰기 실력이 많이 향상되었어요!" - 사용자 A
+                </p>
+              </div>
+              <div className="border border-gray-200 dark:border-gray-700 rounded-md p-4 bg-white dark:bg-gray-900/80 shadow-sm">
+                <p className="text-sm text-gray-700 dark:text-gray-300">
+                  "피드백을 통해 많은 것을 배울 수 있었습니다." - 사용자 B
+                </p>
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="mt-8">
-          <h3 className="text-base font-semibold mb-4 text-gray-800 dark:text-gray-200">
-            주요 기능
-          </h3>
-          <ul className="list-disc pl-5 text-sm text-gray-700 dark:text-gray-300">
-            <li>글쓰기 도구: 다양한 글쓰기 모드 지원</li>
-            <li>피드백 시스템: 다른 사용자와의 상호작용</li>
-            <li>통계 및 분석: 글쓰기 습관 분석</li>
-          </ul>
+          <div className="mt-8">
+            <h3 className="text-base font-semibold mb-4 text-gray-800 dark:text-gray-200">
+              주요 기능
+            </h3>
+            <ul className="list-disc pl-5 text-sm text-gray-700 dark:text-gray-300">
+              <li>글쓰기 도구: 다양한 글쓰기 모드 지원</li>
+              <li>피드백 시스템: 다른 사용자와의 상호작용</li>
+              <li>통계 및 분석: 글쓰기 습관 분석</li>
+            </ul>
+          </div>
         </div>
-      </div>
-      */}
+      )}
     </div>
   );
 };

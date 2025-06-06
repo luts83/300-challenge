@@ -116,6 +116,21 @@ export const WeeklyProgress: React.FC<WeeklyProgressProps> = ({ className = '' }
   const completedDays = progress.filter(Boolean).length;
   const remainingDays = TOTAL_DAYS - completedDays;
 
+  // 연속 작성이 끊겼는지 확인하는 함수 추가
+  const isStreakBroken = (progress: boolean[]): boolean => {
+    for (let i = 0; i < progress.length; i++) {
+      if (!progress[i]) {
+        // 현재 날짜가 이전 날짜보다 이전이면 연속이 끊긴 것
+        const currentDate = new Date();
+        const dayOfWeek = currentDate.getDay();
+        if (i < dayOfWeek - 1) {
+          return true;
+        }
+      }
+    }
+    return false;
+  };
+
   return (
     <>
       {showCelebration && (
@@ -158,14 +173,20 @@ export const WeeklyProgress: React.FC<WeeklyProgressProps> = ({ className = '' }
         </div>
 
         {remainingDays > 0 ? (
-          <div className={STYLES.remainingMessage}>
-            🎯 이번 주 목표를 달성하려면 {remainingDays}일 더 작성해야 합니다. 매일 꾸준히 작성하여
-            황금열쇠를 획득하세요!
-          </div>
+          isStreakBroken(progress) ? (
+            <div className={STYLES.remainingMessage}>
+              🌟 이번 주는 연속 작성 챌린지에 성공하지 못하셨어요! 하지만 실망하지 마세요! 1000자
+              글쓰기를 하면 황금열쇠 1개가 지급됩니다.
+            </div>
+          ) : (
+            <div className={STYLES.remainingMessage}>
+              🎯 이번 주 목표를 달성하려면 {remainingDays}일 더 작성해야 합니다. 매일 꾸준히
+              작성하여 황금열쇠를 획득하세요!
+            </div>
+          )
         ) : (
           <div className={STYLES.remainingMessage}>
-            🌟 아쉽게도 이번 주엔 매일 글쓰기를 하지 못하셨네요. 그래도 포기하지 마시고 지금부터라도
-            다시 시작해요!
+            🎉 축하합니다! 이번 주 연속 작성 목표를 달성하셨어요! 황금열쇠 1개가 지급되었습니다! ✨
           </div>
         )}
       </div>

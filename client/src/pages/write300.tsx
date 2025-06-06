@@ -47,30 +47,42 @@ const Write300 = () => {
 
   const handleSubmitComplete = (res: any) => {
     setSubmissionState('complete');
-    setSubmissionProgress('✨ 글 작성이 완료되었습니다!');
+
+    // 연속 작성 챌린지 성공 여부 확인
+    const isStreakCompleted = res.data.data.streak?.completed;
+    const streakProgress = res.data.data.streak?.progress || [];
+    const allDaysCompleted = streakProgress.every(day => day);
+
+    // 모든 날짜가 완료되었을 때만 축하 메시지 표시
+    if (isStreakCompleted && allDaysCompleted) {
+      setSubmissionProgress('🎉 축하합니다! 이번 주 연속 작성 챌린지를 성공하셨어요!');
+    } else {
+      setSubmissionProgress('✨ 글 작성이 완료되었습니다!');
+    }
 
     setTimeout(() => {
       const message = [
-        '✨ 글 작성이 완료되었습니다!\n',
+        isStreakCompleted && allDaysCompleted
+          ? '🎉 축하합니다! 이번 주 연속 작성 챌린지를 성공하셨어요!\n황금열쇠 1개가 지급되었습니다! ✨\n'
+          : '✨ 글 작성이 완료되었습니다!\n',
         '\n📝 다음은 어떤 활동을 해보시겠어요?',
         '1. 피드백 미션에서 다른 사람의 글에 피드백 남기기',
         '2. 내가 작성한 글 확인하기',
         '3. 새로운 글 작성하기',
-        `\n남은 토큰: ${res.data.data.tokens}개\n`,
+        `\n남은 토큰: ${res.data.data.tokens}개`,
+        isStreakCompleted && allDaysCompleted ? `황금열쇠: ${res.data.data.goldenKeys}개\n` : '\n',
         '피드백 미션으로 이동하시겠습니까?',
         '(확인: 피드백 미션으로 이동, 취소: 내 제출 목록으로 이동)',
       ]
         .filter(Boolean)
         .join('\n');
 
-      const userChoice = window.confirm(message);
-
-      if (userChoice) {
+      if (window.confirm(message)) {
         navigate('/feedback-camp');
       } else {
         navigate('/my');
       }
-    }, 3000);
+    }, 500);
   };
 
   const handleSubmit = async (forceSubmit = false) => {

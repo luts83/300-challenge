@@ -665,8 +665,8 @@ const Dashboard = () => {
           </div>
 
           {selectedTopic && (
-            <div className="mt-4 p-4 bg-yellow-100 border border-yellow-400 rounded">
-              <p>
+            <div className="mt-4 p-4 bg-yellow-100 border border-yellow-400 rounded dark:bg-yellow-900 dark:border-yellow-700">
+              <p className="text-gray-500 dark:text-gray-300">
                 📅 <strong>{format(startDate, 'yyyy년 MM월 dd일')}</strong>의 대표 주제는
                 <span className="mx-1 font-semibold">{selectedTopic}</span>입니다.
               </p>
@@ -898,7 +898,7 @@ const Dashboard = () => {
                           >
                             <div className="flex flex-col sm:flex-row justify-between items-start gap-1 sm:gap-2 mb-2">
                               <div>
-                                <p className="font-medium text-sm sm:text-base">
+                                <p className="font-medium text-sm sm:text-base text-gray-800 dark:text-gray-500">
                                   {feedback.fromUser.displayName}
                                 </p>
                                 <p className="text-xs sm:text-sm text-gray-400">

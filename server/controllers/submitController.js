@@ -126,51 +126,46 @@ const evaluateSubmission = async (text, mode, topic) => {
 };
 
 const handleSubmit = async (req, res) => {
-  const { text, title, topic, user, mode, sessionCount, duration } = req.body;
-
-  if (!text || !title || !user || !user.uid || !user.email || !mode) {
-    return res.status(400).json({
-      message: "유효하지 않은 요청입니다.",
-      details: {
-        text: !text,
-        title: !title,
-        user: !user,
-        mode: !mode,
-      },
-    });
-  }
-
-  if (!["mode_300", "mode_1000"].includes(mode)) {
-    return res.status(400).json({ message: "유효하지 않은 mode입니다." });
-  }
-
-  if (title.length > SUBMISSION.TITLE.MAX_LENGTH) {
-    return res.status(400).json({
-      message: `제목은 ${SUBMISSION.TITLE.MAX_LENGTH}자 이하로 작성해주세요.`,
-    });
-  }
-
-  const MIN_LENGTH = SUBMISSION[mode.toUpperCase()].MIN_LENGTH;
-  const MAX_LENGTH = SUBMISSION[mode.toUpperCase()].MAX_LENGTH;
-
-  if (text.length < MIN_LENGTH || text.length > MAX_LENGTH) {
-    return res.status(400).json({
-      message: `글자 수는 ${MIN_LENGTH}자 이상, ${MAX_LENGTH}자 이하로 작성해주세요.`,
-    });
-  }
+  const session = await mongoose.startSession();
+  session.startTransaction();
 
   try {
-    const now = new Date();
-    const today = now.toDateString();
-    const tokenField = mode === "mode_1000" ? "tokens_1000" : "tokens_300";
-    let streak = null;
+    const { text, title, topic, user, mode, sessionCount, duration } = req.body;
 
-    // 월요일 날짜 계산
-    const monday = new Date();
-    const day = monday.getDay();
-    const diff = monday.getDate() - day + (day === 0 ? -6 : 1); // adjust when day is sunday
-    monday.setDate(diff);
-    monday.setHours(0, 0, 0, 0);
+    if (!text || !title || !user || !user.uid || !user.email || !mode) {
+      return res.status(400).json({
+        message: "유효하지 않은 요청입니다.",
+        details: {
+          text: !text,
+          title: !title,
+          user: !user,
+          mode: !mode,
+        },
+      });
+    }
+
+    if (!["mode_300", "mode_1000"].includes(mode)) {
+      return res.status(400).json({ message: "유효하지 않은 mode입니다." });
+    }
+
+    if (title.length > SUBMISSION.TITLE.MAX_LENGTH) {
+      return res.status(400).json({
+        message: `제목은 ${SUBMISSION.TITLE.MAX_LENGTH}자 이하로 작성해주세요.`,
+      });
+    }
+
+    const MIN_LENGTH = SUBMISSION[mode.toUpperCase()].MIN_LENGTH;
+    const MAX_LENGTH = SUBMISSION[mode.toUpperCase()].MAX_LENGTH;
+
+    if (text.length < MIN_LENGTH || text.length > MAX_LENGTH) {
+      return res.status(400).json({
+        message: `글자 수는 ${MIN_LENGTH}자 이상, ${MAX_LENGTH}자 이하로 작성해주세요.`,
+      });
+    }
+
+    const now = new Date();
+    const dayOfWeek = now.getDay();
+    let streak = null;
 
     // 토큰 처리
     let userToken = await Token.findOne({ uid: user.uid });
@@ -185,33 +180,47 @@ const handleSubmit = async (req, res) => {
       });
     }
 
-    // 토큰 리셋 체크
-    if (userToken.lastRefreshed?.toDateString() !== today) {
+    // 토큰 리셋 체크 - 수정된 부분
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    if (userToken.lastRefreshed < today) {
       userToken.tokens_300 = TOKEN.DAILY_LIMIT_300;
       userToken.lastRefreshed = now;
-
-      await handleTokenChange(user.uid, {
-        type: "DAILY_RESET",
-        amount: TOKEN.DAILY_LIMIT_300,
-        mode: "mode_300",
-        timestamp: now,
-      });
+      await handleTokenChange(
+        user.uid,
+        {
+          type: "DAILY_RESET",
+          amount: TOKEN.DAILY_LIMIT_300,
+          mode: "mode_300",
+          timestamp: now,
+        },
+        { session }
+      );
     }
 
-    // 주간 토큰 리셋 체크
+    // 주간 토큰 리셋 체크 - 수정된 부분
+    const monday = new Date();
+    monday.setDate(monday.getDate() - monday.getDay() + 1);
+    monday.setHours(0, 0, 0, 0);
+
     if (userToken.lastWeeklyRefreshed < monday) {
       userToken.tokens_1000 = TOKEN.WEEKLY_LIMIT_1000;
       userToken.lastWeeklyRefreshed = monday;
-
-      await handleTokenChange(user.uid, {
-        type: "WEEKLY_RESET",
-        amount: TOKEN.WEEKLY_LIMIT_1000,
-        mode: "mode_1000",
-        timestamp: now,
-      });
+      await handleTokenChange(
+        user.uid,
+        {
+          type: "WEEKLY_RESET",
+          amount: TOKEN.WEEKLY_LIMIT_1000,
+          mode: "mode_1000",
+          timestamp: now,
+        },
+        { session }
+      );
     }
 
     // 토큰 체크
+    const tokenField = mode === "mode_1000" ? "tokens_1000" : "tokens_300";
     if (userToken[tokenField] <= 0) {
       return res.status(403).json({
         message:
@@ -232,55 +241,39 @@ const handleSubmit = async (req, res) => {
       duration,
       submissionDate: now.toISOString().slice(0, 10),
     });
-    await submission.save();
+    await submission.save({ session });
 
     // AI 평가 실행
     const { score, feedback } = await evaluateSubmission(text, mode, topic);
     submission.score = score;
     submission.aiFeedback = feedback;
-    await submission.save();
-
-    // ✅ 모든 모드에서 피드백 미션 생성
-    const candidates = await Submission.find({
-      "user.uid": { $ne: user.uid },
-      mode, // 같은 모드의 글만 타겟팅
-    });
-
-    const shuffled = candidates
-      .sort(() => 0.5 - Math.random())
-      .slice(0, FEEDBACK.PER_SUBMISSION);
-
-    const missions = shuffled.map((target) => ({
-      fromUid: user.uid,
-      toSubmissionId: target._id,
-      userUid: user.uid,
-    }));
+    await submission.save({ session });
 
     // 토큰 차감
     userToken[tokenField] -= 1;
-    await handleTokenChange(user.uid, {
-      type: "WRITING_USE",
-      amount: -1,
-      mode,
-      timestamp: now,
-    });
+    await handleTokenChange(
+      user.uid,
+      {
+        type: "WRITING_USE",
+        amount: -1,
+        mode,
+        timestamp: now,
+      },
+      { session }
+    );
 
-    // 스트릭 처리
-    const dayOfWeek = now.getDay();
-
-    // 월-금요일인 경우에만 처리
+    // 스트릭 처리 - 수정된 부분
     if (dayOfWeek >= 1 && dayOfWeek <= 5) {
       try {
         streak = await WritingStreak.findOne({ uid: user.uid });
 
-        // streak가 없으면 새로 생성
         if (!streak) {
           streak = new WritingStreak({
             uid: user.uid,
             weeklyProgress: Array(5).fill(false),
             celebrationShown: false,
             lastStreakCompletion: null,
-            currentWeekStartDate: new Date(),
+            currentWeekStartDate: monday, // 이번 주 월요일로 설정
           });
         }
 
@@ -288,15 +281,13 @@ const handleSubmit = async (req, res) => {
         if (streak.shouldStartNewWeek()) {
           streak.weeklyProgress = Array(5).fill(false);
           streak.celebrationShown = false;
-          streak.currentWeekStartDate = new Date();
+          streak.currentWeekStartDate = monday;
         }
 
-        // 해당 요일 업데이트
         const dayIndex = dayOfWeek - 1;
         if (!streak.weeklyProgress[dayIndex]) {
           streak.weeklyProgress[dayIndex] = true;
 
-          // 모든 날짜가 완료되었는지 체크
           const allDaysCompleted = streak.weeklyProgress.every((day) => day);
           if (allDaysCompleted && !streak.celebrationShown) {
             // 황금열쇠 지급
@@ -316,27 +307,33 @@ const handleSubmit = async (req, res) => {
             streak.lastStreakCompletion = now;
           }
 
-          await streak.save();
+          await streak.save({ session });
         }
       } catch (error) {
         console.error("❌ Streak 업데이트 중 오류:", error);
+        throw error;
       }
     }
 
     // 1000자 모드 글 작성 시 황금열쇠 지급
     if (mode === "mode_1000") {
       userToken.goldenKeys += TOKEN.GOLDEN_KEY;
-      await handleTokenChange(user.uid, {
-        type: "GOLDEN_KEY",
-        amount: TOKEN.GOLDEN_KEY,
-        mode: "mode_1000",
-        timestamp: now,
-      });
+      await handleTokenChange(
+        user.uid,
+        {
+          type: "GOLDEN_KEY",
+          amount: TOKEN.GOLDEN_KEY,
+          mode: "mode_1000",
+          timestamp: now,
+        },
+        { session }
+      );
     }
 
-    await userToken.save();
+    await userToken.save({ session });
+    await session.commitTransaction();
 
-    // 응답
+    // 응답 수정 - streak 상태를 더 명확하게 전달
     return res.status(200).json({
       success: true,
       data: {
@@ -350,21 +347,28 @@ const handleSubmit = async (req, res) => {
               shouldShowCelebration:
                 streak.weeklyProgress.every((day) => day) &&
                 !streak.celebrationShown,
+              currentWeekStartDate: streak.currentWeekStartDate,
+              lastStreakCompletion: streak.lastStreakCompletion,
             }
           : {
               progress: Array(5).fill(false),
               completed: false,
               shouldShowCelebration: false,
+              currentWeekStartDate: monday,
+              lastStreakCompletion: null,
             },
       },
     });
   } catch (error) {
-    logger.error("❌ 서버 오류:", error);
+    await session.abortTransaction();
+    console.error("❌ 서버 오류:", error);
     return res.status(500).json({
       success: false,
       message: "서버 오류가 발생했습니다.",
       error: process.env.NODE_ENV === "development" ? error.message : undefined,
     });
+  } finally {
+    session.endSession();
   }
 };
 
