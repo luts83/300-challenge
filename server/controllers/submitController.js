@@ -84,44 +84,97 @@ const evaluateSubmission = async (text, mode, topic) => {
 
     const evaluation = response.data.choices[0].message.content;
 
-    // 응답 로깅 추가
-    logger.debug("AI 응답:", evaluation);
+    // AI 응답 로깅 추가
+    logger.debug("원본 AI 응답:", evaluation);
 
     // 응답 정제
     const cleaned = evaluation
-      .replace(/```json|```/g, "") // 마크다운 코드 블록 제거
-      .replace(/[<>]/g, "") // 꺾쇠 괄호 제거
+      .replace(/```json|```/g, "")
+      .replace(/[<>]/g, "")
       .trim();
+
+    // 정제된 응답 로깅 추가
+    logger.debug("정제된 AI 응답:", cleaned);
 
     try {
       const parsed = JSON.parse(cleaned);
+
+      // 필수 필드 검증 및 기본값 설정
+      const validatedFeedback = {
+        overall_score: Number(parsed.overall_score) || 0,
+        criteria_scores: parsed.criteria_scores || {},
+        strengths: Array.isArray(parsed.strengths) ? parsed.strengths : [],
+        improvements: Array.isArray(parsed.improvements)
+          ? parsed.improvements
+          : [],
+        writing_tips: "",
+      };
+
+      // writing_tips 처리
+      if (parsed.writing_tips) {
+        if (typeof parsed.writing_tips === "string") {
+          validatedFeedback.writing_tips = parsed.writing_tips;
+        } else if (typeof parsed.writing_tips === "object") {
+          validatedFeedback.writing_tips = Object.entries(parsed.writing_tips)
+            .map(([key, value]) => `${key}: ${value}`)
+            .join("\n");
+        }
+      }
+
+      // criteria_scores 검증
+      Object.keys(validatedFeedback.criteria_scores).forEach((key) => {
+        const criteria = validatedFeedback.criteria_scores[key];
+        if (typeof criteria !== "object") {
+          validatedFeedback.criteria_scores[key] = {
+            score: 0,
+            feedback: "평가 정보가 없습니다.",
+          };
+        } else {
+          validatedFeedback.criteria_scores[key] = {
+            score: Number(criteria.score) || 0,
+            feedback: String(criteria.feedback || "평가 정보가 없습니다."),
+          };
+        }
+      });
+
       return {
-        score: parsed.overall_score,
-        feedback: JSON.stringify(parsed, null, 2),
+        score: validatedFeedback.overall_score,
+        feedback: JSON.stringify(validatedFeedback, null, 2),
       };
     } catch (parseError) {
+      // 더 자세한 오류 로깅
       logger.error("AI 응답 파싱 오류:", {
-        error: parseError,
+        error: parseError.message,
+        errorStack: parseError.stack,
         original: evaluation,
         cleaned: cleaned,
+        text: text, // 평가 대상 텍스트도 로깅
+        mode: mode, // 평가 모드도 로깅
+        topic: topic, // 주제도 로깅
       });
       return {
-        score: null,
-        feedback: "AI 응답을 처리하는 중 오류가 발생했습니다.",
+        score: 0,
+        feedback: JSON.stringify({
+          overall_score: 0,
+          criteria_scores: {},
+          strengths: [],
+          improvements: [],
+          writing_tips: "AI 응답을 처리하는 중 오류가 발생했습니다.",
+        }),
       };
     }
   } catch (error) {
     logger.error("AI 평가 오류:", error);
-    let errorMessage = "평가 중 오류가 발생했습니다.";
-    if (error.code === "ENOTFOUND") {
-      errorMessage =
-        "API 서버에 연결할 수 없습니다. 네트워크 연결을 확인해주세요.";
-    } else if (error.response?.status === 401) {
-      errorMessage = "API 인증 오류가 발생했습니다.";
-    } else if (error.response?.status === 429) {
-      errorMessage = "API 요청 한도를 초과했습니다.";
-    }
-    return { score: null, feedback: errorMessage };
+    return {
+      score: 0,
+      feedback: JSON.stringify({
+        overall_score: 0,
+        criteria_scores: {},
+        strengths: [],
+        improvements: [],
+        writing_tips: "평가 중 오류가 발생했습니다.",
+      }),
+    };
   }
 };
 

@@ -42,10 +42,10 @@ export const SubmissionFilterSection: React.FC<SubmissionFilterSectionProps> = (
   //   console.log('Counts:', counts);
   // }, [counts]);
 
-  // const handleFeedbackFilterToggle = (filter: string) => {
-  //   console.log('Filter:', filter);
-  //   setFeedbackFilter(feedbackFilter === filter ? null : filter);
-  // };
+  // handleFeedbackFilterToggle 함수 활성화
+  const handleFeedbackFilterToggle = (filter: string) => {
+    setFeedbackFilter(feedbackFilter === filter ? null : filter);
+  };
 
   const modeLabelMap = {
     all: '전체',

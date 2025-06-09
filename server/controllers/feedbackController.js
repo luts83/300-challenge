@@ -177,37 +177,64 @@ exports.submitFeedback = async (req, res) => {
       $inc: { feedbackCount: 1 },
     });
 
-    // 6. 오늘 작성한 피드백 수 확인
+    // 6. 오늘 작성한 피드백 수 확인 (모드별로 구분)
     const today = new Date().toISOString().slice(0, 10);
-    const feedbackCount = await Feedback.countDocuments({
+
+    // 먼저 오늘 작성한 피드백들을 가져옴
+    const todayFeedbacks = await Feedback.find({
       fromUid,
       writtenDate: today,
+    }).populate("toSubmissionId", "mode");
+
+    // 모드별로 피드백 수 계산
+    const mode300FeedbackCount = todayFeedbacks.filter(
+      (fb) => fb.toSubmissionId.mode === "mode_300"
+    ).length;
+
+    const mode1000FeedbackCount = todayFeedbacks.filter(
+      (fb) => fb.toSubmissionId.mode === "mode_1000"
+    ).length;
+
+    // 300자 모드를 위한 총 피드백 수 (300자 + 1000자 모두 포함)
+    const totalFeedbackCount = mode300FeedbackCount + mode1000FeedbackCount;
+
+    // 7. 사용자가 작성한 글의 모드 확인
+    const userSubmissions = await Submission.find({
+      "user.uid": fromUid,
+      submissionDate: today,
     });
 
-    // 7. 피드백이 3개 이상이거나 1000자 글에 피드백 1개 이상이면 피드백 열람 가능
-    if (
-      feedbackCount >= CONFIG.FEEDBACK.REQUIRED_COUNT ||
-      (targetSubmission.mode === "mode_1000" && feedbackCount >= 1)
-    ) {
-      await Submission.updateMany(
-        {
-          "user.uid": fromUid,
-          submissionDate: today,
-        },
-        {
+    // 8. 모드별로 피드백 언락 조건 체크 및 업데이트
+    for (const submission of userSubmissions) {
+      let shouldUnlock = false;
+
+      if (submission.mode === "mode_300") {
+        // 300자 모드: 300자 또는 1000자 피드백을 포함한 총 3개 이상의 피드백 작성
+        shouldUnlock = totalFeedbackCount >= CONFIG.FEEDBACK.REQUIRED_COUNT;
+      } else if (submission.mode === "mode_1000") {
+        // 1000자 모드: 1000자 피드백 1개 이상 작성
+        shouldUnlock = mode1000FeedbackCount >= 1;
+      }
+
+      if (shouldUnlock) {
+        await Submission.findByIdAndUpdate(submission._id, {
           feedbackUnlocked: true,
-        }
-      );
+        });
+      }
     }
 
     res.status(200).json({
       message: "피드백이 성공적으로 저장되었습니다!",
       feedback: savedFeedback,
-      todayFeedbackCount: feedbackCount,
+      todayFeedbackCount: {
+        mode300: mode300FeedbackCount,
+        mode1000: mode1000FeedbackCount,
+        total: totalFeedbackCount, // 총 피드백 수도 응답에 포함
+      },
     });
-  } catch (err) {
-    logger.error("피드백 저장 실패:", err);
-    res.status(500).json({ message: "서버 오류가 발생했습니다." });
+  } catch (error) {
+    console.error("피드백 저장 중 오류 발생:", error);
+    res.status(500).json({ message: "피드백 저장 중 오류가 발생했습니다." });
   }
 };
 

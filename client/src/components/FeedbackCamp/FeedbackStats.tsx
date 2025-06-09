@@ -2,13 +2,37 @@ import React from 'react';
 import { TodaySummary } from './types';
 
 interface FeedbackStatsProps {
+  feedbackStats: {
+    totalSubmissions: number;
+    unlockedSubmissions: number;
+    feedbackGiven: number;
+    feedbackReceived: number;
+    unlockRate: number;
+    receivedFeedbackDetails?: Array<{
+      feedbackId: string;
+      submissionId: string;
+      submissionTitle: string;
+      submissionMode: string;
+      submissionDate: string;
+      feedbackContent: string;
+      feedbackDate: string;
+      fromUser: {
+        displayName: string;
+        email: string;
+      };
+    }>;
+  };
   dailyFeedbackCount: number;
-  todaySummary: TodaySummary;
+  weeklyGrowth: {
+    submissions: number;
+    thisWeek: number;
+    lastWeek: number;
+  };
 }
 
 export const FeedbackStats: React.FC<FeedbackStatsProps> = ({
   dailyFeedbackCount,
-  todaySummary,
+  weeklyGrowth,
 }) => {
   return (
     <div className="bg-white dark:bg-gray-800 dark:border dark:border-gray-700 text-black dark:text-gray-300 rounded-lg shadow-sm p-3 sm:p-4 mb-4 sm:mb-6">
@@ -36,7 +60,7 @@ export const FeedbackStats: React.FC<FeedbackStatsProps> = ({
               300자 모드
             </div>
             <div className="text-lg sm:text-xl font-bold text-blue-600 dark:text-blue-300">
-              {todaySummary.mode_300}
+              {weeklyGrowth.thisWeek}
             </div>
           </div>
           <div className="bg-green-50 rounded-lg p-2 sm:p-3 dark:bg-gray-600 dark:text-gray-300">
@@ -44,7 +68,7 @@ export const FeedbackStats: React.FC<FeedbackStatsProps> = ({
               1000자 모드
             </div>
             <div className="text-lg sm:text-xl font-bold text-green-600 dark:text-green-300">
-              {todaySummary.mode_1000}
+              {weeklyGrowth.thisWeek}
             </div>
           </div>
         </div>

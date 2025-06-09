@@ -7,7 +7,10 @@ if (!CONFIG || !CONFIG.FEEDBACK) {
 }
 
 interface FeedbackGuidanceProps {
-  dailyFeedbackCount: number;
+  dailyFeedbackCount: {
+    mode300: number;
+    mode1000: number;
+  };
   availableModes: Set<'mode_300' | 'mode_1000'>;
   isExpanded: boolean;
   onToggleExpand: () => void;
@@ -21,7 +24,15 @@ export const FeedbackGuidance: React.FC<FeedbackGuidanceProps> = ({
 }) => {
   // 피드백 상태 정보
   const getStatusInfo = () => {
-    if (dailyFeedbackCount >= CONFIG.FEEDBACK.REQUIRED_COUNT) {
+    const hasMode300 = availableModes.has('mode_300');
+    const hasMode1000 = availableModes.has('mode_1000');
+
+    // 300자 모드와 1000자 모드 각각의 완료 여부 확인
+    const mode300Completed =
+      hasMode300 && dailyFeedbackCount.mode300 >= CONFIG.FEEDBACK.REQUIRED_COUNT;
+    const mode1000Completed = hasMode1000 && dailyFeedbackCount.mode1000 >= 1;
+
+    if (mode300Completed || mode1000Completed) {
       return {
         emoji: '✅',
         statusText: '오늘 피드백 미션 완료!',
@@ -35,51 +46,9 @@ export const FeedbackGuidance: React.FC<FeedbackGuidanceProps> = ({
     };
   };
 
-  // 피드백 가능한 모드 안내 메시지 생성
-  const getFeedbackGuidanceMessage = () => {
-    // 1. 글 작성 여부 확인
-    if (!availableModes || availableModes.size === 0) {
-      return {
-        modes: '피드백을 작성하려면 먼저 글을 작성해주세요',
-        count: CONFIG.FEEDBACK.PER_SUBMISSION,
-      };
-    }
-
-    // 2. 작성한 모드 확인
-    const hasMode300 = availableModes.has('mode_300');
-    const hasMode1000 = availableModes.has('mode_1000');
-
-    // 3. 교차 피드백 설정 확인
-    const crossModeEnabled = CONFIG.FEEDBACK.CROSS_MODE_FEEDBACK.ENABLED;
-
-    // 4. 상황별 메시지 결정
-    let modes = '';
-    if (crossModeEnabled) {
-      if (hasMode300 && hasMode1000) {
-        modes = '300자, 1000자';
-      } else if (hasMode300) {
-        const allowedModes = CONFIG.FEEDBACK.CROSS_MODE_FEEDBACK.RESTRICTIONS.mode_300;
-        modes = allowedModes.map(mode => (mode === 'mode_300' ? '300자' : '1000자')).join(', ');
-      } else if (hasMode1000) {
-        const allowedModes = CONFIG.FEEDBACK.CROSS_MODE_FEEDBACK.RESTRICTIONS.mode_1000;
-        modes = allowedModes.map(mode => (mode === 'mode_300' ? '300자' : '1000자')).join(', ');
-      }
-    } else {
-      // 교차 피드백이 비활성화된 경우
-      const modeTexts = Array.from(availableModes).map(mode =>
-        mode === 'mode_300' ? '300자' : '1000자'
-      );
-      modes = modeTexts.join(', ');
-    }
-
-    return {
-      modes,
-      count: CONFIG.FEEDBACK.PER_SUBMISSION,
-    };
-  };
-
   const statusInfo = getStatusInfo();
-  const guidanceMessage = getFeedbackGuidanceMessage();
+  const hasMode300 = availableModes.has('mode_300');
+  const hasMode1000 = availableModes.has('mode_1000');
 
   return (
     <div className="bg-white dark:bg-gray-800 text-black dark:text-white rounded-lg shadow-sm border border-gray-100 p-3 sm:p-4 mb-4 sm:mb-6 dark:border-gray-700">
@@ -90,10 +59,24 @@ export const FeedbackGuidance: React.FC<FeedbackGuidanceProps> = ({
             <h3 className={`text-base sm:text-lg font-medium ${statusInfo.textColor}`}>
               {statusInfo.statusText}
             </h3>
-            <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-300">
-              {dailyFeedbackCount}/{CONFIG.FEEDBACK.REQUIRED_COUNT} 완료
-              {dailyFeedbackCount >= CONFIG.FEEDBACK.REQUIRED_COUNT && ' 🎉'}
-            </p>
+            <div className="text-xs sm:text-sm text-gray-500 dark:text-gray-300">
+              {hasMode300 && (
+                <p>
+                  300자 모드: {dailyFeedbackCount.mode300}/{CONFIG.FEEDBACK.REQUIRED_COUNT} 완료
+                  {dailyFeedbackCount.mode300 >= CONFIG.FEEDBACK.REQUIRED_COUNT && ' 🎉'}
+                  {dailyFeedbackCount.mode300 < CONFIG.FEEDBACK.REQUIRED_COUNT &&
+                    dailyFeedbackCount.mode300 + dailyFeedbackCount.mode1000 >=
+                      CONFIG.FEEDBACK.REQUIRED_COUNT &&
+                    ' (피드백 열람 권한 언락됨)'}
+                </p>
+              )}
+              {hasMode1000 && (
+                <p>
+                  1000자 모드: {dailyFeedbackCount.mode1000}/1 완료
+                  {dailyFeedbackCount.mode1000 >= 1 && ' 🎉'}
+                </p>
+              )}
+            </div>
           </div>
         </div>
         <span className="text-gray-400 dark:text-gray-300 dark:hover:text-gray-100">
@@ -127,26 +110,41 @@ export const FeedbackGuidance: React.FC<FeedbackGuidanceProps> = ({
               {availableModes.size > 0 ? (
                 CONFIG.FEEDBACK.CROSS_MODE_FEEDBACK.ENABLED ? (
                   <>
-                    피드백 작성 가능: {guidanceMessage.modes} 모드의 글 ({guidanceMessage.count}개)
+                    피드백 작성 가능:{' '}
+                    {Array.from(availableModes)
+                      .map(mode => (mode === 'mode_300' ? '300자' : '1000자'))
+                      .join(', ')}{' '}
+                    모드의 글
                   </>
                 ) : (
                   <>
-                    오늘 작성한 {guidanceMessage.modes} 모드의 글에만 피드백 작성 가능 (
-                    {guidanceMessage.count}개)
+                    오늘 작성한{' '}
+                    {Array.from(availableModes)
+                      .map(mode => (mode === 'mode_300' ? '300자' : '1000자'))
+                      .join(', ')}{' '}
+                    모드의 글에만 피드백 작성 가능
                   </>
                 )
               ) : (
-                guidanceMessage.modes
+                '피드백을 작성하려면 먼저 글을 작성해주세요'
               )}
             </p>
 
             {/* 피드백 규칙 안내 */}
             <ul className="text-xs sm:text-sm text-gray-600 dark:text-gray-300 space-y-1">
-              <li className="flex items-center gap-1">
-                <span className="text-blue-500">•</span>
-                하루 {CONFIG.FEEDBACK.REQUIRED_COUNT}개의 피드백을 작성하면 당일 작성한 글의
-                피드백을 볼 수 있습니다.
-              </li>
+              {hasMode300 && (
+                <li className="flex items-center gap-1">
+                  <span className="text-blue-500">•</span>
+                  300자 모드: 하루 {CONFIG.FEEDBACK.REQUIRED_COUNT}개의 피드백을 작성하면 당일
+                  작성한 글의 피드백을 볼 수 있습니다.
+                </li>
+              )}
+              {hasMode1000 && (
+                <li className="flex items-center gap-1">
+                  <span className="text-blue-500">•</span>
+                  1000자 모드: 피드백 1개만 작성하면 당일 작성한 글의 피드백을 볼 수 있습니다.
+                </li>
+              )}
               <li className="flex items-center gap-1">
                 <span className="text-blue-500">•</span>
                 주간 목표(월-금 5일) 달성 시 {CONFIG.TOKEN.GOLDEN_KEY}개의 황금열쇠가 지급됩니다.

@@ -56,7 +56,7 @@ router.get("/:uid", async (req, res) => {
     const draft = await Draft.findOne({ uid });
 
     if (!draft) {
-      return res.status(404).json({ message: "초안 없음" });
+      return res.status(404).json({ error: "초안을 찾을 수 없습니다." });
     }
 
     res.json(draft);
@@ -161,7 +161,10 @@ router.post("/:uid/complete", async (req, res) => {
       return res.status(404).json({ error: "초안을 찾을 수 없습니다." });
     }
 
-    res.json({ success: true });
+    res.json({
+      success: true,
+      draft: deleted, // 삭제된 draft 객체도 함께 반환
+    });
   } catch (err) {
     console.error("초안 삭제 실패:", err);
     res.status(500).json({ error: "초안 삭제 중 오류가 발생했습니다." });

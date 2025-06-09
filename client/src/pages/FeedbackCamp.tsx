@@ -50,6 +50,11 @@ const FeedbackCamp = () => {
   const [mode300TotalCount, setMode300TotalCount] = useState(0);
   const [mode1000TotalCount, setMode1000TotalCount] = useState(0);
   const [feedbackAvailableCount, setFeedbackAvailableCount] = useState(0);
+  const [weeklyGrowth, setWeeklyGrowth] = useState({
+    submissions: 0,
+    thisWeek: 0,
+    lastWeek: 0,
+  });
 
   const observer = useRef<IntersectionObserver | null>(null);
 
@@ -113,7 +118,10 @@ const FeedbackCamp = () => {
 
   const [isGuideExpanded, setIsGuideExpanded] = useState(false);
 
-  const [dailyFeedbackCount, setDailyFeedbackCount] = useState(0);
+  const [dailyFeedbackCount, setDailyFeedbackCount] = useState({
+    mode300: 0,
+    mode1000: 0,
+  });
 
   const [counts, setCounts] = useState({
     all: 0,
@@ -339,31 +347,39 @@ const FeedbackCamp = () => {
         content: feedbacks[submissionId],
       });
 
-      const todayCount = response.data.todayFeedbackCount;
+      const { mode300, mode1000, total } = response.data.todayFeedbackCount || {
+        mode300: 0,
+        mode1000: 0,
+        total: 0,
+      };
+      setDailyFeedbackCount({ mode300, mode1000 });
 
-      // 1000자 글에 피드백을 달아 열람 권한이 언락된 경우
-      const isThousandWordFeedbackUnlocked = response.data.isThousandWordFeedbackUnlocked;
-      if (isThousandWordFeedbackUnlocked) {
-        alert(
-          `🎉 축하합니다! 1000자 글에 피드백을 달아 피드백 열람 권한이 언락되었습니다!\n\n이제 오늘 작성한 내 글의 피드백을 확인하실 수 있습니다.`
-        );
+      // 사용자의 모드에 따라 다른 메시지 표시
+      const hasMode1000 = todaySubmissionModes.has('mode_1000');
+      const hasMode300 = todaySubmissionModes.has('mode_300');
+
+      let message = '✅ 피드백이 제출되었습니다.\n\n';
+
+      // 1000자 모드 언락 체크
+      if (hasMode1000 && mode1000 >= 1) {
+        message += `🎉 축하합니다! 1000자 글에 대한 피드백 열람 권한이 언락되었습니다!\n`;
+      } else if (hasMode1000) {
+        message += `1000자 글 언락까지: ${mode1000}/1\n`;
       }
-      // 피드백 3개 달성 시
-      else if (todayCount === CONFIG.FEEDBACK.REQUIRED_COUNT) {
-        alert(
-          `🎉 축하합니다! 오늘의 피드백 미션을 완료하셨습니다!\n\n이제 오늘 작성한 내 글의 피드백을 확인하실 수 있습니다.`
-        );
+
+      // 300자 모드 언락 체크
+      if (hasMode300 && total >= CONFIG.FEEDBACK.REQUIRED_COUNT) {
+        message += `🎉 축하합니다! 300자 글에 대한 피드백 열람 권한이 언락되었습니다!\n`;
+      } else if (hasMode300) {
+        message += `300자 글 언락까지: ${total}/${CONFIG.FEEDBACK.REQUIRED_COUNT}\n`;
       }
-      // 3개 미만일 때
-      else if (todayCount < CONFIG.FEEDBACK.REQUIRED_COUNT) {
-        alert(
-          `✅ 피드백이 제출되었습니다.\n\n오늘 작성한 피드백: ${todayCount}/${CONFIG.FEEDBACK.REQUIRED_COUNT}`
-        );
+
+      // 모든 언락이 완료된 경우
+      if (hasMode1000 && mode1000 >= 1 && hasMode300 && total >= CONFIG.FEEDBACK.REQUIRED_COUNT) {
+        message = `🎉 축하합니다!\n오늘 작성하신 모든 글에 대한 피드백 열람 권한이 모두 언락되었습니다!`;
       }
-      // 3개 초과일 때
-      else {
-        alert('✅ 피드백이 제출되었습니다.');
-      }
+
+      alert(message);
 
       // 상태 업데이트
       setSubmittedIds(prev => [...prev, submissionId]);
@@ -380,9 +396,6 @@ const FeedbackCamp = () => {
 
       // 페이지 상태 업데이트
       Promise.all([fetchAllSubmissions(), fetchGivenFeedbacks(), fetchMySubmissionStatus()]);
-
-      // 일일 피드백 카운트 업데이트
-      setDailyFeedbackCount(todayCount);
     } catch (err) {
       if (axios.isAxiosError(err)) {
         const errorMessage = err.response?.data?.message;
@@ -432,13 +445,36 @@ const FeedbackCamp = () => {
         const res = await axios.get(
           `${import.meta.env.VITE_API_URL}/api/feedback/today/${user.uid}`
         );
-        setDailyFeedbackCount(res.data.count);
+        setDailyFeedbackCount({
+          mode300: res.data.count.mode300 || 0,
+          mode1000: res.data.count.mode1000 || 0,
+        });
       } catch (err) {
         logger.error('오늘의 피드백 개수 불러오기 실패:', err);
       }
     };
 
     fetchTodayFeedbackCount();
+  }, [user]);
+
+  useEffect(() => {
+    const fetchWeeklyGrowth = async () => {
+      if (!user) return;
+      try {
+        const res = await axios.get(
+          `${import.meta.env.VITE_API_URL}/api/dashboard/stats/${user.uid}`
+        );
+        setWeeklyGrowth({
+          submissions: res.data.submissionsToday || 0,
+          thisWeek: res.data.thisWeek || 0,
+          lastWeek: res.data.lastWeek || 0,
+        });
+      } catch (err) {
+        logger.error('주간 성장 데이터 불러오기 실패:', err);
+      }
+    };
+
+    fetchWeeklyGrowth();
   }, [user]);
 
   if (!user)
@@ -541,11 +577,15 @@ const FeedbackCamp = () => {
 
         <FeedbackNotice />
 
-        <FeedbackStats dailyFeedbackCount={dailyFeedbackCount} todaySummary={todaySummary} />
+        <FeedbackStats
+          dailyFeedbackCount={todaySummary.mode_300 + todaySummary.mode_1000}
+          todaySummary={todaySummary}
+          weeklyGrowth={weeklyGrowth}
+        />
 
         <FeedbackGuidance
           dailyFeedbackCount={dailyFeedbackCount}
-          availableModes={getAvailableFeedbackModes(todaySubmissionModes)}
+          availableModes={todaySubmissionModes}
           isExpanded={isGuideExpanded}
           onToggleExpand={() => setIsGuideExpanded(!isGuideExpanded)}
         />

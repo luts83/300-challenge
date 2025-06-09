@@ -4,11 +4,17 @@ import axios from 'axios';
 import { useUser } from '../context/UserContext';
 import { CONFIG } from '../config';
 
-const FeedbackMissionPanel = () => {
+interface FeedbackMissionPanelProps {
+  todayFeedbackCount: number;
+  userModes: Set<'mode_300' | 'mode_1000'>; // 사용자가 작성한 모드들
+}
+
+const FeedbackMissionPanel: React.FC<FeedbackMissionPanelProps> = ({
+  todayFeedbackCount,
+  userModes,
+}) => {
   const { user } = useUser();
-  const [todayFeedbackCount, setTodayFeedbackCount] = useState(0);
   const [loading, setLoading] = useState(true);
-  const requiredCount = CONFIG.FEEDBACK.REQUIRED_COUNT; // 하루 필요한 피드백 수 (3개)
 
   useEffect(() => {
     const fetchTodayFeedbackCount = async () => {
@@ -31,6 +37,31 @@ const FeedbackMissionPanel = () => {
 
   if (!user || loading) return null;
 
+  // 모드별로 필요한 피드백 수 계산
+  const getRequiredCount = () => {
+    if (userModes.has('mode_1000')) {
+      return 1; // 1000자 모드가 있으면 1개만 필요
+    }
+    return 3; // 300자 모드만 있으면 3개 필요
+  };
+
+  const requiredCount = getRequiredCount();
+
+  // 모드별 메시지 생성
+  const getFeedbackMessage = () => {
+    if (userModes.has('mode_1000')) {
+      if (todayFeedbackCount < 1) {
+        return '피드백 1개를 작성하면 오늘 작성한 모든 글의 피드백을 볼 수 있어요!';
+      }
+      return '🎉 축하합니다! 오늘 작성한 모든 글의 피드백을 볼 수 있어요!';
+    } else {
+      if (todayFeedbackCount < 3) {
+        return `앞으로 ${3 - todayFeedbackCount}개의 피드백을 더 작성하면\n오늘 작성한 모든 글의 피드백을 볼 수 있어요!`;
+      }
+      return '🎉 축하합니다! 오늘 작성한 모든 글의 피드백을 볼 수 있어요!';
+    }
+  };
+
   return (
     <div className="bg-white dark:bg-gray-800 text-black dark:text-white rounded-xl shadow-sm p-4 mb-6">
       {/* 미션 진행 상황 */}
@@ -50,7 +81,9 @@ const FeedbackMissionPanel = () => {
               {Math.round((todayFeedbackCount / requiredCount) * 100)}%
             </span>
           </div>
-          <span className="text-xs text-gray-500">목표: {requiredCount}개</span>
+          <span className="text-xs text-gray-500">
+            목표: {requiredCount}개{userModes.has('mode_1000') && ' (1000자 모드)'}
+          </span>
         </div>
         <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
           <div
@@ -67,17 +100,7 @@ const FeedbackMissionPanel = () => {
           <h3 className="text-base font-medium">오늘의 피드백 현황</h3>
         </div>
         <p className="text-2xl font-bold text-blue-600 mb-2">{todayFeedbackCount}</p>
-        {todayFeedbackCount < requiredCount ? (
-          <p className="text-sm text-blue-700">
-            앞으로 {requiredCount - todayFeedbackCount}개의 피드백을 더 작성하면
-            <br />
-            오늘 작성한 모든 글의 피드백을 볼 수 있어요!
-          </p>
-        ) : (
-          <p className="text-sm text-green-700">
-            🎉 축하합니다! 오늘 작성한 모든 글의 피드백을 볼 수 있어요!
-          </p>
-        )}
+        <p className="text-sm text-blue-700">{getFeedbackMessage()}</p>
       </div>
 
       {/* 안내 메시지 */}

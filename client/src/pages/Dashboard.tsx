@@ -898,7 +898,7 @@ const Dashboard = () => {
                           >
                             <div className="flex flex-col sm:flex-row justify-between items-start gap-1 sm:gap-2 mb-2">
                               <div>
-                                <p className="font-medium text-sm sm:text-base text-gray-800 dark:text-gray-500">
+                                <p className="font-medium text-sm sm:text-base text-gray-800 dark:text-gray-600">
                                   {feedback.fromUser.displayName}
                                 </p>
                                 <p className="text-xs sm:text-sm text-gray-400">

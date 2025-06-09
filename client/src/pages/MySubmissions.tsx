@@ -147,7 +147,11 @@ const MySubmissions = () => {
     thisWeek: 0,
     lastWeek: 0,
   });
-  const [dailyFeedbackCount, setDailyFeedbackCount] = useState(0);
+  const [dailyFeedbackCount, setDailyFeedbackCount] = useState({
+    mode300: 0,
+    mode1000: 0,
+    total: 0,
+  });
   const [title, setTitle] = useState('');
   const [text, setText] = useState('');
   const [mode, setMode] = useState<'mode_300' | 'mode_1000'>('mode_300');
@@ -331,7 +335,11 @@ const MySubmissions = () => {
       setStats(statsRes.data);
       setFeedbackStats(feedbackStatsRes.data);
       setWeeklyGrowth(weeklyRes.data);
-      setDailyFeedbackCount(dailyRes.data.count);
+      setDailyFeedbackCount({
+        mode300: dailyRes.data.count.mode300 || 0,
+        mode1000: dailyRes.data.count.mode1000 || 0,
+        total: (dailyRes.data.count.mode300 || 0) + (dailyRes.data.count.mode1000 || 0),
+      });
     } catch (err) {
       logger.error('통계 데이터 조회 실패:', err);
     }
@@ -455,7 +463,7 @@ const MySubmissions = () => {
           {/* 피드백 통계 섹션 */}
           <FeedbackStats
             feedbackStats={feedbackStats}
-            dailyFeedbackCount={dailyFeedbackCount}
+            dailyFeedbackCount={dailyFeedbackCount.total}
             weeklyGrowth={weeklyGrowth}
           />
 

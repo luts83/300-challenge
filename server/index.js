@@ -10,7 +10,7 @@ const tokenRoute = require("./routes/token");
 // const evaluateRoute = require("./routes/evaluate");
 const statsRoute = require("./routes/stats");
 const feedbackRoute = require("./routes/feedback");
-const writingRoutes = require("./routes/writing");
+// const writingRoutes = require("./routes/writing"); //
 const draftRoutes = require("./routes/drafts");
 const recordsRoutes = require("./routes/records"); // 추가
 const streakRoute = require("./routes/streak");
@@ -24,16 +24,12 @@ const cookieParser = require("cookie-parser");
 app.use(cookieParser());
 
 const allowedOrigins = [
-  "http://dwriting.ai",
   "https://dwriting.ai",
-  "http://www.dwriting.ai",
   "https://www.dwriting.ai",
-  "https://dwriting.com",
-  "https://www.dwriting.com",
-  "http://dwriting.com",
-  "http://www.dwriting.com",
   "https://edu-ocean.com",
   "https://www.edu-ocean.com",
+  "https://dwriting.com",
+  "https://www.dwriting.com",
   "http://localhost:5173",
   "http://192.168.45.65:5173",
   "http://192.168.0.172:5173",
@@ -82,7 +78,7 @@ app.use("/api/tokens", tokenRoute);
 app.use("/api/records", recordsRoutes); // 추가
 app.use("/api/drafts", draftRoutes);
 app.use("/api/submit", require("./routes/submit"));
-app.use("/api/writing", writingRoutes);
+// app.use("/api/writing", writingRoutes);
 
 app.use("/api/feedback", feedbackRoute);
 app.use("/api/stats", statsRoute);

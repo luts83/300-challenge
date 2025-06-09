@@ -384,12 +384,28 @@ router.get("/today/:uid", async (req, res) => {
   const today = new Date().toISOString().slice(0, 10);
 
   try {
-    const count = await Feedback.countDocuments({
+    // 오늘 작성한 피드백들을 가져옴
+    const todayFeedbacks = await Feedback.find({
       fromUid: uid,
       writtenDate: today,
-    });
+    }).populate("toSubmissionId", "mode");
 
-    res.json({ count });
+    // 모드별로 피드백 수 계산
+    const mode300FeedbackCount = todayFeedbacks.filter(
+      (fb) => fb.toSubmissionId.mode === "mode_300"
+    ).length;
+
+    const mode1000FeedbackCount = todayFeedbacks.filter(
+      (fb) => fb.toSubmissionId.mode === "mode_1000"
+    ).length;
+
+    res.json({
+      count: {
+        mode300: mode300FeedbackCount,
+        mode1000: mode1000FeedbackCount,
+        total: mode300FeedbackCount + mode1000FeedbackCount,
+      },
+    });
   } catch (err) {
     console.error("오늘의 피드백 카운트 조회 실패:", err);
     res.status(500).json({ message: "서버 오류" });
