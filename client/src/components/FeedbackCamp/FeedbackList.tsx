@@ -64,7 +64,7 @@ export const FeedbackList: React.FC<FeedbackListProps> = ({
               <div
                 key={submission._id}
                 ref={isLast ? lastSubmissionElementRef : undefined}
-                className="border rounded-lg dark:bg-gray-800 dark:border-gray-700"
+                className="border rounded-lg dark:bg-gray-600 dark:border-gray-700"
               >
                 {/* 글 헤더 - 항상 보이는 부분 */}
                 <div
@@ -156,9 +156,13 @@ export const FeedbackList: React.FC<FeedbackListProps> = ({
                                 (feedbacks[submission._id] || '').length <
                                   CONFIG.FEEDBACK.MIN_LENGTH
                               }
-                              className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm bg-blue-500 text-white 
-                              rounded-lg hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed 
-                              transition-colors flex items-center gap-2 dark:bg-blue-700 dark:hover:bg-blue-800"
+                              className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm 
+                                bg-blue-500 text-white rounded-lg 
+                                hover:bg-blue-600 
+                                disabled:bg-gray-300 disabled:cursor-not-allowed 
+                                transition-colors flex items-center gap-2 
+                                dark:bg-gray-700 dark:hover:bg-blue-800 
+                                dark:disabled:bg-gray-600 dark:disabled:text-gray-400"
                             >
                               {loading ? (
                                 <>

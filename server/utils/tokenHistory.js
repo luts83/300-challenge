@@ -15,6 +15,10 @@ async function handleTokenChange(uid, change, options = {}) {
     if (!userHistory) {
       userHistory = await UserTokenHistory.create({
         uid,
+        user: {
+          email: options.user?.email || "unknown@email.com", // 기본값 설정
+          displayName: options.user?.displayName || "익명",
+        },
         dailySummary: {
           date: new Date(today),
           totalTokens: { mode_300: 0, mode_1000: 0 },
@@ -30,23 +34,15 @@ async function handleTokenChange(uid, change, options = {}) {
       });
     }
 
-    // 3. 일별 요약 업데이트
-    const currentDate = userHistory.dailySummary?.date
-      ? userHistory.dailySummary.date.toISOString().split("T")[0]
-      : null;
+    // 3. 토큰 변경 기록 추가
+    userHistory.dailySummary.changes.push({
+      type,
+      amount,
+      mode,
+      timestamp: now,
+    });
 
-    if (!currentDate || currentDate !== today) {
-      // 새로운 날짜면 일별 요약 초기화
-      userHistory.dailySummary = {
-        date: new Date(today),
-        totalTokens: { mode_300: 0, mode_1000: 0 },
-        goldenKeys: 0,
-        changes: [],
-      };
-    }
-
-    // 4. 변경사항 추가 및 토큰 업데이트
-    userHistory.dailySummary.changes.push(change);
+    // 4. 토큰 사용량 업데이트
     if (mode === "mode_300") {
       userHistory.dailySummary.totalTokens.mode_300 += amount;
       userHistory.monthlySummary.totalTokens.mode_300 += amount;
@@ -54,32 +50,16 @@ async function handleTokenChange(uid, change, options = {}) {
       userHistory.dailySummary.totalTokens.mode_1000 += amount;
       userHistory.monthlySummary.totalTokens.mode_1000 += amount;
     }
+
     if (type === "GOLDEN_KEY") {
       userHistory.dailySummary.goldenKeys += amount;
       userHistory.monthlySummary.goldenKeys += amount;
     }
 
-    // 5. 월별 요약 업데이트
-    if (
-      !userHistory.monthlySummary ||
-      userHistory.monthlySummary.year !== year ||
-      userHistory.monthlySummary.month !== month
-    ) {
-      userHistory.monthlySummary = {
-        year,
-        month,
-        totalTokens: { mode_300: 0, mode_1000: 0 },
-        goldenKeys: 0,
-      };
-    }
-
     userHistory.lastUpdated = now;
     await userHistory.save();
-
-    return userHistory;
   } catch (error) {
-    console.error("토큰 히스토리 업데이트 실패:", error);
-    throw error;
+    console.warn("토큰 히스토리 업데이트 실패:", error);
   }
 }
 

@@ -3,6 +3,10 @@ const mongoose = require("mongoose");
 
 const userTokenHistorySchema = new mongoose.Schema({
   uid: { type: String, required: true, unique: true },
+  user: {
+    email: { type: String, required: true },
+    displayName: { type: String, default: "익명" },
+  },
   dailySummary: {
     date: { type: Date, required: true },
     totalTokens: {

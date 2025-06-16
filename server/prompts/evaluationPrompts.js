@@ -224,9 +224,9 @@ const PROMPT_TEMPLATE = {
     const isAssigned =
       topic && topic !== "자유주제" && allTopics1000.includes(topic.trim());
 
-    console.log("주제:", topic);
-    console.log("정제된 주제:", topic.trim());
-    console.log("포함 여부:", isAssigned);
+    // console.log("주제:", topic);
+    // console.log("정제된 주제:", topic.trim());
+    // console.log("포함 여부:", isAssigned);
 
     return `
       [평가 대상 글]

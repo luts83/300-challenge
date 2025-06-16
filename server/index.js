@@ -20,6 +20,7 @@ const authRoutes = require("./routes/auth");
 const { ACCESS_CONTROL } = require("./config");
 const fetchAllowedEmailsFromSheet = require("./utils/fetchAllowedEmails");
 const cookieParser = require("cookie-parser");
+const Submission = require("./models/Submission");
 
 app.use(cookieParser());
 
@@ -105,6 +106,11 @@ mongoose
   })
   .then(() => {
     console.log("✅ MongoDB 연결 완료");
+    // 연결 후 데이터 확인
+    return Submission.countDocuments();
+  })
+  .then((count) => {
+    console.log(`📚 총 ${count}개의 글이 있습니다.`);
   })
   .catch((err) => {
     logger.error("❌ MongoDB 연결 실패:", err);

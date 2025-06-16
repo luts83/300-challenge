@@ -469,6 +469,15 @@ router.post("/unlock-feedback", async (req, res) => {
     userToken.goldenKeys -= requiredTokens;
     await userToken.save();
 
+    // 콘솔 로그 추가
+    console.log(
+      `[황금열쇠 사용] ${
+        userToken.uid
+      } | ${new Date().toISOString()} | 사용량: ${requiredTokens} | 남은 황금열쇠: ${
+        userToken.goldenKeys
+      }`
+    );
+
     // 토큰 히스토리 기록 (새로운 방식)
     await handleTokenChange(uid, {
       type: "FEEDBACK_UNLOCK",

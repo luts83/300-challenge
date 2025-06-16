@@ -22,6 +22,7 @@ import { useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
 import { useLocation } from 'react-router-dom'; // 추가
 import FeedbackNotice from '../components/FeedbackNotice';
+import DateRangeFilter from '../components/DateRangeFilter';
 
 const FeedbackCamp = () => {
   const { user } = useUser();
@@ -90,8 +91,9 @@ const FeedbackCamp = () => {
   useEffect(() => {
     const fetchPopularSubmissions = async () => {
       try {
-        const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/submit/popular?limit=3`);
-        setHighlightedSubmissions(res.data);
+        const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/submit/popular?limit=10`);
+        const shuffled = res.data.sort(() => 0.5 - Math.random());
+        setHighlightedSubmissions(shuffled.slice(0, 3));
       } catch (err) {
         logger.error('인기 글 불러오기 실패:', err);
       }
@@ -604,6 +606,7 @@ const FeedbackCamp = () => {
           counts={counts}
         />
 
+        {/* 내가 작성한 피드백(날짜 필터와 무관) */}
         {(viewMode === 'all' || viewMode === 'written') && (
           <MyFeedbacks
             submissions={filteredData.submissions}
@@ -614,6 +617,7 @@ const FeedbackCamp = () => {
           />
         )}
 
+        {/* 피드백 가능한 글(여기에만 날짜 필터 적용) */}
         {(viewMode === 'all' || viewMode === 'available') &&
           (!hasMySubmission ? (
             <>
@@ -687,23 +691,27 @@ const FeedbackCamp = () => {
               🔍 검색 결과가 없습니다.
             </p>
           ) : (
-            <FeedbackList
-              submissions={filteredData.submissions}
-              feedbacks={feedbacks}
-              expanded={expanded}
-              submittedIds={submittedIds}
-              onFeedbackChange={(id, value) => setFeedbacks(prev => ({ ...prev, [id]: value }))}
-              onSubmitFeedback={handleSubmitFeedback}
-              onToggleExpand={id => setExpanded(expanded === id ? null : id)}
-              lastSubmissionElementRef={lastSubmissionElementRef}
-              totalAvailable={
-                activeTab === 'all'
-                  ? counts.available
-                  : activeTab === 'mode_300'
-                    ? counts.available_300
-                    : counts.available_1000
-              }
-            />
+            <DateRangeFilter items={filteredData.submissions} getDate={item => item.createdAt}>
+              {dateFilteredSubmissions => (
+                <FeedbackList
+                  submissions={dateFilteredSubmissions}
+                  feedbacks={feedbacks}
+                  expanded={expanded}
+                  submittedIds={submittedIds}
+                  onFeedbackChange={(id, value) => setFeedbacks(prev => ({ ...prev, [id]: value }))}
+                  onSubmitFeedback={handleSubmitFeedback}
+                  onToggleExpand={id => setExpanded(expanded === id ? null : id)}
+                  lastSubmissionElementRef={lastSubmissionElementRef}
+                  totalAvailable={
+                    activeTab === 'all'
+                      ? counts.available
+                      : activeTab === 'mode_300'
+                        ? counts.available_300
+                        : counts.available_1000
+                  }
+                />
+              )}
+            </DateRangeFilter>
           ))}
 
         {/* {hasMore && (

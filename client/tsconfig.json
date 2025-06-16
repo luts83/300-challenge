@@ -17,5 +17,10 @@
     "noEmit": true,
     "jsx": "react-jsx"
   },
-  "include": ["src", "archive/SearchBar.tsx", "archive/FilterSection.tsx"]
+  "include": [
+    "src",
+    "archive/SearchBar.tsx",
+    "archive/FilterSection.tsx",
+    "archive/LandingPage.tsx"
+  ]
 }

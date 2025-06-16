@@ -58,6 +58,9 @@ const evaluateSubmission = async (text, mode, topic) => {
   const { AI } = require("../config");
 
   try {
+    // API 호출 전 로깅
+    logger.debug("AI 평가 시작:", { mode, textLength: text.length });
+
     const response = await axios.post(
       "https://openrouter.ai/api/v1/chat/completions",
       {
@@ -76,30 +79,92 @@ const evaluateSubmission = async (text, mode, topic) => {
       {
         headers: {
           Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-          "HTTP-Referer": "https://www.dwriting.com",
+          "HTTP-Referer": "https://dwriting.ai",
           "Content-Type": "application/json",
         },
+        timeout: 30000, // 30초 타임아웃
       }
     );
 
+    // 응답 로깅
+    logger.debug("AI 응답 받음:", response.data);
+
     const evaluation = response.data.choices[0].message.content;
 
-    // AI 응답 로깅 추가
+    // AI 응답 로깅
     logger.debug("원본 AI 응답:", evaluation);
 
-    // 응답 정제
-    const cleaned = evaluation
-      .replace(/```json|```/g, "")
-      .replace(/[<>]/g, "")
+    // 응답 정제 - 수정된 버전
+    let cleaned = evaluation
+      .replace(/```json|```/g, "") // 코드 블록 제거
+      .replace(/```/g, "") // 남은 백틱 제거
+      .replace(/\\n/g, " ") // 이스케이프된 줄바꿈
+      .replace(/\n/g, " ") // 실제 줄바꿈
+      .replace(/[<>]/g, "") // HTML 태그 제거
+      .replace(/\s+/g, " ") // 연속된 공백
+      .replace(/\r/g, " ") // 캐리지리턴
+      .replace(/\t/g, " ") // 탭
       .trim();
 
-    // 정제된 응답 로깅 추가
+    // 2. 잘못된 작은따옴표(') → 쌍따옴표(")로 변환 (AI가 key에 '를 쓸 때)
+    cleaned = cleaned.replace(/'(\w+)':/g, '"$1":');
+
+    // 3. JSON key에만 쌍따옴표가 없을 때 보정 (key: → "key":)
+    cleaned = cleaned.replace(/([{,]\s*)([a-zA-Z0-9_]+)\s*:/g, '$1"$2":');
+
+    // 4. 문자열 내부 쌍따옴표 이스케이프 (value만)
+    const escapeInnerQuotes = (jsonStr) => {
+      return jsonStr.replace(/: "((?:[^"\\]|\\.)*)"/g, (match, p1) => {
+        // value 내 쌍따옴표를 모두 이스케이프
+        const escaped = p1.replace(/"/g, '\\"');
+        return `: "${escaped}"`;
+      });
+    };
+    cleaned = escapeInnerQuotes(cleaned);
+
+    // 5. 마지막 쉼표(,) 제거 (AI가 배열/객체 끝에 ,를 남기는 경우)
+    cleaned = cleaned.replace(/,(\s*[}\]])/g, "$1");
+
+    // 6. 백슬래시가 2개 이상 연속될 때 1개로 줄이기
+    cleaned = cleaned.replace(/\\\\+/g, "\\");
+
+    // 7. JSON 전체가 문자열로 감싸져 있을 때(따옴표로 시작/끝) 제거
+    if (
+      (cleaned.startsWith('"') && cleaned.endsWith('"')) ||
+      (cleaned.startsWith("'") && cleaned.endsWith("'"))
+    ) {
+      cleaned = cleaned.slice(1, -1);
+    }
+
+    // 8. 기타: 잘못된 null, undefined, NaN 등 문자열로 변환
+    cleaned = cleaned.replace(/: (null|undefined|NaN)/g, ': ""');
+
+    // 9. (선택) 한글 key/value만 남기고 나머지 특수문자 제거 (필요시)
+    // cleaned = cleaned.replace(/[^\uAC00-\uD7A3a-zA-Z0-9\s.,:;'"{}\[\]_\-]/g, "");
+
+    // 10. (선택) JSON이 아닌 경우 fallback
+    let parsed;
+    try {
+      parsed = JSON.parse(cleaned);
+    } catch (e) {
+      // fallback: 중괄호만 추출해서 다시 시도
+      const match = cleaned.match(/{[\s\S]+}/);
+      if (match) {
+        try {
+          parsed = JSON.parse(match[0]);
+        } catch (e2) {
+          // 마지막 fallback: 에러 메시지와 원본 저장
+          parsed = { error: "AI 응답 파싱 실패", raw: evaluation };
+        }
+      } else {
+        parsed = { error: "AI 응답 파싱 실패", raw: evaluation };
+      }
+    }
+
+    // 정제된 응답 로깅
     logger.debug("정제된 AI 응답:", cleaned);
 
     try {
-      const parsed = JSON.parse(cleaned);
-
-      // 필수 필드 검증 및 기본값 설정
       const validatedFeedback = {
         overall_score: Number(parsed.overall_score) || 0,
         criteria_scores: parsed.criteria_scores || {},
@@ -107,7 +172,7 @@ const evaluateSubmission = async (text, mode, topic) => {
         improvements: Array.isArray(parsed.improvements)
           ? parsed.improvements
           : [],
-        writing_tips: "",
+        writing_tips: parsed.writing_tips || "",
       };
 
       // writing_tips 처리
@@ -139,7 +204,7 @@ const evaluateSubmission = async (text, mode, topic) => {
 
       return {
         score: validatedFeedback.overall_score,
-        feedback: JSON.stringify(validatedFeedback, null, 2),
+        feedback: JSON.stringify(validatedFeedback),
       };
     } catch (parseError) {
       // 더 자세한 오류 로깅
@@ -152,28 +217,30 @@ const evaluateSubmission = async (text, mode, topic) => {
         mode: mode, // 평가 모드도 로깅
         topic: topic, // 주제도 로깅
       });
-      return {
-        score: 0,
-        feedback: JSON.stringify({
-          overall_score: 0,
-          criteria_scores: {},
-          strengths: [],
-          improvements: [],
-          writing_tips: "AI 응답을 처리하는 중 오류가 발생했습니다.",
-        }),
-      };
+      throw new Error("AI 응답 파싱에 실패했습니다.");
     }
   } catch (error) {
-    logger.error("AI 평가 오류:", error);
+    // 상세 에러 로깅
+    logger.error("AI 평가 오류:", {
+      error: error.message,
+      response: error.response?.data,
+      status: error.response?.status,
+      text: text.substring(0, 100) + "...", // 텍스트 일부만 로깅
+      mode,
+      topic,
+    });
+
+    const errorFeedback = {
+      overall_score: 0,
+      criteria_scores: {},
+      strengths: [],
+      improvements: [],
+      writing_tips: `AI 평가 중 오류가 발생했습니다: ${error.message}`,
+    };
+
     return {
       score: 0,
-      feedback: JSON.stringify({
-        overall_score: 0,
-        criteria_scores: {},
-        strengths: [],
-        improvements: [],
-        writing_tips: "평가 중 오류가 발생했습니다.",
-      }),
+      feedback: JSON.stringify(errorFeedback),
     };
   }
 };
@@ -184,6 +251,16 @@ const handleSubmit = async (req, res) => {
 
   try {
     const { text, title, topic, user, mode, sessionCount, duration } = req.body;
+
+    // 제출 시점 로깅 추가
+    console.log("\n📝 새로운 글 제출:", {
+      작성자: user.displayName,
+      이메일: user.email,
+      제목: title,
+      모드: mode,
+      글자수: text.length,
+      시간: new Date().toLocaleString("ko-KR", { timeZone: "Asia/Seoul" }),
+    });
 
     if (!text || !title || !user || !user.uid || !user.email || !mode) {
       return res.status(400).json({
@@ -248,7 +325,13 @@ const handleSubmit = async (req, res) => {
           mode: "mode_300",
           timestamp: now,
         },
-        { session }
+        {
+          session,
+          user: {
+            email: user.email,
+            displayName: user.displayName || user.email.split("@")[0],
+          },
+        }
       );
     }
 
@@ -268,7 +351,13 @@ const handleSubmit = async (req, res) => {
           mode: "mode_1000",
           timestamp: now,
         },
-        { session }
+        {
+          session,
+          user: {
+            email: user.email,
+            displayName: user.displayName || user.email.split("@")[0],
+          },
+        }
       );
     }
 
@@ -283,6 +372,9 @@ const handleSubmit = async (req, res) => {
       });
     }
 
+    // AI 평가 실행
+    const { score, feedback } = await evaluateSubmission(text, mode, topic);
+
     // 제출물 저장
     const submission = new Submission({
       text,
@@ -293,16 +385,21 @@ const handleSubmit = async (req, res) => {
       sessionCount,
       duration,
       submissionDate: now.toISOString().slice(0, 10),
+      score,
+      aiFeedback: feedback, // JSON 문자열로 저장
     });
     await submission.save({ session });
 
-    // AI 평가 실행
-    const { score, feedback } = await evaluateSubmission(text, mode, topic);
-    submission.score = score;
-    submission.aiFeedback = feedback;
-    await submission.save({ session });
+    // 저장 성공 로깅
+    console.log("✅ 글 저장 완료:", {
+      작성자: user.displayName,
+      제목: title,
+      모드: mode,
+      글자수: text.length,
+      시간: new Date().toLocaleString("ko-KR", { timeZone: "Asia/Seoul" }),
+    });
 
-    // 토큰 차감
+    // 토큰 차감 (공통 로직)
     userToken[tokenField] -= 1;
     await handleTokenChange(
       user.uid,
@@ -312,8 +409,65 @@ const handleSubmit = async (req, res) => {
         mode,
         timestamp: now,
       },
-      { session }
+      {
+        session,
+        user: {
+          email: user.email,
+          displayName: user.displayName || user.email.split("@")[0],
+        },
+      }
     );
+
+    // 콘솔 로그 추가
+    console.log(
+      `[토큰차감] ${user.userName || user.displayName || user.email} (${
+        user.uid
+      }) | ${now.toISOString()} | ${mode} | 남은 토큰: ${userToken[tokenField]}`
+    );
+
+    // 1000자 모드 글 작성 시 황금열쇠만 지급
+    if (mode === "mode_1000") {
+      console.log(`[황금열쇠 지급 시작] 유저: ${user.uid}`);
+      console.log("현재 황금열쇠 개수:", userToken.goldenKeys);
+
+      try {
+        // 황금열쇠 지급
+        userToken.goldenKeys += TOKEN.GOLDEN_KEY;
+
+        // 토큰 히스토리 업데이트
+        await handleTokenChange(
+          user.uid,
+          {
+            type: "GOLDEN_KEY",
+            amount: TOKEN.GOLDEN_KEY,
+            mode: "mode_1000",
+            timestamp: now,
+          },
+          {
+            session,
+            user: {
+              email: user.email,
+              displayName: user.displayName || user.email.split("@")[0],
+            },
+          }
+        );
+
+        console.log("[황금열쇠 지급 완료]", {
+          userId: user.uid,
+          previousGoldenKeys: userToken.goldenKeys - TOKEN.GOLDEN_KEY,
+          currentGoldenKeys: userToken.goldenKeys,
+          givenAmount: TOKEN.GOLDEN_KEY,
+          timestamp: now,
+        });
+      } catch (error) {
+        console.error("[황금열쇠 지급 실패]", {
+          userId: user.uid,
+          error: error.message,
+          timestamp: now,
+        });
+        throw error;
+      }
+    }
 
     // 스트릭 처리 - 수정된 부분
     if (dayOfWeek >= 1 && dayOfWeek <= 5) {
@@ -323,15 +477,30 @@ const handleSubmit = async (req, res) => {
         if (!streak) {
           streak = new WritingStreak({
             uid: user.uid,
+            user: {
+              email: user.email,
+              displayName: user.displayName || user.email.split("@")[0],
+            },
             weeklyProgress: Array(5).fill(false),
             celebrationShown: false,
             lastStreakCompletion: null,
-            currentWeekStartDate: monday, // 이번 주 월요일로 설정
+            currentWeekStartDate: monday,
           });
         }
 
         // 새로운 주 시작 체크
         if (streak.shouldStartNewWeek()) {
+          // 이전 주 기록을 히스토리에 저장
+          if (streak.weeklyProgress?.some((day) => day)) {
+            const wasCompleted = streak.weeklyProgress.every((day) => day);
+            streak.streakHistory.push({
+              weekStartDate: streak.currentWeekStartDate,
+              completed: wasCompleted,
+              completionDate: wasCompleted ? streak.lastStreakCompletion : null,
+            });
+          }
+
+          // 새로운 주 시작
           streak.weeklyProgress = Array(5).fill(false);
           streak.celebrationShown = false;
           streak.currentWeekStartDate = monday;
@@ -353,11 +522,31 @@ const handleSubmit = async (req, res) => {
                 mode: "streak_completion",
                 timestamp: now,
               },
-              { session }
+              {
+                session,
+                user: {
+                  email: user.email,
+                  displayName: user.displayName || user.email.split("@")[0],
+                },
+              }
             );
 
+            // 스트릭 완료 기록
             streak.celebrationShown = true;
             streak.lastStreakCompletion = now;
+
+            // 이번 주 완료를 히스토리에 추가
+            streak.streakHistory.push({
+              weekStartDate: streak.currentWeekStartDate,
+              completed: true,
+              completionDate: now,
+            });
+
+            console.log("스트릭 완료 기록:", {
+              uid: user.uid,
+              weekStartDate: streak.currentWeekStartDate,
+              completionDate: now,
+            });
           }
 
           await streak.save({ session });
@@ -366,21 +555,6 @@ const handleSubmit = async (req, res) => {
         console.error("❌ Streak 업데이트 중 오류:", error);
         throw error;
       }
-    }
-
-    // 1000자 모드 글 작성 시 황금열쇠 지급
-    if (mode === "mode_1000") {
-      userToken.goldenKeys += TOKEN.GOLDEN_KEY;
-      await handleTokenChange(
-        user.uid,
-        {
-          type: "GOLDEN_KEY",
-          amount: TOKEN.GOLDEN_KEY,
-          mode: "mode_1000",
-          timestamp: now,
-        },
-        { session }
-      );
     }
 
     await userToken.save({ session });
@@ -414,7 +588,13 @@ const handleSubmit = async (req, res) => {
     });
   } catch (error) {
     await session.abortTransaction();
-    console.error("❌ 서버 오류:", error);
+    console.error("❌ 제출 처리 오류:", {
+      작성자: user.displayName,
+      제목: title,
+      모드: mode,
+      오류: error.message,
+      시간: new Date().toLocaleString("ko-KR", { timeZone: "Asia/Seoul" }),
+    });
     return res.status(500).json({
       success: false,
       message: "서버 오류가 발생했습니다.",
@@ -448,7 +628,13 @@ const handleStreakCompletion = async (user, streak, userToken) => {
         mode: "streak_completion",
         timestamp: new Date(),
       },
-      { session }
+      {
+        session,
+        user: {
+          email: user.email,
+          displayName: user.displayName || user.email.split("@")[0],
+        },
+      }
     );
 
     await session.commitTransaction();

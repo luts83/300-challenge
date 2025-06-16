@@ -14,6 +14,7 @@ import { CONFIG } from '../config';
 // import FeedbackMissionPanel from '../components/FeedbackMissionPanel';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { logger } from '../utils/logger';
+import { format } from 'date-fns';
 
 import ScrollToTop from '../components/ScrollToTop';
 import { WeeklyProgress } from '../components/SubmissionStats/WeeklyProgress';
@@ -28,6 +29,8 @@ import { SubmissionFilterSection } from '../components/FilterSection/SubmissionF
 import { useSubmissionFilter } from '../hooks/useSubmissionFilter';
 import Layout from '../components/Layout';
 import FeedbackNotice from '../components/FeedbackNotice';
+import DateRangePicker from '../components/DateRangePicker';
+import DateRangeFilter from '../components/DateRangeFilter';
 
 type Submission = {
   _id: string;
@@ -485,48 +488,45 @@ const MySubmissions = () => {
             counts={counts}
           />
 
-          {/* 글 목록 */}
-          {isLoading ? (
-            <div className="text-center py-8">
-              <div className="inline-block">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-                <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">로딩 중...</p>
-              </div>
-            </div>
-          ) : error ? (
-            <div className="text-center py-8 text-red-600">
-              <p>{error}</p>
-            </div>
-          ) : filteredSubmissions.length === 0 ? (
-            <p className="text-center py-8 text-gray-700 bg-white/80 rounded-lg shadow-sm">
-              🔍 검색 결과가 없습니다.
-            </p>
-          ) : (
-            <div className="space-y-4">
-              {filteredSubmissions.map((submission, index) => (
-                <div
-                  key={submission._id}
-                  ref={index === filteredSubmissions.length - 1 ? lastSubmissionElementRef : null}
-                >
-                  <SubmissionItem
-                    submission={submission}
-                    isExpanded={expandedId === submission._id}
-                    onToggleExpand={() => toggleExpand(submission._id)}
-                    onUnlockFeedback={() => handleUnlockFeedback(submission)}
-                    feedbacks={submission.feedbacks || []}
-                  />
+          {/* 날짜 범위 필터 + 글 목록 */}
+          <DateRangeFilter items={filteredSubmissions} getDate={item => item.createdAt}>
+            {dateFilteredSubmissions =>
+              dateFilteredSubmissions.length === 0 ? (
+                <p className="text-center py-8 text-gray-700 bg-white/80 rounded-lg shadow-sm">
+                  🔍 검색 결과가 없습니다.
+                </p>
+              ) : (
+                <div className="space-y-4">
+                  {dateFilteredSubmissions.map((submission, index) => (
+                    <div
+                      key={submission._id}
+                      ref={
+                        index === dateFilteredSubmissions.length - 1
+                          ? lastSubmissionElementRef
+                          : null
+                      }
+                    >
+                      <SubmissionItem
+                        submission={submission}
+                        isExpanded={expandedId === submission._id}
+                        onToggleExpand={() => toggleExpand(submission._id)}
+                        onUnlockFeedback={() => handleUnlockFeedback(submission)}
+                        feedbacks={submission.feedbacks || []}
+                      />
+                    </div>
+                  ))}
+                  {isLoadingMore && (
+                    <div className="text-center py-4">
+                      <div className="inline-block">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                        <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">로딩 중...</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              ))}
-              {isLoadingMore && (
-                <div className="text-center py-4">
-                  <div className="inline-block">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-                    <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">로딩 중...</p>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
+              )
+            }
+          </DateRangeFilter>
 
           {/* UnlockModal 추가 */}
           {selectedSubmission && (

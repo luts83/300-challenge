@@ -116,16 +116,72 @@ router.get("/tokens/:uid", async (req, res) => {
 router.get("/popular", async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 3;
+    const now = new Date();
+    const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
 
-    const popularSubmissions = await Submission.find({})
-      .sort({ likeCount: -1, feedbackCount: -1, createdAt: -1 }) // 좋아요 > 피드백 > 최신순
+    // 1. 최근 3일 이내 글만 대상으로 인기글 조회
+    let popularSubmissions = await Submission.find({
+      createdAt: { $gte: threeDaysAgo },
+    })
+      .sort({ feedbackCount: -1, likeCount: -1, createdAt: -1 })
       .limit(limit)
-      .select("title text topic likeCount feedbackCount createdAt mode"); // ✅ topic 추가
+      .select("title text topic likeCount feedbackCount createdAt mode");
+
+    // 2. 만약 3일 이내 글이 부족하면, 전체에서 인기글로 채움
+    if (popularSubmissions.length < limit) {
+      const additionalNeeded = limit - popularSubmissions.length;
+      // 이미 뽑은 글의 _id는 제외
+      const excludeIds = popularSubmissions.map((sub) => sub._id);
+
+      const fallbackSubmissions = await Submission.find({
+        _id: { $nin: excludeIds },
+      })
+        .sort({ feedbackCount: -1, likeCount: -1, createdAt: -1 })
+        .limit(additionalNeeded)
+        .select("title text topic likeCount feedbackCount createdAt mode");
+
+      // 최종 결과 합치기
+      popularSubmissions = popularSubmissions.concat(fallbackSubmissions);
+    }
 
     res.json(popularSubmissions);
   } catch (err) {
     console.error("🔥 인기 글 조회 실패:", err);
     res.status(500).json({ message: "서버 오류" });
+  }
+});
+
+// 랜딩페이지 최근 글 조회
+router.get("/recent", async (req, res) => {
+  try {
+    const submissions = await Submission.find()
+      .sort({ createdAt: -1 })
+      .limit(50)
+      .select("title text user mode likeCount createdAt topic") // topic 필드 포함
+      .lean();
+
+    res.setHeader("Content-Type", "application/json");
+    res.json({
+      success: true,
+      data: submissions.map((sub) => ({
+        _id: sub._id,
+        title: sub.title,
+        text: sub.text,
+        topic: sub.topic,
+        mode: sub.mode,
+        likeCount: sub.likeCount,
+        createdAt: sub.createdAt,
+        user: {
+          displayName: sub.user.displayName || "익명",
+          email: sub.user.email,
+        },
+      })),
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: "Internal server error",
+    });
   }
 });
 

@@ -2,6 +2,7 @@ const CONFIG = require("../config");
 const Submission = require("../models/Submission");
 const Feedback = require("../models/Feedback");
 const logger = require("../utils/logger");
+const { sendFeedbackEmail } = require("../utils/emailService");
 
 // 피드백 가능 여부 확인 함수
 const canGiveFeedback = async (userUid, targetSubmission) => {
@@ -171,6 +172,14 @@ exports.submitFeedback = async (req, res) => {
 
     // 5. 피드백 저장
     const savedFeedback = await newFeedback.save();
+
+    // 이메일 전송
+    try {
+      await sendFeedbackEmail(savedFeedback, targetSubmission);
+    } catch (emailError) {
+      logger.error("피드백 알림 이메일 전송 실패:", emailError);
+      // 이메일 전송 실패는 전체 프로세스를 중단시키지 않음
+    }
 
     // Submission 모델의 hasGivenFeedback 필드 업데이트
     await Submission.findByIdAndUpdate(toSubmissionId, {

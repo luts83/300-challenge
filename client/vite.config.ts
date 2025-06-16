@@ -11,6 +11,9 @@ export default defineConfig({
     host: '0.0.0.0', // 모든 IP에서 접근 가능
     port: 5173, // 기본 포트
     force: true, // 강제로 의존성 최적화를 다시 실행
+    proxy: {
+      '/api': 'http://localhost:8080', // ← 이 줄 추가!
+    },
   },
   resolve: {
     alias: {

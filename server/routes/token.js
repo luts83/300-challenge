@@ -4,12 +4,16 @@ const router = express.Router();
 const Token = require("../models/Token");
 const WritingStreak = require("../models/WritingStreak");
 const { TOKEN } = require("../config");
+const admin = require("firebase-admin");
 
 // ✍ UID로 해당 유저의 토큰 조회 (mode별)
 router.get("/:uid", async (req, res) => {
   const { uid } = req.params;
 
   try {
+    // Firebase에서 사용자 정보 조회
+    const userRecord = await admin.auth().getUser(uid);
+
     // Token 모델에서 토큰 정보 조회
     const tokenEntry = await Token.findOne({ uid });
 
@@ -23,12 +27,22 @@ router.get("/:uid", async (req, res) => {
     if (!finalTokenEntry) {
       finalTokenEntry = new Token({
         uid,
+        user: {
+          email: userRecord.email,
+          displayName: userRecord.displayName || userRecord.email.split("@")[0],
+        },
         tokens_300: TOKEN.DAILY_LIMIT_300,
         tokens_1000: TOKEN.WEEKLY_LIMIT_1000,
         goldenKeys: 0,
         lastRefreshed: now,
         lastWeeklyRefreshed: monday,
       });
+    } else {
+      // 기존 토큰의 사용자 정보 업데이트
+      finalTokenEntry.user = {
+        email: userRecord.email,
+        displayName: userRecord.displayName || userRecord.email.split("@")[0],
+      };
     }
 
     // 일일 토큰 리셋 (300자 모드)
@@ -51,6 +65,7 @@ router.get("/:uid", async (req, res) => {
       goldenKeys: finalTokenEntry.goldenKeys,
       lastRefreshed: finalTokenEntry.lastRefreshed,
       lastWeeklyRefreshed: finalTokenEntry.lastWeeklyRefreshed,
+      user: finalTokenEntry.user,
     });
   } catch (error) {
     console.error("❌ 토큰 조회 실패:", error);

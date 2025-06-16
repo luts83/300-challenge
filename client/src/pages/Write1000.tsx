@@ -447,6 +447,9 @@ const Write1000 = () => {
         },
         sessionCount,
         duration: finalDuration,
+        forceSubmit: false,
+        isMinLengthMet: text.length >= MIN_LENGTH,
+        charCount: text.length,
       });
 
       let { score, feedback } = res.data.data;
