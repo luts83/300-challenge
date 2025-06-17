@@ -42,4 +42,7 @@ Thumbs.db
 
 # Firebase service account key
 firebase-service-account.json
+
+# Migration scripts with sensitive data
+server/migrateUserTokenHistory.js
     
