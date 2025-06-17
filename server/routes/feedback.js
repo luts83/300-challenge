@@ -459,7 +459,8 @@ router.post("/unlock-feedback", async (req, res) => {
       await Submission.updateMany(
         {
           "user.uid": uid,
-          createdAt: { $lte: targetSubmission.createdAt },
+          submissionDate: { $lte: targetSubmission.submissionDate },
+          feedbackUnlocked: false, // 이미 언락된 것은 제외
         },
         { feedbackUnlocked: true }
       );

@@ -53,13 +53,28 @@ const unlockFeedback = async (req, res) => {
   }
 };
 
+// 1. 빈 피드백 체크 함수 추가
+function isEmptyFeedback(feedbackObj) {
+  return (
+    feedbackObj &&
+    feedbackObj.overall_score === 0 &&
+    Object.keys(feedbackObj.criteria_scores || {}).length === 0 &&
+    (!feedbackObj.strengths || feedbackObj.strengths.length === 0) &&
+    (!feedbackObj.improvements || feedbackObj.improvements.length === 0) &&
+    !feedbackObj.writing_tips
+  );
+}
+
 // AI 평가 함수 수정
-const evaluateSubmission = async (text, mode, topic) => {
+const evaluateSubmission = async (text, mode, topic, retryCount = 2) => {
   const { AI } = require("../config");
 
   try {
-    // API 호출 전 로깅
-    logger.debug("AI 평가 시작:", { mode, textLength: text.length });
+    logger.debug("AI 평가 시작:", {
+      mode,
+      textLength: text.length,
+      retryCount,
+    });
 
     const response = await axios.post(
       "https://openrouter.ai/api/v1/chat/completions",
@@ -202,30 +217,38 @@ const evaluateSubmission = async (text, mode, topic) => {
         }
       });
 
+      // 3. 빈 피드백이면 리트라이 (최대 2회)
+      if (isEmptyFeedback(validatedFeedback) && retryCount > 0) {
+        logger.warn(
+          `[AI 평가] 빈 피드백 감지, 재시도 남은 횟수: ${retryCount}.`,
+          { validatedFeedback }
+        );
+        await new Promise((res) => setTimeout(res, 1000));
+        return await evaluateSubmission(text, mode, topic, retryCount - 1);
+      }
+
       return {
         score: validatedFeedback.overall_score,
         feedback: JSON.stringify(validatedFeedback),
       };
     } catch (parseError) {
-      // 더 자세한 오류 로깅
       logger.error("AI 응답 파싱 오류:", {
         error: parseError.message,
         errorStack: parseError.stack,
         original: evaluation,
         cleaned: cleaned,
-        text: text, // 평가 대상 텍스트도 로깅
-        mode: mode, // 평가 모드도 로깅
-        topic: topic, // 주제도 로깅
+        text: text,
+        mode: mode,
+        topic: topic,
       });
       throw new Error("AI 응답 파싱에 실패했습니다.");
     }
   } catch (error) {
-    // 상세 에러 로깅
     logger.error("AI 평가 오류:", {
       error: error.message,
       response: error.response?.data,
       status: error.response?.status,
-      text: text.substring(0, 100) + "...", // 텍스트 일부만 로깅
+      text: text.substring(0, 100) + "...",
       mode,
       topic,
     });

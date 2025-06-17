@@ -67,9 +67,26 @@ const DateRangeFilter = <T,>({
   return (
     <>
       <div
-        className={`bg-white dark:bg-gray-800 text-black dark:text-white rounded-lg shadow-sm p-3 sm:p-4 mb-4 border border-gray-100 dark:border-gray-700 flex flex-col sm:flex-row items-center gap-2 ${className}`}
+        className={`
+          bg-white 
+          dark:bg-gray-800 
+          text-black 
+          dark:text-white 
+          rounded-lg 
+          shadow-sm 
+          p-3 sm:p-4                    /* 모바일: 12px 패딩, 데스크탑: 16px 패딩 */
+          mb-4 border 
+          border-gray-100 
+          dark:border-gray-700 
+          flex 
+          flex-col sm:flex-row          /* 모바일: 세로 스택, 데스크탑: 가로 배치 */
+          items-stretch           /* stretch로 변경하여 세로 방향 꽉 채움 */
+          w-full                 /* 바깥 박스 전체 너비 사용 */          
+          gap-2                         /* 모바일/데스크탑: 요소간 8px 간격 */
+          ${className}
+          `}
       >
-        <div className="flex items-center gap-2 flex-1">
+        <div className="flex flex-1 w-full">
           <DateRangePicker
             startDate={startDate}
             endDate={endDate}
@@ -84,29 +101,88 @@ const DateRangeFilter = <T,>({
           />
         </div>
         <div className="flex items-center gap-2 flex-shrink-0 mt-2 sm:mt-0">
+          {' '}
+          {/* 모바일: 상단 8px 마진, 데스크탑: 마진 없음 */}
           <button
             onClick={handleToday}
-            className="px-3 py-1 rounded bg-blue-100 text-blue-700 text-xs font-medium hover:bg-blue-200 transition dark:bg-blue-900 dark:text-blue-200 dark:hover:bg-blue-800"
+            className="
+            flex-1 sm:flex-none   /* 모바일에서만 늘어나도록 */
+            px-3                         /* 모바일/데스크탑: 좌우 12px 패딩 */
+            py-1                         /* 모바일/데스크탑: 상하 4px 패딩 */
+            rounded 
+            bg-blue-100 
+            text-blue-700 
+            text-xs                      /* 모바일: 작은 글자 크기 (12px) */
+            font-medium 
+            hover:bg-blue-200 
+            transition 
+            dark:bg-blue-900 
+            dark:text-blue-200 
+            dark:hover:bg-blue-800
+            "
           >
             오늘
           </button>
           <button
             onClick={handleThisWeek}
-            className="px-3 py-1 rounded bg-blue-100 text-blue-700 text-xs font-medium hover:bg-blue-200 transition dark:bg-blue-900 dark:text-blue-200 dark:hover:bg-blue-800"
+            className="
+            flex-1 sm:flex-none   /* 모바일에서만 늘어나도록 */
+            px-3 
+            py-1 
+            rounded 
+            bg-blue-100 
+            text-blue-700 
+            text-xs 
+            font-medium 
+            hover:bg-blue-200 
+            transition 
+            dark:bg-blue-900 
+            dark:text-blue-200 
+            dark:hover:bg-blue-800
+            "
           >
             이번주
           </button>
           <button
             onClick={handleThisMonth}
-            className="px-3 py-1 rounded bg-blue-100 text-blue-700 text-xs font-medium hover:bg-blue-200 transition dark:bg-blue-900 dark:text-blue-200 dark:hover:bg-blue-800"
+            className="
+            flex-1 sm:flex-none   /* 모바일에서만 늘어나도록 */
+            px-3 
+            py-1 
+            rounded 
+            bg-blue-100 
+            text-blue-700 
+            text-xs 
+            font-medium 
+            hover:bg-blue-200 
+            transition 
+            dark:bg-blue-900 
+            dark:text-blue-200 
+            dark:hover:bg-blue-800
+            "
           >
             이번달
           </button>
           <button
             onClick={handleClear}
-            className="px-3 py-1 rounded bg-gray-100 text-gray-700 text-xs font-medium hover:bg-gray-200 transition dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
+            className="
+            flex-1 sm:flex-none   /* 모바일에서만 늘어나도록 */
+            px-3 
+            py-1 
+            rounded 
+            bg-gray-100 
+            text-gray-700 
+            text-xs 
+            font-medium 
+            hover:bg-gray-200 
+            transition 
+            dark:bg-gray-700 
+            dark:text-gray-200 
+            dark:hover:bg-gray-600
+            "
           >
-            전체보기
+            <span className="sm:hidden">전체</span>
+            <span className="hidden sm:inline">전체보기</span>
           </button>
         </div>
       </div>

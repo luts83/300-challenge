@@ -40,7 +40,8 @@ const UserPostSection: React.FC<UserPostSectionProps> = ({ show }) => {
   useEffect(() => {
     const fetchPosts = async () => {
       try {
-        const response = await fetch('/api/submit/recent', {
+        const apiUrl = import.meta.env.VITE_API_URL || '';
+        const response = await fetch(`${apiUrl}/api/submit/recent`, {
           method: 'GET',
           headers: {
             Accept: 'application/json',
