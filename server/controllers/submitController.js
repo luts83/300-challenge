@@ -101,148 +101,65 @@ const evaluateSubmission = async (text, mode, topic, retryCount = 2) => {
       }
     );
 
-    // 응답 로깅
-    logger.debug("AI 응답 받음:", response.data);
-
     const evaluation = response.data.choices[0].message.content;
-
-    // AI 응답 로깅
     logger.debug("원본 AI 응답:", evaluation);
 
-    // 응답 정제 - 수정된 버전
+    // 더 강화된 응답 정제
     let cleaned = evaluation
-      .replace(/```json|```/g, "") // 코드 블록 제거
-      .replace(/```/g, "") // 남은 백틱 제거
-      .replace(/\\n/g, " ") // 이스케이프된 줄바꿈
-      .replace(/\n/g, " ") // 실제 줄바꿈
-      .replace(/[<>]/g, "") // HTML 태그 제거
-      .replace(/\s+/g, " ") // 연속된 공백
-      .replace(/\r/g, " ") // 캐리지리턴
-      .replace(/\t/g, " ") // 탭
+      .replace(/```json|```/g, "")
+      .replace(/```/g, "")
+      .replace(/\\n/g, " ")
+      .replace(/\n/g, " ")
+      .replace(/[<>]/g, "")
+      .replace(/\s+/g, " ")
+      .replace(/\r/g, " ")
+      .replace(/\t/g, " ")
       .trim();
 
-    // 2. 잘못된 작은따옴표(') → 쌍따옴표(")로 변환 (AI가 key에 '를 쓸 때)
-    cleaned = cleaned.replace(/'(\w+)':/g, '"$1":');
-
-    // 3. JSON key에만 쌍따옴표가 없을 때 보정 (key: → "key":)
-    cleaned = cleaned.replace(/([{,]\s*)([a-zA-Z0-9_]+)\s*:/g, '$1"$2":');
-
-    // 4. 문자열 내부 쌍따옴표 이스케이프 (value만)
-    const escapeInnerQuotes = (jsonStr) => {
-      return jsonStr.replace(/: "((?:[^"\\]|\\.)*)"/g, (match, p1) => {
-        // value 내 쌍따옴표를 모두 이스케이프
-        const escaped = p1.replace(/"/g, '\\"');
-        return `: "${escaped}"`;
-      });
-    };
-    cleaned = escapeInnerQuotes(cleaned);
-
-    // 5. 마지막 쉼표(,) 제거 (AI가 배열/객체 끝에 ,를 남기는 경우)
-    cleaned = cleaned.replace(/,(\s*[}\]])/g, "$1");
-
-    // 6. 백슬래시가 2개 이상 연속될 때 1개로 줄이기
-    cleaned = cleaned.replace(/\\\\+/g, "\\");
-
-    // 7. JSON 전체가 문자열로 감싸져 있을 때(따옴표로 시작/끝) 제거
-    if (
-      (cleaned.startsWith('"') && cleaned.endsWith('"')) ||
-      (cleaned.startsWith("'") && cleaned.endsWith("'"))
-    ) {
-      cleaned = cleaned.slice(1, -1);
-    }
-
-    // 8. 기타: 잘못된 null, undefined, NaN 등 문자열로 변환
-    cleaned = cleaned.replace(/: (null|undefined|NaN)/g, ': ""');
-
-    // 9. (선택) 한글 key/value만 남기고 나머지 특수문자 제거 (필요시)
-    // cleaned = cleaned.replace(/[^\uAC00-\uD7A3a-zA-Z0-9\s.,:;'"{}\[\]_\-]/g, "");
-
-    // 10. (선택) JSON이 아닌 경우 fallback
+    // JSON 파싱 시도
     let parsed;
     try {
       parsed = JSON.parse(cleaned);
     } catch (e) {
-      // fallback: 중괄호만 추출해서 다시 시도
-      const match = cleaned.match(/{[\s\S]+}/);
-      if (match) {
-        try {
-          parsed = JSON.parse(match[0]);
-        } catch (e2) {
-          // 마지막 fallback: 에러 메시지와 원본 저장
-          parsed = { error: "AI 응답 파싱 실패", raw: evaluation };
-        }
-      } else {
-        parsed = { error: "AI 응답 파싱 실패", raw: evaluation };
-      }
-    }
-
-    // 정제된 응답 로깅
-    logger.debug("정제된 AI 응답:", cleaned);
-
-    try {
-      const validatedFeedback = {
-        overall_score: Number(parsed.overall_score) || 0,
-        criteria_scores: parsed.criteria_scores || {},
-        strengths: Array.isArray(parsed.strengths) ? parsed.strengths : [],
-        improvements: Array.isArray(parsed.improvements)
-          ? parsed.improvements
-          : [],
-        writing_tips: parsed.writing_tips || "",
-      };
-
-      // writing_tips 처리
-      if (parsed.writing_tips) {
-        if (typeof parsed.writing_tips === "string") {
-          validatedFeedback.writing_tips = parsed.writing_tips;
-        } else if (typeof parsed.writing_tips === "object") {
-          validatedFeedback.writing_tips = Object.entries(parsed.writing_tips)
-            .map(([key, value]) => `${key}: ${value}`)
-            .join("\n");
-        }
-      }
-
-      // criteria_scores 검증
-      Object.keys(validatedFeedback.criteria_scores).forEach((key) => {
-        const criteria = validatedFeedback.criteria_scores[key];
-        if (typeof criteria !== "object") {
-          validatedFeedback.criteria_scores[key] = {
-            score: 0,
-            feedback: "평가 정보가 없습니다.",
-          };
-        } else {
-          validatedFeedback.criteria_scores[key] = {
-            score: Number(criteria.score) || 0,
-            feedback: String(criteria.feedback || "평가 정보가 없습니다."),
-          };
-        }
-      });
-
-      // 3. 빈 피드백이면 리트라이 (최대 2회)
-      if (isEmptyFeedback(validatedFeedback) && retryCount > 0) {
-        logger.warn(
-          `[AI 평가] 빈 피드백 감지, 재시도 남은 횟수: ${retryCount}.`,
-          { validatedFeedback }
-        );
+      // 파싱 실패 시 재시도
+      if (retryCount > 0) {
+        logger.warn(`[AI 평가] 파싱 오류, 재시도 남은 횟수: ${retryCount}.`, {
+          error: e.message,
+          cleaned,
+        });
         await new Promise((res) => setTimeout(res, 1000));
         return await evaluateSubmission(text, mode, topic, retryCount - 1);
       }
 
-      return {
-        score: validatedFeedback.overall_score,
-        feedback: JSON.stringify(validatedFeedback),
-      };
-    } catch (parseError) {
-      logger.error("AI 응답 파싱 오류:", {
-        error: parseError.message,
-        errorStack: parseError.stack,
-        original: evaluation,
-        cleaned: cleaned,
-        text: text,
-        mode: mode,
-        topic: topic,
-      });
+      // 재시도 횟수 소진 시 에러 피드백 반환
       throw new Error("AI 응답 파싱에 실패했습니다.");
     }
+
+    // 응답 검증
+    const validatedFeedback = {
+      overall_score: Number(parsed.overall_score) || 0,
+      criteria_scores: parsed.criteria_scores || {},
+      strengths: Array.isArray(parsed.strengths) ? parsed.strengths : [],
+      improvements: Array.isArray(parsed.improvements)
+        ? parsed.improvements
+        : [],
+      writing_tips: parsed.writing_tips || "",
+    };
+
+    // 빈 피드백 체크
+    if (isEmptyFeedback(validatedFeedback) && retryCount > 0) {
+      logger.warn(
+        `[AI 평가] 빈 피드백 감지, 재시도 남은 횟수: ${retryCount}.`,
+        { validatedFeedback }
+      );
+      await new Promise((res) => setTimeout(res, 1000));
+      return await evaluateSubmission(text, mode, topic, retryCount - 1);
+    }
+
+    return {
+      score: validatedFeedback.overall_score,
+      feedback: JSON.stringify(validatedFeedback),
+    };
   } catch (error) {
     logger.error("AI 평가 오류:", {
       error: error.message,
