@@ -6,6 +6,26 @@
 
     <!-- 기본 메타 태그 -->
     <title>딜라이팅.AI·DWRITING.AI - 즐거운 매일 글쓰기</title>
+
+    <script>
+      // 문제 해결을 위한 캐시/서비스워커 초기화 (최초 1회만 실행)
+      if (!localStorage.getItem('sw_cleanup_done')) {
+        // 서비스워커 제거
+        navigator.serviceWorker?.getRegistrations().then(regs => {
+          regs.forEach(reg => reg.unregister());
+        });
+
+        // 캐시 제거
+        caches?.keys().then(keys => {
+          keys.forEach(key => caches.delete(key));
+        });
+
+        // 플래그 저장
+        localStorage.setItem('sw_cleanup_done', 'true');
+        console.log('✅ 서비스워커 및 캐시 제거 완료');
+      }
+    </script>
+
     <meta
       name="description"
       content="매일 300자, 1000자 글쓰기로 성장하세요. 글쓰기 습관 만들기, AI 피드백, 글쓰기 도전"
