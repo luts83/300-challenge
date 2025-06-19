@@ -46,3 +46,9 @@ firebase-service-account.json
 # Migration scripts with sensitive data
 server/migrateUserTokenHistory.js
     
+# Scripts folder (contains sensitive database queries and credentials)
+server/scripts/
+
+# Monthly report system (contains email templates and user data)
+server/templates/
+server/cron/
