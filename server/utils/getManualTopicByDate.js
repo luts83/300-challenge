@@ -9,13 +9,26 @@ const config = require("../config");
 const logger = require("./logger");
 
 /**
- * 수동 주제를 날짜 기준으로 계산해서 반환하는 함수
+ * 사용자 시간대 기준으로 주제를 계산하는 함수
  * @param {string} mode - '300' 또는 '1000'
+ * @param {string} timezone - 사용자 시간대 (예: 'Asia/Seoul', 'Europe/London')
+ * @param {number} offset - 사용자 시간대 오프셋 (분 단위)
  * @returns {Object} { topic: string | null, isManualTopic: boolean }
  */
-function getManualTopicByDate(mode = "300") {
-  const base = new Date(config.TOPIC.BASE_DATE);
-  const today = new Date();
+function getManualTopicByDate(
+  mode = "300",
+  timezone = "Asia/Seoul",
+  offset = -540
+) {
+  // 사용자 시간대 기준으로 현재 날짜 계산
+  const now = new Date();
+  const userTime = new Date(now.getTime() - offset * 60 * 1000);
+
+  // 기준일을 사용자 시간대 기준으로 설정
+  const baseDate = new Date(config.TOPIC.BASE_DATE + "T00:00:00.000Z");
+  const base = new Date(baseDate.getTime() - offset * 60 * 1000);
+
+  const today = userTime;
   const dayOfWeek = today.getDay(); // 0: 일요일, 6: 토요일
   const diffDays = Math.floor((today - base) / (1000 * 60 * 60 * 24));
 

@@ -499,7 +499,13 @@ const Write1000 = () => {
   const fetchTopic = async () => {
     if (!CONFIG.TOPIC.SHOW_ON_HOME_1000) return;
     try {
-      const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/topic/today?mode=mode_1000`);
+      // 사용자의 시간대 정보 가져오기
+      const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const userOffset = new Date().getTimezoneOffset();
+
+      const res = await axios.get(
+        `${import.meta.env.VITE_API_URL}/api/topic/today?mode=mode_1000&timezone=${encodeURIComponent(userTimezone)}&offset=${userOffset}`
+      );
       setDailyTopic(res.data.topic);
     } catch (err) {
       logger.error('주제 불러오기 실패:', err);
