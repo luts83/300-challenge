@@ -9,6 +9,8 @@ coverage/
 # Production
 build/
 dist/
+client/dist/
+client/build/
 
 # Environment variables
 .env
@@ -21,6 +23,8 @@ dist/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+logs/
+*.log
 
 # Editor directories and files
 .idea/
@@ -30,6 +34,8 @@ yarn-error.log*
 *.njsproj
 *.sln
 *.sw?
+*.code-workspace
+.history/
 
 # OS generated files
 .DS_Store
@@ -39,6 +45,7 @@ yarn-error.log*
 .Trashes
 ehthumbs.db
 Thumbs.db
+Desktop.ini
 
 # Firebase service account key
 firebase-service-account.json
@@ -52,3 +59,38 @@ server/scripts/
 # Monthly report system (contains email templates and user data)
 server/templates/
 server/cron/
+
+# 워드클라우드 이미지 (사용자 데이터 포함)
+server/wordclouds/
+
+# 아카이브 폴더 (구버전 코드들)
+server/archive/
+client/archive/
+
+# 데이터베이스 백업 및 덤프 파일
+*.sql
+*.dump
+*.backup
+
+# 임시 파일들
+*.tmp
+*.temp
+temp/
+tmp/
+
+# 캐시 파일들
+.cache/
+cache/
+
+# 패키지 락 파일 (선택적)
+# package-lock.json
+# yarn.lock
+
+# 압축 파일들
+*.zip
+*.tar.gz
+*.rar
+
+# 백업 파일들
+*.bak
+*~
