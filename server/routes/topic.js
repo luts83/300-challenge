@@ -2,6 +2,7 @@
 const express = require("express");
 const router = express.Router();
 const getManualTopicByDate = require("../utils/getManualTopicByDate");
+const getTodayAIBasedTopic = require("../utils/getTodayAIBasedTopic");
 const config = require("../config");
 const axios = require("axios");
 const logger = require("../utils/logger");
@@ -65,7 +66,7 @@ router.get("/today", async (req, res) => {
     // 수동 주제가 없는 경우 AI 주제 생성
     const aiTopic = await getTodayAIBasedTopic();
     return res.json({
-      topic: aiTopic["topic_${mode}"],
+      topic: aiTopic[`topic_${mode}`],
       isWeekend: false,
       isManualTopic: false,
       writing_tips: aiTopic.writing_tips,
