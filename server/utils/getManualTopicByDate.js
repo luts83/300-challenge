@@ -22,11 +22,11 @@ function getManualTopicByDate(
 ) {
   // 사용자 시간대 기준으로 현재 날짜 계산
   const now = new Date();
-  const userTime = new Date(now.getTime() - offset * 60 * 1000);
+  const userTime = new Date(now.getTime() + offset * 60 * 1000);
 
   // 기준일을 사용자 시간대 기준으로 설정
   const baseDate = new Date(config.TOPIC.BASE_DATE + "T00:00:00.000Z");
-  const base = new Date(baseDate.getTime() - offset * 60 * 1000);
+  const base = new Date(baseDate.getTime() + offset * 60 * 1000);
 
   const today = userTime;
   const dayOfWeek = today.getDay(); // 0: 일요일, 6: 토요일
