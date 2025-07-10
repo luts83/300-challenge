@@ -18,7 +18,7 @@ router.get("/today", async (req, res) => {
 
     // 사용자 시간대 기준으로 현재 날짜 계산
     const now = new Date();
-    const userTime = new Date(now.getTime() - offset * 60 * 1000);
+    const userTime = new Date(now.getTime() + offset * 60 * 1000);
     const today = userTime;
     const dayOfWeek = today.getDay();
 
