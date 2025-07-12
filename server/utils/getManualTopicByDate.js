@@ -40,14 +40,29 @@ function getManualTopicByDate(
 
   const index = Math.floor(diffDays / interval);
 
-  // 1000자 모드는 주중/주말 구분 없이 일주일 동안 하나의 주제 사용
+  // 1000자 모드는 평일/주말 구분하여 주제 사용
   if (mode === "1000") {
-    const topic = topics1000[index % topics1000.length];
-    if (!topic) {
-      logger.info(`📜 1000자 모드 주제 소진! AI 주제로 전환됩니다.`);
-      return { topic: null, isManualTopic: false };
+    if (dayOfWeek === 0 || dayOfWeek === 6) {
+      // 주말: 주말 주제 사용
+      const weekendCount = Math.floor(diffDays / 7);
+      const weekendIndex = weekendCount;
+      const topic = weekendTopics1000[weekendIndex % weekendTopics1000.length];
+      if (!topic) {
+        logger.info(`📜 1000자 모드 주말 주제 소진! AI 주제로 전환됩니다.`);
+        return { topic: null, isManualTopic: false };
+      }
+      return { topic, isManualTopic: true };
+    } else {
+      // 평일: 평일 주제 사용
+      const weekCount = Math.floor(diffDays / 7);
+      const weekdayIndex = weekCount;
+      const topic = topics1000[weekdayIndex % topics1000.length];
+      if (!topic) {
+        logger.info(`📜 1000자 모드 평일 주제 소진! AI 주제로 전환됩니다.`);
+        return { topic: null, isManualTopic: false };
+      }
+      return { topic, isManualTopic: true };
     }
-    return { topic, isManualTopic: true };
   }
 
   // 300자 모드는 기존 로직 유지 (주말에는 주말 주제 사용)
