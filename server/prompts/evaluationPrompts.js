@@ -230,7 +230,10 @@ const PROMPT_TEMPLATE = {
   mode_300: (text, topic) => {
     const mode = "mode_300";
     const isAssigned =
-      topic && topic !== "자유주제" && allTopics300.includes(topic.trim());
+      topic &&
+      topic !== "자유주제" &&
+      topic !== "주말에는 자유 주제로 글을 써보세요" &&
+      allTopics300.includes(topic.trim());
     const style = detectWritingStyle(text);
     const randomPerspective =
       randomPerspectives[Math.floor(Math.random() * randomPerspectives.length)];
@@ -285,14 +288,17 @@ ${randomPerspective}
 응답은 반드시 유효한 JSON 형식만 출력해주세요. 마크다운 코드 블럭(\`\`\`)이나 설명 문구는 절대 포함하지 마세요.
 모든 줄바꿈(엔터)은 \\n 으로 escape 처리하고, 문자열 안 따옴표는 \\"로 escape 처리하세요.
 모든 항목을 반드시 빠짐없이 JSON으로 반환해주세요.
-**중요: critical_flaw가 존재한다면, overall_score는 반드시 60점 미만이어야 합니다.**
+**중요: critical_flaw가 존재한다면, overall_score는 반드시 70점 미만이어야 합니다.**
 `;
   },
 
   mode_1000: (text, topic) => {
     const mode = "mode_1000";
     const isAssigned =
-      topic && topic !== "자유주제" && allTopics1000.includes(topic.trim());
+      topic &&
+      topic !== "자유주제" &&
+      topic !== "주말에는 자유 주제로 글을 써보세요" &&
+      allTopics1000.includes(topic.trim());
     const style = detectWritingStyle(text);
     const randomPerspective =
       randomPerspectives[Math.floor(Math.random() * randomPerspectives.length)];
@@ -347,7 +353,7 @@ ${randomPerspective}
 응답은 반드시 유효한 JSON 형식만 출력해주세요. 마크다운 코드 블럭(\`\`\`)이나 설명 문구는 절대 포함하지 마세요.
 모든 줄바꿈(엔터)은 \\n 으로 escape 처리하고, 문자열 안 따옴표는 \\"로 escape 처리하세요.
 모든 항목을 반드시 빠짐없이 JSON으로 반환해주세요.
-**중요: critical_flaw가 존재한다면, overall_score는 반드시 60점 미만이어야 합니다.**
+**중요: critical_flaw가 존재한다면, overall_score는 반드시 70점 미만이어야 합니다.**
 `;
   },
 };
