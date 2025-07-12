@@ -18,7 +18,7 @@ const logger = require("./logger");
 function getManualTopicByDate(
   mode = "300",
   timezone = "Asia/Seoul",
-  offset = 540
+  offset = 540 // ← 수정됨! (한국 시간 UTC+9)
 ) {
   // 사용자 시간대 기준으로 현재 날짜 계산
   const now = new Date();
@@ -52,7 +52,9 @@ function getManualTopicByDate(
 
   // 300자 모드는 기존 로직 유지 (주말에는 주말 주제 사용)
   if (dayOfWeek === 0 || dayOfWeek === 6) {
-    const topic = weekendTopics300[index % weekendTopics300.length];
+    const weekendCount = Math.floor(diffDays / 7);
+    const weekendIndex = weekendCount * 2 + (dayOfWeek === 0 ? 1 : 0); // 토요일=0, 일요일=1
+    const topic = weekendTopics300[weekendIndex % weekendTopics300.length];
     if (!topic) {
       logger.info(`📜 300자 모드 주말 주제 소진! AI 주제로 전환됩니다.`);
       return { topic: null, isManualTopic: false };
