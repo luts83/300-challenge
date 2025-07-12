@@ -18,7 +18,7 @@ const logger = require("./logger");
 function getManualTopicByDate(
   mode = "300",
   timezone = "Asia/Seoul",
-  offset = -540
+  offset = 540
 ) {
   // 사용자 시간대 기준으로 현재 날짜 계산
   const now = new Date();
