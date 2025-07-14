@@ -89,6 +89,22 @@ function getManualTopicByDate(
         ? { topic, isManualTopic: true }
         : { topic: null, isManualTopic: false };
     } else {
+      // 날짜만 남기기
+      function toDateOnly(d) {
+        return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+      }
+      const todayDate = toDateOnly(today);
+      const baseDateOnly = toDateOnly(base);
+
+      const todayMonday = new Date(todayDate);
+      todayMonday.setDate(todayDate.getDate() - todayDate.getDay() + 1);
+
+      const baseMonday = new Date(baseDateOnly);
+      baseMonday.setDate(baseDateOnly.getDate() - baseDateOnly.getDay() + 1);
+
+      const weekDiff = Math.floor(
+        (todayMonday - baseMonday) / (1000 * 60 * 60 * 24 * 7)
+      );
       const topic = topics1000[weekDiff % topics1000.length];
       return topic
         ? { topic, isManualTopic: true }
