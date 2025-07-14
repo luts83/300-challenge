@@ -20,8 +20,7 @@ function getManualTopicByDate(
   timezone = "Asia/Seoul",
   offset = 540
 ) {
-  offset = 540; // 무조건 한국 시간
-
+  // 사용자의 실제 시간대 사용 (하드코딩 제거)
   const now = new Date();
   const userTime = new Date(now.getTime() + offset * 60 * 1000);
   const baseDate = new Date(config.TOPIC.BASE_DATE + "T00:00:00.000Z");
@@ -39,6 +38,7 @@ function getManualTopicByDate(
   let weekdayIndex = 0;
   let cursor = new Date(base);
   while (cursor <= today) {
+    // <= 로 변경 (오늘 포함)
     const d = cursor.getDay();
     if (d >= 1 && d <= 5) {
       if (
