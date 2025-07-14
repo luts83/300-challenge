@@ -18,74 +18,85 @@ const logger = require("./logger");
 function getManualTopicByDate(
   mode = "300",
   timezone = "Asia/Seoul",
-  offset = 540 // ← 수정됨! (한국 시간 UTC+9)
+  offset = 540
 ) {
-  // 사용자 시간대 기준으로 현재 날짜 계산
+  offset = 540; // 무조건 한국 시간
+
   const now = new Date();
   const userTime = new Date(now.getTime() + offset * 60 * 1000);
-
-  // 기준일을 사용자 시간대 기준으로 설정
   const baseDate = new Date(config.TOPIC.BASE_DATE + "T00:00:00.000Z");
   const base = new Date(baseDate.getTime() + offset * 60 * 1000);
 
-  const today = userTime;
-  const dayOfWeek = today.getDay(); // 0: 일요일, 6: 토요일
+  const today = new Date(
+    userTime.getFullYear(),
+    userTime.getMonth(),
+    userTime.getDate()
+  );
+  const dayOfWeek = today.getDay();
   const diffDays = Math.floor((today - base) / (1000 * 60 * 60 * 24));
 
-  // 모드별로 다른 interval 적용
-  const interval =
-    mode === "1000"
-      ? config.TOPIC.INTERVAL_DAYS.MODE_1000
-      : config.TOPIC.INTERVAL_DAYS.MODE_300;
+  // 평일 인덱스(월~금만 카운트, 주말은 건너뜀)
+  let weekdayIndex = 0;
+  let cursor = new Date(base);
+  while (cursor <= today) {
+    const d = cursor.getDay();
+    if (d >= 1 && d <= 5) {
+      if (
+        cursor.getFullYear() === today.getFullYear() &&
+        cursor.getMonth() === today.getMonth() &&
+        cursor.getDate() === today.getDate()
+      ) {
+        // 오늘이면 break (오늘 포함)
+        break;
+      }
+      weekdayIndex++;
+    }
+    cursor.setDate(cursor.getDate() + 1);
+  }
 
-  const index = Math.floor(diffDays / interval);
+  // 주차 계산 (월요일 기준)
+  const todayMonday = new Date(today);
+  todayMonday.setDate(today.getDate() - today.getDay() + 1);
+  const baseMonday = new Date(base);
+  baseMonday.setDate(base.getDate() - base.getDay() + 1);
+  const weekDiff = Math.floor(
+    (todayMonday - baseMonday) / (1000 * 60 * 60 * 24 * 7)
+  );
 
-  // 1000자 모드는 평일/주말 구분하여 주제 사용
-  if (mode === "1000") {
-    if (dayOfWeek === 0 || dayOfWeek === 6) {
-      // 주말: 주말 주제 사용
-      const weekendCount = Math.floor(diffDays / 7);
+  // 주말 처리
+  const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+  const weekendCount = Math.floor(diffDays / 7);
+
+  if (mode === "300") {
+    if (isWeekend) {
       const weekendIndex = weekendCount;
-      const topic = weekendTopics1000[weekendIndex % weekendTopics1000.length];
-      if (!topic) {
-        logger.info(`📜 1000자 모드 주말 주제 소진! AI 주제로 전환됩니다.`);
-        return { topic: null, isManualTopic: false };
-      }
-      return { topic, isManualTopic: true };
+      const topic = weekendTopics300[weekendIndex % weekendTopics300.length];
+      return topic
+        ? { topic, isManualTopic: true }
+        : { topic: null, isManualTopic: false };
     } else {
-      // 평일: 평일 주제 사용
-      const weekCount = Math.floor(diffDays / 7);
-      const weekdayIndex = weekCount;
-      const topic = topics1000[weekdayIndex % topics1000.length];
-      if (!topic) {
-        logger.info(`📜 1000자 모드 평일 주제 소진! AI 주제로 전환됩니다.`);
-        return { topic: null, isManualTopic: false };
-      }
-      return { topic, isManualTopic: true };
+      const topic = topics300[weekdayIndex % topics300.length];
+      return topic
+        ? { topic, isManualTopic: true }
+        : { topic: null, isManualTopic: false };
     }
   }
 
-  // 300자 모드는 기존 로직 유지 (주말에는 주말 주제 사용)
-  if (dayOfWeek === 0 || dayOfWeek === 6) {
-    const weekendCount = Math.floor(diffDays / 7);
-    const weekendIndex = weekendCount * 2 + (dayOfWeek === 0 ? 1 : 0); // 토요일=0, 일요일=1
-    const topic = weekendTopics300[weekendIndex % weekendTopics300.length];
-    if (!topic) {
-      logger.info(`📜 300자 모드 주말 주제 소진! AI 주제로 전환됩니다.`);
-      return { topic: null, isManualTopic: false };
+  if (mode === "1000") {
+    if (isWeekend) {
+      const topic = weekendTopics1000[weekendCount % weekendTopics1000.length];
+      return topic
+        ? { topic, isManualTopic: true }
+        : { topic: null, isManualTopic: false };
+    } else {
+      const topic = topics1000[weekDiff % topics1000.length];
+      return topic
+        ? { topic, isManualTopic: true }
+        : { topic: null, isManualTopic: false };
     }
-    return { topic, isManualTopic: true };
   }
 
-  // 300자 모드 평일 주제
-  const topic = topics300[index % topics300.length];
-
-  if (!topic) {
-    logger.info(`📜 300자 모드 평일 주제 소진! AI 주제로 전환됩니다.`);
-    return { topic: null, isManualTopic: false };
-  }
-
-  return { topic, isManualTopic: true };
+  return { topic: null, isManualTopic: false }; // fallback
 }
 
 module.exports = getManualTopicByDate;
