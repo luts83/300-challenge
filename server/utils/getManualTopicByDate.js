@@ -20,61 +20,57 @@ function getManualTopicByDate(
   timezone = "Asia/Seoul",
   offset = 540
 ) {
-  // 사용자의 실제 시간대 사용 (하드코딩 제거)
+  // --- 코드 수정 시작 ---
+
+  // 1. 서버의 현재 시간을 기준으로 사용자의 시간을 계산합니다.
   const now = new Date();
   const userTime = new Date(now.getTime() + offset * 60 * 1000);
-  const baseDate = new Date(config.TOPIC.BASE_DATE + "T00:00:00.000Z");
-  const base = new Date(baseDate.getTime() + offset * 60 * 1000);
 
+  // 2. [핵심 수정] 사용자의 '오늘' 날짜를 서버 시간대가 아닌 UTC 기준으로 생성합니다.
+  // 이렇게 하면 어느 국가의 서버에서 실행되어도 항상 동일한 UTC 날짜 객체가 생성됩니다.
   const today = new Date(
-    userTime.getFullYear(),
-    userTime.getMonth(),
-    userTime.getDate()
+    Date.UTC(
+      userTime.getUTCFullYear(),
+      userTime.getUTCMonth(),
+      userTime.getUTCDate()
+    )
   );
-  const dayOfWeek = today.getDay();
+
+  // 3. 기준 날짜도 UTC로 명확하게 설정합니다.
+  const base = new Date(config.TOPIC.BASE_DATE + "T00:00:00.000Z");
+
+  // --- 코드 수정 끝 ---
+
+  const dayOfWeek = today.getUTCDay(); // UTC 기준 요일 (0: 일요일, 1: 월요일)
   const diffDays = Math.floor((today - base) / (1000 * 60 * 60 * 24));
 
-  // 평일 인덱스(월~금만 카운트, 주말은 건너뜀)
+  // [버그 수정] 평일 인덱스 계산 로직을 단순하고 정확하게 수정합니다.
   let weekdayIndex = 0;
   let cursor = new Date(base);
-  while (cursor <= today) {
-    // <= 로 변경 (오늘 포함)
-    const d = cursor.getDay();
+  while (cursor < today) {
+    // 오늘 날짜 직전까지만 반복
+    const d = cursor.getUTCDay(); // UTC 요일로 비교
     if (d >= 1 && d <= 5) {
-      if (
-        cursor.getFullYear() === today.getFullYear() &&
-        cursor.getMonth() === today.getMonth() &&
-        cursor.getDate() === today.getDate()
-      ) {
-        // 오늘이면 break (오늘 포함)
-        break;
-      }
+      // 월(1)~금(5)
       weekdayIndex++;
     }
-    cursor.setDate(cursor.getDate() + 1);
+    cursor.setUTCDate(cursor.getUTCDate() + 1); // UTC 날짜로 하루 증가
   }
 
-  // 주차 계산 (월요일 기준)
-  const todayMonday = new Date(today);
-  todayMonday.setDate(today.getDate() - today.getDay() + 1);
-  const baseMonday = new Date(base);
-  baseMonday.setDate(base.getDate() - base.getDay() + 1);
-  const weekDiff = Math.floor(
-    (todayMonday - baseMonday) / (1000 * 60 * 60 * 24 * 7)
-  );
-
-  // 주말 처리
   const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+
+  // 주말 인덱스 계산 (주차 기준)
+  // diffDays가 UTC 기준으로 정확해졌으므로 기존 로직을 그대로 사용해도 됩니다.
   const weekendCount = Math.floor(diffDays / 7);
 
   if (mode === "300") {
     if (isWeekend) {
-      const weekendIndex = weekendCount;
-      const topic = weekendTopics300[weekendIndex % weekendTopics300.length];
+      const topic = weekendTopics300[weekendCount % weekendTopics300.length];
       return topic
         ? { topic, isManualTopic: true }
         : { topic: null, isManualTopic: false };
     } else {
+      // weekdayIndex가 오늘 주제에 대한 0-based 인덱스가 됩니다.
       const topic = topics300[weekdayIndex % topics300.length];
       return topic
         ? { topic, isManualTopic: true }
@@ -89,18 +85,10 @@ function getManualTopicByDate(
         ? { topic, isManualTopic: true }
         : { topic: null, isManualTopic: false };
     } else {
-      // 날짜만 남기기
-      function toDateOnly(d) {
-        return new Date(d.getFullYear(), d.getMonth(), d.getDate());
-      }
-      const todayDate = toDateOnly(today);
-      const baseDateOnly = toDateOnly(base);
-
-      const todayMonday = new Date(todayDate);
-      todayMonday.setDate(todayDate.getDate() - todayDate.getDay() + 1);
-
-      const baseMonday = new Date(baseDateOnly);
-      baseMonday.setDate(baseDateOnly.getDate() - baseDateOnly.getDay() + 1);
+      const todayMonday = new Date(today);
+      todayMonday.setUTCDate(today.getUTCDate() - today.getUTCDay() + 1);
+      const baseMonday = new Date(base);
+      baseMonday.setUTCDate(base.getUTCDate() - base.getUTCDay() + 1);
 
       const weekDiff = Math.floor(
         (todayMonday - baseMonday) / (1000 * 60 * 60 * 24 * 7)
@@ -112,7 +100,7 @@ function getManualTopicByDate(
     }
   }
 
-  return { topic: null, isManualTopic: false }; // fallback
+  return { topic: null, isManualTopic: false };
 }
 
 module.exports = getManualTopicByDate;
