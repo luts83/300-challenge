@@ -20,6 +20,8 @@ function getManualTopicByDate(
   timezone = "Asia/Seoul",
   offset = 540
 ) {
+  offset = 540; // 무조건 한국 시간!
+
   // --- 코드 수정 시작 ---
 
   // 1. 서버의 현재 시간을 기준으로 사용자의 시간을 계산합니다.
@@ -62,6 +64,17 @@ function getManualTopicByDate(
   // 주말 인덱스 계산 (주차 기준)
   // diffDays가 UTC 기준으로 정확해졌으므로 기존 로직을 그대로 사용해도 됩니다.
   const weekendCount = Math.floor(diffDays / 7);
+
+  // 디버깅 로그 추가
+  console.log("=== Topic Debug Info ===");
+  console.log("User Time:", userTime.toISOString());
+  console.log("Today (UTC):", today.toISOString());
+  console.log("Base Date:", base.toISOString());
+  console.log("Day of Week:", dayOfWeek);
+  console.log("Weekday Index:", weekdayIndex);
+  console.log("Is Weekend:", isWeekend);
+  console.log("Selected Topic:", topics300[weekdayIndex % topics300.length]);
+  console.log("========================");
 
   if (mode === "300") {
     if (isWeekend) {
