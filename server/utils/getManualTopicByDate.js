@@ -20,7 +20,8 @@ function getManualTopicByDate(
   timezone = "Asia/Seoul",
   offset = 540
 ) {
-  // --- 코드 수정 시작 ---
+  // offset 부호 보정
+  offset = -offset;
 
   // 1. 서버의 현재 시간을 기준으로 사용자의 시간을 계산합니다.
   const now = new Date();
@@ -38,8 +39,6 @@ function getManualTopicByDate(
 
   // 3. 기준 날짜도 UTC로 명확하게 설정합니다.
   const base = new Date(config.TOPIC.BASE_DATE + "T00:00:00.000Z");
-
-  // --- 코드 수정 끝 ---
 
   const dayOfWeek = today.getUTCDay(); // UTC 기준 요일 (0: 일요일, 1: 월요일)
   const diffDays = Math.floor((today - base) / (1000 * 60 * 60 * 24));
