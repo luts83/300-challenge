@@ -77,10 +77,28 @@ function getManualTopicByDate(
   console.log("  - Day of Week:", dayOfWeek);
   console.log("  - Weekday Index:", weekdayIndex);
   console.log("  - Is Weekend:", isWeekend);
-  console.log(
-    "  - Selected Topic:",
-    topics300[weekdayIndex % topics300.length]
-  );
+
+  let selectedTopic;
+  if (mode === "300") {
+    selectedTopic = topics300[weekdayIndex % topics300.length];
+  } else if (mode === "1000") {
+    // 평일/주말 구분
+    if (isWeekend) {
+      selectedTopic =
+        weekendTopics1000[weekendCount % weekendTopics1000.length];
+    } else {
+      const todayMonday = new Date(today);
+      todayMonday.setUTCDate(today.getUTCDate() - today.getUTCDay() + 1);
+      const baseMonday = new Date(base);
+      baseMonday.setUTCDate(base.getUTCDate() - base.getUTCDay() + 1);
+      const weekDiff = Math.floor(
+        (todayMonday - baseMonday) / (1000 * 60 * 60 * 24 * 7)
+      );
+      selectedTopic = topics1000[weekDiff % topics1000.length];
+    }
+  }
+
+  console.log("  - Selected Topic:", selectedTopic);
   console.log("========================");
 
   if (mode === "300") {
