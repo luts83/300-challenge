@@ -88,7 +88,11 @@ function getManualTopicByDate(
 
   let selectedTopic;
   if (mode === "300") {
-    selectedTopic = topics300[weekdayIndex % topics300.length];
+    if (isWeekend) {
+      selectedTopic = weekendTopics300[weekendCount % weekendTopics300.length];
+    } else {
+      selectedTopic = topics300[weekdayIndex % topics300.length];
+    }
   } else if (mode === "1000") {
     // 평일/주말 구분
     if (isWeekend) {
