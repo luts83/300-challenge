@@ -58,9 +58,17 @@ function getManualTopicByDate(
 
   const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
 
-  // 주말 인덱스 계산 (주차 기준)
-  // diffDays가 UTC 기준으로 정확해졌으므로 기존 로직을 그대로 사용해도 됩니다.
-  const weekendCount = Math.floor(diffDays / 7);
+  // 주말 인덱스 계산: 기준 날짜부터 오늘까지의 주말 날짜 개수 계산
+  let weekendCount = 0;
+  cursor = new Date(base); // let 제거, 기존 cursor 변수 재사용
+  while (cursor < today) {
+    const d = cursor.getUTCDay();
+    if (d === 0 || d === 6) {
+      // 일요일(0) 또는 토요일(6)
+      weekendCount++;
+    }
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
 
   // 디버깅 로그 추가 (유저 정보 포함)
   console.log("=== Topic Debug Info ===");
