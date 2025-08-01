@@ -16,29 +16,19 @@ const LandingPageContainer = () => {
     // 세션 스토리지에서 방문 여부 확인
     const hasVisited = sessionStorage.getItem('hasVisitedLandingPage');
 
-    console.log('🔍 세션 스토리지 확인:', {
-      hasVisited,
-      isFirstVisit: !hasVisited,
-      sessionStorageKeys: Object.keys(sessionStorage),
-    });
-
     if (hasVisited) {
       // 이미 방문한 경우 바로 콘텐츠 표시
-      console.log('✅ 재방문 감지 - 환영 메시지 표시');
       setIsFirstVisit(false);
       setShowContent(true);
     } else {
       // 처음 방문한 경우 방문 기록 저장
-      console.log('🆕 첫 방문 감지 - 비디오 애니메이션 표시');
       sessionStorage.setItem('hasVisitedLandingPage', 'true');
       setIsFirstVisit(true);
     }
   }, []); // 빈 의존성 배열로 한 번만 실행
 
   const handleVideoEnd = () => {
-    console.log('🎬 비디오 종료 - 콘텐츠 표시 준비');
     setTimeout(() => {
-      console.log('✅ 콘텐츠 표시 및 스크롤 활성화');
       setShowContent(true);
     }, 1000);
   };

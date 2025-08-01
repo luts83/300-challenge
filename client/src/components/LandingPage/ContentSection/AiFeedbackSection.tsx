@@ -252,8 +252,8 @@ const AiFeedbackSection: React.FC<AiFeedbackSectionProps> = ({ show }) => {
   useEffect(() => {
     const fetchAiFeedbacks = async () => {
       try {
-        const apiUrl = import.meta.env.VITE_API_URL || '';
-        console.log('🔍 AI 피드백 API 호출:', `${apiUrl}/api/submit/ai-feedback`);
+        const apiUrl =
+          import.meta.env.VITE_API_URL || 'https://300-challenge-production.up.railway.app';
 
         const response = await fetch(`${apiUrl}/api/submit/ai-feedback`, {
           method: 'GET',
@@ -264,14 +264,12 @@ const AiFeedbackSection: React.FC<AiFeedbackSectionProps> = ({ show }) => {
         });
 
         const responseData = await response.json();
-        console.log('📋 AI 피드백 API 응답:', responseData);
 
         if (
           responseData.success &&
           Array.isArray(responseData.data) &&
           responseData.data.length > 0
         ) {
-          console.log('✅ 서버 데이터 사용:', responseData.data.length, '개');
           const apiFeedbacks = responseData.data.map((item: any) => ({
             id: item.id,
             title: item.title || '제목 없음',
@@ -286,13 +284,12 @@ const AiFeedbackSection: React.FC<AiFeedbackSectionProps> = ({ show }) => {
           setFeedbacks(apiFeedbacks);
           setCurrentFeedback(apiFeedbacks[0]);
         } else {
-          console.log('⚠️ 서버 데이터 없음, 샘플 데이터 사용');
           // API 데이터가 없으면 샘플 데이터 사용
           setFeedbacks(sampleFeedbacks);
           setCurrentFeedback(sampleFeedbacks[0]);
         }
       } catch (error) {
-        console.error('❌ AI 피드백 조회 오류:', error);
+        console.error('AI 피드백 조회 오류:', error);
         // 에러 시 샘플 데이터 사용
         setFeedbacks(sampleFeedbacks);
         setCurrentFeedback(sampleFeedbacks[0]);
@@ -429,9 +426,7 @@ const AiFeedbackSection: React.FC<AiFeedbackSectionProps> = ({ show }) => {
               {/* AI 피드백 섹션 - JSON 파싱 적용 */}
               <div className="p-4 sm:p-6 space-y-6">
                 {(() => {
-                  console.log('🔍 피드백 파싱 시도:', currentFeedback.feedback);
                   const parsedFeedback = parseFeedback(currentFeedback.feedback);
-                  console.log('📋 파싱 결과:', parsedFeedback);
 
                   if (parsedFeedback) {
                     return (

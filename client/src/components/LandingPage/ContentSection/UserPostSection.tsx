@@ -41,7 +41,8 @@ const UserPostSection: React.FC<UserPostSectionProps> = ({ show }) => {
   useEffect(() => {
     const fetchPosts = async () => {
       try {
-        const apiUrl = import.meta.env.VITE_API_URL || '';
+        const apiUrl =
+          import.meta.env.VITE_API_URL || 'https://300-challenge-production.up.railway.app';
         const response = await fetch(`${apiUrl}/api/submit/recent`, {
           method: 'GET',
           headers: {
