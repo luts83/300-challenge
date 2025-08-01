@@ -250,6 +250,13 @@ const AiFeedbackSection: React.FC<AiFeedbackSectionProps> = ({ show }) => {
   ];
 
   useEffect(() => {
+    // 현재는 기본적으로 샘플 데이터 사용
+    setFeedbacks(sampleFeedbacks);
+    setCurrentFeedback(sampleFeedbacks[0]);
+    setIsLoading(false);
+
+    // 24시간마다 서버에서 데이터를 가져오는 기능은 유지하되, 현재는 비활성화
+    /*
     const fetchAiFeedbacks = async () => {
       try {
         const apiUrl =
@@ -299,6 +306,7 @@ const AiFeedbackSection: React.FC<AiFeedbackSectionProps> = ({ show }) => {
     };
 
     fetchAiFeedbacks();
+    */
   }, []);
 
   // 하루에 한 번만 피드백 변경 (24시간)

@@ -1,11 +1,41 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 
 const PrivacyPolicy: React.FC = () => {
+  useEffect(() => {
+    // 페이지 로드 시 맨 위로 스크롤
+    window.scrollTo(0, 0);
+
+    // 페이지 로드 시 스크롤 위치 복원 (뒤로가기 시에만)
+    const savedScrollPosition = sessionStorage.getItem('privacy-scroll-position');
+    if (
+      savedScrollPosition &&
+      window.history.state &&
+      window.history.state.usr &&
+      window.history.state.usr.fromBack
+    ) {
+      setTimeout(() => {
+        window.scrollTo(0, parseInt(savedScrollPosition));
+      }, 100);
+    }
+  }, []);
+
+  // 페이지 떠날 때 스크롤 위치 저장
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      sessionStorage.setItem('privacy-scroll-position', window.scrollY.toString());
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, []);
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <div className="max-w-4xl mx-auto px-4 py-8">
+      <div className="max-w-4xl mx-auto px-4 pt-24 pb-8">
         {/* 헤더 */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
           <Link
@@ -195,10 +225,6 @@ const PrivacyPolicy: React.FC = () => {
                 <strong>개인정보 보호책임자</strong>
                 <br />
                 이메일: hello@digiocean.co.kr
-                <br />
-                주소: 인천시 부평구 체육관로 111
-                <br />
-                사업자번호: 546-30-00459(디지오션)
                 <br />
                 문의하기:{' '}
                 <a

@@ -18,6 +18,34 @@ const FAQ: React.FC = () => {
 
   useEffect(() => {
     fetchFormLink();
+
+    // 페이지 로드 시 맨 위로 스크롤
+    window.scrollTo(0, 0);
+
+    // 페이지 로드 시 스크롤 위치 복원 (뒤로가기 시에만)
+    const savedScrollPosition = sessionStorage.getItem('faq-scroll-position');
+    if (
+      savedScrollPosition &&
+      window.history.state &&
+      window.history.state.usr &&
+      window.history.state.usr.fromBack
+    ) {
+      setTimeout(() => {
+        window.scrollTo(0, parseInt(savedScrollPosition));
+      }, 100);
+    }
+  }, []);
+
+  // 페이지 떠날 때 스크롤 위치 저장
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      sessionStorage.setItem('faq-scroll-position', window.scrollY.toString());
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
   }, []);
 
   const fetchFormLink = async () => {
@@ -42,12 +70,39 @@ const FAQ: React.FC = () => {
   };
 
   const renderAnswer = (answer: string) => {
-    // "신청서" 텍스트를 링크로 변환
-    const parts = answer.split('신청서');
+    // URL 패턴을 찾아서 링크로 변환
+    const urlPattern = /@(https?:\/\/[^\s]+)/g;
+    const parts = answer.split(urlPattern);
+
     if (parts.length > 1) {
       return (
         <>
-          {parts[0]}
+          {parts.map((part, index) => {
+            if (part.match(/^https?:\/\//)) {
+              return (
+                <a
+                  key={index}
+                  href={part}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 underline"
+                >
+                  {part}
+                </a>
+              );
+            }
+            return part;
+          })}
+        </>
+      );
+    }
+
+    // "신청서" 텍스트를 링크로 변환 (기존 로직 유지)
+    const formParts = answer.split('신청서');
+    if (formParts.length > 1) {
+      return (
+        <>
+          {formParts[0]}
           <a
             href={formLink}
             target="_blank"
@@ -56,10 +111,11 @@ const FAQ: React.FC = () => {
           >
             신청서
           </a>
-          {parts[1]}
+          {formParts[1]}
         </>
       );
     }
+
     return answer;
   };
 
@@ -88,7 +144,7 @@ const FAQ: React.FC = () => {
       id: 4,
       question: '글쓰기 주제는 어떻게 정해지나요?',
       answer:
-        '매일 새로운 주제가 제공되며, 주제는 다양한 분야에서 선정됩니다. 사용자가 직접 주제를 선택할 수도 있습니다.',
+        '매월 그 달에 메인 테마가 주어지고 그에 맞는 새로운 주제가 매일 제공되며, 주제는 다양한 분야에서 선정됩니다.',
       category: '서비스',
     },
     {
@@ -101,15 +157,14 @@ const FAQ: React.FC = () => {
     {
       id: 6,
       question: '작성한 글은 어디에 저장되나요?',
-      answer:
-        "작성한 글은 개인 대시보드의 '내 글 목록'에서 확인할 수 있으며, 언제든지 수정하거나 삭제할 수 있습니다.",
+      answer: "작성한 글은 개인 대시보드의 '내 글 목록'에서 확인할 수 있습니다.",
       category: '서비스',
     },
     {
       id: 7,
       question: '다른 사용자의 글을 볼 수 있나요?',
       answer:
-        '네, 다른 사용자들이 공개 설정한 글을 볼 수 있습니다. 단, 개인정보 보호를 위해 익명으로 표시됩니다.',
+        '네, 매일 글을 쓰고 난 후 다른 사용자들의 글을 볼 수 있고 좋아요를 누를 수 있습니다. 또한 피드백을 주고 받을 수 있는데 이는 딜라이팅AI의 핵심 가치 중 하나입니다.',
       category: '서비스',
     },
     {
@@ -123,14 +178,13 @@ const FAQ: React.FC = () => {
       id: 9,
       question: '결제 방법은 어떤 것이 있나요?',
       answer:
-        '현재 베타 서비스로 무료로 이용 가능합니다. 정식 서비스 출시 시 다양한 결제 방법을 제공할 예정입니다.',
+        '현재 베타 서비스로 신청서(구글폼)를 통해 확인하실 수 있습니다. 정식 서비스 출시 시 다양한 결제 방법을 제공할 예정입니다.',
       category: '결제',
     },
     {
       id: 10,
       question: '환불 정책은 어떻게 되나요?',
-      answer:
-        '현재 베타 서비스로 무료로 이용 가능합니다. 정식 서비스 출시 시 환불 정책이 공지될 예정입니다.',
+      answer: '@https://digiocean.channel.io/로 문의해주시면 환불 정책을 안내드리겠습니다.',
       category: '결제',
     },
     {
@@ -168,7 +222,7 @@ const FAQ: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <div className="max-w-4xl mx-auto px-4 py-8">
+      <div className="max-w-4xl mx-auto px-4 pt-24 pb-8">
         {/* 헤더 */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
           <Link
