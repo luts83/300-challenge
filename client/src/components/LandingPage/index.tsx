@@ -20,19 +20,22 @@ const LandingPage: React.FC<LandingPageProps> = ({ isFirstVisit, onVideoEnd, sho
       {/* 우주 배경 효과 */}
       <SpaceBackground />
 
-      <ScrollToTop />
+      {/* 메인 콘텐츠 레이어 */}
+      <div className="relative z-10">
+        <ScrollToTop />
 
-      {/* 히어로 섹션 또는 환영 메시지 */}
-      {isFirstVisit ? <HeroSection onVideoEnd={onVideoEnd} /> : <WelcomeMessage />}
+        {/* 히어로 섹션 또는 환영 메시지 */}
+        {isFirstVisit ? <HeroSection onVideoEnd={onVideoEnd} /> : <WelcomeMessage />}
 
-      {/* 메인 콘텐츠 섹션 */}
-      <ContentSection show={showContent} />
+        {/* 메인 콘텐츠 섹션 */}
+        <ContentSection show={showContent} />
 
-      {/* 사용자 후기 섹션 (임시 숨김) */}
-      {/* <TestimonialSection /> */}
+        {/* 사용자 후기 섹션 (임시 숨김) */}
+        {/* <TestimonialSection /> */}
 
-      {/* 풋터 */}
-      <Footer />
+        {/* 풋터 */}
+        <Footer />
+      </div>
     </div>
   );
 };

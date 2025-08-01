@@ -267,7 +267,7 @@
 }
 
 .shooting-stars {
-  @apply fixed inset-0 w-full h-full pointer-events-none z-[2];
+  @apply fixed inset-0 w-full h-full pointer-events-none z-[1];
 }
 
 .shooting-star {
@@ -283,7 +283,7 @@
 }
 
 .twinkling-stars {
-  @apply fixed inset-0 w-full h-full pointer-events-none z-[2];
+  @apply fixed inset-0 w-full h-full pointer-events-none z-[1];
 }
 
 .twinkle-star {
@@ -292,7 +292,7 @@
 }
 
 .particles {
-  @apply fixed inset-0 w-full h-full pointer-events-none z-[3];
+  @apply fixed inset-0 w-full h-full pointer-events-none z-[1];
 }
 
 .particle {
@@ -306,7 +306,7 @@
 }
 
 .mouse-glow {
-  @apply fixed w-[600px] h-[600px] rounded-full pointer-events-none z-[100] transition-opacity duration-300 opacity-0 blur-[40px] mix-blend-screen;
+  @apply fixed w-[600px] h-[600px] rounded-full pointer-events-none z-[1] transition-opacity duration-300 opacity-0 blur-[40px] mix-blend-screen;
   background:
     radial-gradient(circle at center, rgba(247, 147, 26, 0.15) 0%, transparent 40%),
     radial-gradient(circle at center, rgba(124, 58, 237, 0.1) 20%, transparent 60%);

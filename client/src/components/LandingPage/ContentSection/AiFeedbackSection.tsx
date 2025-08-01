@@ -121,7 +121,7 @@ const AiFeedbackSection: React.FC<AiFeedbackSectionProps> = ({ show }) => {
       user: {
         displayName: 'Grace Shin',
       },
-      aiFeedback: {
+      feedback: JSON.stringify({
         overall_score: 85,
         criteria_scores: {
           content: {
@@ -157,7 +157,7 @@ const AiFeedbackSection: React.FC<AiFeedbackSectionProps> = ({ show }) => {
         ],
         writing_tips:
           "다음 글쓰기를 위해서는 구체적인 사례나 예시를 통해 메시지를 강화하는 것을 추천합니다. 예를 들어, '책임감을 발휘했던 한 가지 사례는...'와 같은 방식으로 설명을 덧붙이면 독자의 이해를 돕고 설득력을 높일 수 있습니다.",
-      },
+      }),
     },
     {
       id: 2,
@@ -172,7 +172,7 @@ const AiFeedbackSection: React.FC<AiFeedbackSectionProps> = ({ show }) => {
       user: {
         displayName: 'Grace Shin',
       },
-      aiFeedback: {
+      feedback: JSON.stringify({
         overall_score: 92,
         criteria_scores: {
           content: {
@@ -206,7 +206,7 @@ const AiFeedbackSection: React.FC<AiFeedbackSectionProps> = ({ show }) => {
         ],
         writing_tips:
           "다음 글을 쓸 때, 구체적인 상황이나 감각적 표현을 추가해보세요. 예를 들어 '회사에서 스트레스를 받고' 대신 '회의에서 계속 지적받던 하루였다'처럼 더 구체적으로 표현하면 좋겠습니다.",
-      },
+      }),
     },
     {
       id: 3,
@@ -221,7 +221,7 @@ const AiFeedbackSection: React.FC<AiFeedbackSectionProps> = ({ show }) => {
       user: {
         displayName: 'Grace Shin',
       },
-      aiFeedback: {
+      feedback: JSON.stringify({
         overall_score: 88,
         criteria_scores: {
           content: {
@@ -245,7 +245,7 @@ const AiFeedbackSection: React.FC<AiFeedbackSectionProps> = ({ show }) => {
         improvements: ['구체적인 변화 사례 추가', '더 생생한 표현 활용'],
         writing_tips:
           '변화에 대한 구체적인 경험이나 계획을 추가하면 더욱 설득력 있는 글이 될 것입니다.',
-      },
+      }),
     },
   ];
 
@@ -253,6 +253,8 @@ const AiFeedbackSection: React.FC<AiFeedbackSectionProps> = ({ show }) => {
     const fetchAiFeedbacks = async () => {
       try {
         const apiUrl = import.meta.env.VITE_API_URL || '';
+        console.log('🔍 AI 피드백 API 호출:', `${apiUrl}/api/submit/ai-feedback`);
+
         const response = await fetch(`${apiUrl}/api/submit/ai-feedback`, {
           method: 'GET',
           headers: {
@@ -262,12 +264,14 @@ const AiFeedbackSection: React.FC<AiFeedbackSectionProps> = ({ show }) => {
         });
 
         const responseData = await response.json();
+        console.log('📋 AI 피드백 API 응답:', responseData);
 
         if (
           responseData.success &&
           Array.isArray(responseData.data) &&
           responseData.data.length > 0
         ) {
+          console.log('✅ 서버 데이터 사용:', responseData.data.length, '개');
           const apiFeedbacks = responseData.data.map((item: any) => ({
             id: item.id,
             title: item.title || '제목 없음',
@@ -282,12 +286,13 @@ const AiFeedbackSection: React.FC<AiFeedbackSectionProps> = ({ show }) => {
           setFeedbacks(apiFeedbacks);
           setCurrentFeedback(apiFeedbacks[0]);
         } else {
+          console.log('⚠️ 서버 데이터 없음, 샘플 데이터 사용');
           // API 데이터가 없으면 샘플 데이터 사용
           setFeedbacks(sampleFeedbacks);
           setCurrentFeedback(sampleFeedbacks[0]);
         }
       } catch (error) {
-        console.error('AI 피드백 조회 오류:', error);
+        console.error('❌ AI 피드백 조회 오류:', error);
         // 에러 시 샘플 데이터 사용
         setFeedbacks(sampleFeedbacks);
         setCurrentFeedback(sampleFeedbacks[0]);
@@ -424,7 +429,9 @@ const AiFeedbackSection: React.FC<AiFeedbackSectionProps> = ({ show }) => {
               {/* AI 피드백 섹션 - JSON 파싱 적용 */}
               <div className="p-4 sm:p-6 space-y-6">
                 {(() => {
+                  console.log('🔍 피드백 파싱 시도:', currentFeedback.feedback);
                   const parsedFeedback = parseFeedback(currentFeedback.feedback);
+                  console.log('📋 파싱 결과:', parsedFeedback);
 
                   if (parsedFeedback) {
                     return (
