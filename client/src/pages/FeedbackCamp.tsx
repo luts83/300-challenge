@@ -23,6 +23,16 @@ import Layout from '../components/Layout';
 import { useLocation } from 'react-router-dom'; // 추가
 import FeedbackNotice from '../components/FeedbackNotice';
 import DateRangeFilter from '../components/DateRangeFilter';
+import { StructuredFeedbackForm } from '../components/FeedbackCamp/StructuredFeedbackForm';
+
+interface StructuredFeedback {
+  strengths: string;
+  improvements: string;
+  overall: string;
+}
+
+// 기존의 local export type Submission 제거
+// import { Submission } from '../components/FeedbackCamp'; // 이미 import 되어 있으면 이 줄만 남기고, 아니면 올바른 경로로 import
 
 const FeedbackCamp = () => {
   const { user } = useUser();
@@ -56,6 +66,13 @@ const FeedbackCamp = () => {
     thisWeek: 0,
     lastWeek: 0,
   });
+  const [todayFeedbackCount, setTodayFeedbackCount] = useState({
+    mode_300: 0,
+    mode_1000: 0,
+    total: 0,
+  });
+  const [allSubmissionDates, setAllSubmissionDates] = useState<string[]>([]);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
 
   const observer = useRef<IntersectionObserver | null>(null);
 
@@ -114,8 +131,9 @@ const FeedbackCamp = () => {
     mode_1000: 0,
   });
 
+  // setTodaySubmissionModes에서 Set<'mode_300' | 'mode_1000'>로 명시적으로 생성
   const [todaySubmissionModes, setTodaySubmissionModes] = useState<Set<'mode_300' | 'mode_1000'>>(
-    new Set()
+    new Set<'mode_300' | 'mode_1000'>()
   );
 
   const [isGuideExpanded, setIsGuideExpanded] = useState(false);
@@ -238,6 +256,7 @@ const FeedbackCamp = () => {
   const fetchAllSubmissions = async (pageNum = 1, reset = false) => {
     if (!user) return;
     try {
+      if (pageNum > 1) setIsLoadingMore(true);
       const res = await axios.get(
         `${import.meta.env.VITE_API_URL}/api/feedback/all-submissions/${user.uid}`,
         {
@@ -301,6 +320,8 @@ const FeedbackCamp = () => {
     } catch (err) {
       logger.error('❌ 전체 글 목록 불러오기 실패:', err);
       setError('글 목록을 불러오지 못했습니다.');
+    } finally {
+      setIsLoadingMore(false);
     }
   };
 
@@ -317,6 +338,17 @@ const FeedbackCamp = () => {
     setSubmittedIds([]);
     fetchAllSubmissions(1, true); // reset = true
   }, [searchQuery, activeTab]);
+
+  useEffect(() => {
+    if (!user) return;
+    // 전체 날짜 리스트 받아오기
+    axios
+      .get(`${import.meta.env.VITE_API_URL}/api/feedback/all-dates/${user.uid}`)
+      .then(res => {
+        setAllSubmissionDates(res.data.dates || []);
+      })
+      .catch(() => setAllSubmissionDates([]));
+  }, [user]);
 
   const fetchMySubmissionStatus = async () => {
     if (!user) return;
@@ -349,12 +381,20 @@ const FeedbackCamp = () => {
         content: feedbacks[submissionId],
       });
 
+      // 기존 진행률 바 갱신
       const { mode300, mode1000, total } = response.data.todayFeedbackCount || {
         mode300: 0,
         mode1000: 0,
         total: 0,
       };
       setDailyFeedbackCount({ mode300, mode1000 });
+
+      // ✅ 추가: 모드별 카운트도 즉시 갱신
+      setTodayFeedbackCount({
+        mode_300: mode300,
+        mode_1000: mode1000,
+        total: total,
+      });
 
       // 사용자의 모드에 따라 다른 메시지 표시
       const hasMode1000 = todaySubmissionModes.has('mode_1000');
@@ -397,7 +437,145 @@ const FeedbackCamp = () => {
       setExpanded(null);
 
       // 페이지 상태 업데이트
-      Promise.all([fetchAllSubmissions(), fetchGivenFeedbacks(), fetchMySubmissionStatus()]);
+      Promise.all([
+        fetchAllSubmissions(),
+        fetchGivenFeedbacks(),
+        fetchMySubmissionStatus(),
+        // 오늘 피드백 카운트 다시 가져오기
+        axios
+          .get(`${import.meta.env.VITE_API_URL}/api/feedback/given-today/${user.uid}`)
+          .then(res => setTodayFeedbackCount(res.data))
+          .catch(() => setTodayFeedbackCount({ mode_300: 0, mode_1000: 0, total: 0 })),
+      ]);
+    } catch (err) {
+      if (axios.isAxiosError(err)) {
+        const errorMessage = err.response?.data?.message;
+
+        // 서버에서 온 에러 메시지에 따라 더 친절한 안내
+        if (errorMessage?.includes('오늘은 아직 글을 작성하지 않으셨네요')) {
+          const result = window.confirm(
+            '❌ 피드백을 남기기 위해서는 오늘 글을 작성해야 합니다!\n\n' +
+              '1. 먼저 오늘의 글쓰기를 완료해 주세요.\n' +
+              '2. 글쓰기 완료 후 다시 피드백을 남겨주세요.\n\n' +
+              '✍️ 글쓰기 페이지로 이동하시겠습니까?'
+          );
+
+          if (result) {
+            navigate('/'); // 글쓰기 페이지로 이동
+          }
+        } else if (errorMessage?.includes('이미 이 글에 피드백을 작성하셨습니다')) {
+          alert('❌ 이미 이 글에 피드백을 작성하셨습니다.\n다른 글에 피드백을 남겨보세요!');
+        } else if (errorMessage?.includes('피드백을 작성할 수 없습니다')) {
+          alert(
+            '❌ 피드백을 작성할 수 없습니다.\n\n' +
+              '가능한 원인:\n' +
+              '1. 오늘 글을 작성하지 않은 경우\n' +
+              '2. 자신의 글에 피드백을 시도한 경우\n' +
+              '3. 이미 피드백을 작성한 글인 경우\n\n' +
+              '문제가 지속되면 관리자에게 문의해 주세요.'
+          );
+        } else {
+          // 기타 에러
+          alert(
+            '❌ 피드백 제출에 실패했습니다.\n\n' +
+              '문제가 지속되면 아래 내용과 함께 관리자에게 문의해 주세요.\n' +
+              `에러 메시지: ${errorMessage || '알 수 없는 오류'}`
+          );
+        }
+      }
+      logger.error('피드백 제출 실패:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 구조화된 피드백 제출 핸들러 추가
+  const handleSubmitStructuredFeedback = async (
+    submissionId: string,
+    feedback: StructuredFeedback
+  ) => {
+    if (!user) return;
+
+    try {
+      setLoading(true);
+
+      const response = await axios.post(`${import.meta.env.VITE_API_URL}/api/feedback`, {
+        toSubmissionId: submissionId,
+        fromUid: user.uid,
+        strengths: feedback.strengths,
+        improvements: feedback.improvements,
+        overall: feedback.overall || null,
+      });
+
+      // 기존 진행률 바 갱신
+      const { mode300, mode1000, total } = response.data.todayFeedbackCount || {
+        mode300: 0,
+        mode1000: 0,
+        total: 0,
+      };
+      setDailyFeedbackCount({ mode300, mode1000 });
+
+      // ✅ 추가: 모드별 카운트도 즉시 갱신
+      setTodayFeedbackCount({
+        mode_300: mode300,
+        mode_1000: mode1000,
+        total: total,
+      });
+
+      // 먼저 내 글 상태를 업데이트하여 todaySubmissionModes를 최신화
+      await fetchMySubmissionStatus();
+
+      // 사용자의 모드에 따라 다른 메시지 표시 (업데이트된 todaySubmissionModes 사용)
+      const hasMode1000 = todaySubmissionModes.has('mode_1000');
+      const hasMode300 = todaySubmissionModes.has('mode_300');
+
+      let message = '✅ 피드백이 제출되었습니다.\n\n';
+
+      // 1000자 모드 언락 체크
+      if (hasMode1000 && mode1000 >= 1) {
+        message += `🎉 축하합니다! 1000자 글에 대한 피드백 열람 권한이 언락되었습니다!\n`;
+      } else if (hasMode1000) {
+        message += `1000자 글 언락까지: ${mode1000}/1\n`;
+      }
+
+      // 300자 모드 언락 체크
+      if (hasMode300 && total >= CONFIG.FEEDBACK.REQUIRED_COUNT) {
+        message += `🎉 축하합니다! 300자 글에 대한 피드백 열람 권한이 언락되었습니다!\n`;
+      } else if (hasMode300) {
+        message += `300자 글 언락까지: ${total}/${CONFIG.FEEDBACK.REQUIRED_COUNT}\n`;
+      }
+
+      // 모든 언락이 완료된 경우
+      if (hasMode1000 && mode1000 >= 1 && hasMode300 && total >= CONFIG.FEEDBACK.REQUIRED_COUNT) {
+        message = `🎉 축하합니다!\n오늘 작성하신 모든 글에 대한 피드백 열람 권한이 모두 언락되었습니다!`;
+      }
+
+      alert(message);
+
+      // 상태 업데이트
+      setSubmittedIds(prev => [...prev, submissionId]);
+
+      // 피드백 입력 초기화
+      setFeedbacks(prev => {
+        const newFeedbacks = { ...prev };
+        delete newFeedbacks[submissionId];
+        return newFeedbacks;
+      });
+
+      // 확장된 글 접기
+      setExpanded(null);
+
+      // 페이지 상태 업데이트
+      Promise.all([
+        fetchAllSubmissions(),
+        fetchGivenFeedbacks(),
+        fetchMySubmissionStatus(),
+        // 오늘 피드백 카운트 다시 가져오기
+        axios
+          .get(`${import.meta.env.VITE_API_URL}/api/feedback/given-today/${user.uid}`)
+          .then(res => setTodayFeedbackCount(res.data))
+          .catch(() => setTodayFeedbackCount({ mode_300: 0, mode_1000: 0, total: 0 })),
+      ]);
     } catch (err) {
       if (axios.isAxiosError(err)) {
         const errorMessage = err.response?.data?.message;
@@ -441,22 +619,11 @@ const FeedbackCamp = () => {
   };
 
   useEffect(() => {
-    const fetchTodayFeedbackCount = async () => {
-      if (!user) return;
-      try {
-        const res = await axios.get(
-          `${import.meta.env.VITE_API_URL}/api/feedback/today/${user.uid}`
-        );
-        setDailyFeedbackCount({
-          mode300: res.data.count.mode300 || 0,
-          mode1000: res.data.count.mode1000 || 0,
-        });
-      } catch (err) {
-        logger.error('오늘의 피드백 개수 불러오기 실패:', err);
-      }
-    };
-
-    fetchTodayFeedbackCount();
+    if (!user) return;
+    axios
+      .get(`${import.meta.env.VITE_API_URL}/api/feedback/given-today/${user.uid}`)
+      .then(res => setTodayFeedbackCount(res.data))
+      .catch(() => setTodayFeedbackCount({ mode_300: 0, mode_1000: 0, total: 0 }));
   }, [user]);
 
   useEffect(() => {
@@ -580,13 +747,16 @@ const FeedbackCamp = () => {
         <FeedbackNotice />
 
         <FeedbackStats
-          dailyFeedbackCount={todaySummary.mode_300 + todaySummary.mode_1000}
-          todaySummary={todaySummary}
+          todayFeedbackCount={todayFeedbackCount}
+          dailyFeedbackCount={todayFeedbackCount.total}
           weeklyGrowth={weeklyGrowth}
         />
 
         <FeedbackGuidance
-          dailyFeedbackCount={dailyFeedbackCount}
+          dailyFeedbackCount={{
+            mode300: todayFeedbackCount.total,
+            mode1000: todayFeedbackCount.mode_1000,
+          }}
           availableModes={todaySubmissionModes}
           isExpanded={isGuideExpanded}
           onToggleExpand={() => setIsGuideExpanded(!isGuideExpanded)}
@@ -691,25 +861,43 @@ const FeedbackCamp = () => {
               🔍 검색 결과가 없습니다.
             </p>
           ) : (
-            <DateRangeFilter items={filteredData.submissions} getDate={item => item.createdAt}>
+            <DateRangeFilter
+              items={filteredData.submissions}
+              getDate={item => item.createdAt}
+              highlightDates={allSubmissionDates.map(dateStr => new Date(dateStr))}
+            >
               {dateFilteredSubmissions => (
-                <FeedbackList
-                  submissions={dateFilteredSubmissions}
-                  feedbacks={feedbacks}
-                  expanded={expanded}
-                  submittedIds={submittedIds}
-                  onFeedbackChange={(id, value) => setFeedbacks(prev => ({ ...prev, [id]: value }))}
-                  onSubmitFeedback={handleSubmitFeedback}
-                  onToggleExpand={id => setExpanded(expanded === id ? null : id)}
-                  lastSubmissionElementRef={lastSubmissionElementRef}
-                  totalAvailable={
-                    activeTab === 'all'
-                      ? counts.available
-                      : activeTab === 'mode_300'
-                        ? counts.available_300
-                        : counts.available_1000
-                  }
-                />
+                <>
+                  <FeedbackList
+                    submissions={dateFilteredSubmissions}
+                    feedbacks={feedbacks}
+                    expanded={expanded}
+                    submittedIds={submittedIds}
+                    onFeedbackChange={(id, value) =>
+                      setFeedbacks(prev => ({ ...prev, [id]: value }))
+                    }
+                    onSubmitFeedback={handleSubmitFeedback}
+                    onStructuredFeedbackSubmit={handleSubmitStructuredFeedback}
+                    onToggleExpand={id => setExpanded(expanded === id ? null : id)}
+                    lastSubmissionElementRef={lastSubmissionElementRef}
+                    totalAvailable={
+                      activeTab === 'all'
+                        ? counts.available
+                        : activeTab === 'mode_300'
+                          ? counts.available_300
+                          : counts.available_1000
+                    }
+                    isLoadingMore={isLoadingMore}
+                  />
+                  {isLoadingMore && (
+                    <div className="text-center py-4">
+                      <div className="inline-block">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                        <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">로딩 중...</p>
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
             </DateRangeFilter>
           ))}

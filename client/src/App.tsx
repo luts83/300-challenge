@@ -12,6 +12,10 @@ import Write300 from './pages/Write300';
 import Write1000 from './pages/Write1000';
 import Dashboard from './pages/Dashboard';
 import LandingPage from './pages/LandingPage';
+import TermsOfService from './pages/TermsOfService';
+import PrivacyPolicy from './pages/PrivacyPolicy';
+import CookiePolicy from './pages/CookiePolicy';
+import FAQ from './pages/FAQ';
 import { initTheme, toggleDarkMode } from './utils/theme';
 import { ThemeProvider } from './context/ThemeContext';
 
@@ -64,6 +68,10 @@ function App() {
               <Route path="/my" element={<MySubmissions />} />
               <Route path="/feedback-camp" element={<FeedbackCamp />} />
               <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/terms-of-service" element={<TermsOfService />} />
+              <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+              <Route path="/cookie-policy" element={<CookiePolicy />} />
+              <Route path="/faq" element={<FAQ />} />
             </Routes>
           </BackgroundWrapper>
         </Router>

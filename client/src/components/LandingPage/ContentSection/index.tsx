@@ -1,10 +1,16 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import AnimatedSection from './AnimatedSection';
 import WelcomeCard from './WelcomeCard';
 import FeatureCard from './FeatureCard';
 import UserPostSection from './UserPostSection';
 import UserPostCard from './UserPostCard';
+import AiFeedbackSection from './AiFeedbackSection';
+import MonthlyEssaySection from './MonthlyEssaySection';
+import TargetAudienceSection from './TargetAudienceSection';
+import BenefitsSection from './BenefitsSection';
+import HowToSection from './HowToSection';
+import UseCaseSection from './UseCaseSection';
 import { useNavigate } from 'react-router-dom';
 
 interface ContentSectionProps {
@@ -13,6 +19,41 @@ interface ContentSectionProps {
 
 const ContentSection: React.FC<ContentSectionProps> = ({ show }) => {
   const navigate = useNavigate();
+  const [formLink, setFormLink] = useState(
+    'https://docs.google.com/forms/d/e/1FAIpQLSc09fvgAKZsYmA8o2V9LT2ZBdjSzYII6uEdASZF8WN0YerdiA/viewform'
+  );
+
+  // 현재 기수 폼 링크 가져오기
+  useEffect(() => {
+    const fetchFormLink = async () => {
+      try {
+        const apiUrl = import.meta.env.VITE_API_URL || '';
+        console.log('🔍 랜딩페이지 폼 링크 API 호출:', `${apiUrl}/api/landing/current-form-link`);
+
+        const response = await fetch(`${apiUrl}/api/landing/current-form-link`, {
+          method: 'GET',
+          headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+          },
+        });
+
+        const responseData = await response.json();
+        console.log('📋 랜딩페이지 폼 링크 API 응답:', responseData);
+
+        if (responseData.success && responseData.data.formLink) {
+          console.log('✅ 랜딩페이지 새로운 폼 링크 설정:', responseData.data.formLink);
+          setFormLink(responseData.data.formLink);
+        } else {
+          console.log('⚠️ 랜딩페이지 폼 링크 응답 형식 오류:', responseData);
+        }
+      } catch (error) {
+        console.error('❌ 랜딩페이지 폼 링크 가져오기 실패:', error);
+      }
+    };
+
+    fetchFormLink();
+  }, []);
 
   return (
     <motion.div className="max-w-4xl mx-auto px-4 py-16 space-y-16">
@@ -96,13 +137,39 @@ const ContentSection: React.FC<ContentSectionProps> = ({ show }) => {
         </div>
       </AnimatedSection>
 
+      {/* 누구를 위한 플랫폼인가? */}
+      <TargetAudienceSection show={show} />
+
+      {/* 무엇을 얻어갈 수 있나? */}
+      <BenefitsSection show={show} />
+
+      {/* 어떻게 얻어가나? */}
+      <HowToSection show={show} />
+
+      {/* 전후 비교 용례 */}
+      <UseCaseSection show={show} />
+
       {/* 실시간 사용자 글 섹션 */}
       <AnimatedSection>
         <UserPostSection show={show} />
       </AnimatedSection>
 
+      {/* AI 피드백 섹션 */}
+      <AiFeedbackSection show={show} />
+
+      {/* 매월 글쓰기 챌린지 섹션 */}
+      <MonthlyEssaySection show={show} />
+
       {/* 유튜브 영상 임베드 */}
       <AnimatedSection>
+        <h3 className="text-3xl font-bold text-center mb-4 bg-gradient-to-r from-blue-600 to-blue-400 bg-clip-text text-transparent">
+          딜라이팅 AI 소개 영상
+        </h3>
+
+        <p className="text-lg sm:text-xl md:text-2xl font-bold text-center mb-8 bg-gradient-to-r from-pink-400 via-yellow-400 via-green-400 via-blue-400 to-purple-500 bg-clip-text text-transparent font-nanum-pen">
+          딜라이팅 AI가 어떻게 글쓰기를 도와주는지 확인해보세요
+        </p>
+
         <div className="w-full flex justify-center mb-8">
           <div className="w-full max-w-4xl">
             <iframe
@@ -121,13 +188,14 @@ const ContentSection: React.FC<ContentSectionProps> = ({ show }) => {
       <AnimatedSection>
         <div className="text-center">
           <h3 className="text-3xl font-bold text-center mb-6 bg-gradient-to-r from-blue-600 to-blue-400 bg-clip-text text-transparent">
-            바로 지금, 시작하세요!
+            지금, 시작하세요!
           </h3>
           <p className="text-lg text-gray-300 dark:text-gray-300 mb-8">
-            알림을 신청하면 다음기수 모집 시작 전 이메일로 미리안내해드려요!
+            매일 5분, 딜라이팅 AI로 생각이 콘텐츠가 되는 글쓰기를 경험해보세요. 매월 기수제 챌린지가
+            진행됩니다. 기수원들과 함께 한 달 글쓰기 미션으로 실력을 쌓아보세요!
           </p>
           <a
-            href="https://docs.google.com/forms/d/e/1FAIpQLSc09fvgAKZsYmA8o2V9LT2ZBdjSzYII6uEdASZF8WN0YerdiA/viewform"
+            href={formLink}
             target="_blank"
             rel="noopener noreferrer"
             className="px-4 sm:px-6 py-1.5 sm:py-2 bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-800 text-white text-sm sm:text-sm md:text-base rounded-lg transition-colors shadow-lg hover:shadow-xl inline-block"

@@ -2,6 +2,7 @@ export interface Submission {
   _id: string;
   title: string;
   text: string;
+  topic?: string; // 주제 필드 추가
   user: { uid: string; email: string; displayName?: string };
   feedbackCount: number;
   hasGivenFeedback: boolean;
@@ -12,8 +13,14 @@ export interface Submission {
 export interface Feedback {
   _id: string;
   content: string;
+  // 구조화된 피드백 필드들
+  strengths?: string;
+  improvements?: string;
+  overall?: string;
   submissionText?: string;
   submissionTitle?: string;
+  submissionTopic?: string;
+  toSubmissionId: string;
   createdAt: string;
   mode?: 'mode_300' | 'mode_1000';
   submissionAuthor?: { uid: string; email: string; displayName?: string };

@@ -28,6 +28,9 @@ const Write300 = () => {
   >('idle');
   const [submissionProgress, setSubmissionProgress] = useState<string>('');
   const [subStep, setSubStep] = useState<'loading' | 'evaluating'>('loading');
+  const [isWhitelisted, setIsWhitelisted] = useState<boolean | null>(null);
+  const [daysSinceJoin, setDaysSinceJoin] = useState<number | null>(null);
+  const [nextRefreshDate, setNextRefreshDate] = useState<string | null>(null);
 
   useEffect(() => {
     // 로딩이 완료되고 user가 없을 때만 리다이렉션
@@ -51,7 +54,7 @@ const Write300 = () => {
     // 연속 작성 챌린지 성공 여부 확인
     const isStreakCompleted = res.data.data.streak?.completed;
     const streakProgress = res.data.data.streak?.progress || [];
-    const allDaysCompleted = streakProgress.every(day => day);
+    const allDaysCompleted = streakProgress.every((day: boolean) => day);
 
     // 모든 날짜가 완료되었을 때만 축하 메시지 표시
     if (isStreakCompleted && allDaysCompleted) {
@@ -113,7 +116,11 @@ const Write300 = () => {
     } else {
       // 자동 제출 시에도 최소 글자 수 확인
       if (!isMinLengthMet) {
-        return alert('자동 제출이 불가능합니다. 최소 글자 수를 충족하지 않았습니다.');
+        alert(
+          '자동 제출이 불가능합니다. 최소 글자 수를 충족하지 않았습니다.\n메인페이지로 이동합니다.'
+        );
+        navigate('/');
+        return;
       }
     }
 
@@ -159,7 +166,7 @@ const Write300 = () => {
 
       // 제출 완료 처리
       handleSubmitComplete(res);
-    } catch (err) {
+    } catch (err: any) {
       logger.error('제출 중 오류 발생:', err.response?.data || err);
       alert('제출 중 오류가 발생했습니다. 다시 시도해 주세요.');
       setSubmissionState('idle');
@@ -202,9 +209,15 @@ const Write300 = () => {
           `${import.meta.env.VITE_API_URL}/api/tokens/${user.uid}?mode=mode_300`
         );
         setTokens(res.data.tokens_300);
+        setIsWhitelisted(res.data.isWhitelisted ?? null);
+        setDaysSinceJoin(res.data.daysSinceJoin ?? null);
+        setNextRefreshDate(res.data.nextRefreshDate ?? null);
       } catch (err) {
         logger.error('토큰 불러오기 실패:', err);
         setTokens(0);
+        setIsWhitelisted(null);
+        setDaysSinceJoin(null);
+        setNextRefreshDate(null);
       }
     };
 
@@ -292,11 +305,21 @@ const Write300 = () => {
               placeholder={`300자 이내로 자유롭게 작성해보세요.`}
               className="w-full h-64 p-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none text-base placeholder:text-base dark:bg-gray-600 dark:text-gray-300"
               maxLength={300}
+              disabled={tokens === 0}
             />
             <div className="absolute right-2 bottom-2 text-xs md:text-sm text-gray-500">
               {text.length}/300
             </div>
           </div>
+
+          {/* 토큰 소진 안내 메시지 */}
+          {tokens === 0 && (
+            <div className="text-red-600 text-sm mb-2">
+              {isWhitelisted || (daysSinceJoin !== null && daysSinceJoin < 7)
+                ? '오늘의 토큰이 모두 소진되었습니다. 내일 다시 도전해 주세요!'
+                : '이번 주 토큰이 모두 소진되었습니다. 다음 주 월요일에 다시 도전해 주세요!'}
+            </div>
+          )}
 
           {/* 타이머 및 버튼 영역 */}
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2">
@@ -336,9 +359,9 @@ const Write300 = () => {
               </button>
               <button
                 onClick={() => handleSubmit(false)}
-                disabled={!isMinLengthMet || submitted}
+                disabled={tokens === 0 || !isMinLengthMet || submitted}
                 className={`px-3 py-1.5 text-sm rounded-lg ${
-                  !isMinLengthMet || submitted
+                  tokens === 0 || !isMinLengthMet || submitted
                     ? 'bg-gray-300 text-gray-500 cursor-not-allowed dark:bg-gray-700 dark:text-gray-400'
                     : 'bg-blue-500 text-white hover:bg-blue-600 dark:bg-blue-800 dark:hover:bg-blue-900'
                 }`}

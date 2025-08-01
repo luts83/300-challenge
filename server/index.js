@@ -17,10 +17,12 @@ const streakRoute = require("./routes/streak");
 const logger = require("./utils/logger");
 const dashboardRouter = require("./routes/dashboard");
 const authRoutes = require("./routes/auth");
+const landingRoutes = require("./routes/landing");
 const { ACCESS_CONTROL } = require("./config");
 const fetchAllowedEmailsFromSheet = require("./utils/fetchAllowedEmails");
 const cookieParser = require("cookie-parser");
 const Submission = require("./models/Submission");
+const userRoutes = require("./routes/user");
 
 app.use(cookieParser());
 
@@ -51,7 +53,7 @@ app.use(
       }
     },
     credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: [
       "Content-Type",
       "Authorization",
@@ -86,6 +88,8 @@ app.use("/api/stats", statsRoute);
 app.use("/api/streak", streakRoute);
 app.use("/api/dashboard", dashboardRouter);
 app.use("/api/auth", authRoutes);
+app.use("/api/user", userRoutes);
+app.use("/api/landing", landingRoutes);
 
 // MongoDB 연결
 mongoose

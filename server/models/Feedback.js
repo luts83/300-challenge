@@ -32,8 +32,15 @@ const feedbackSchema = new mongoose.Schema(
       email: { type: String },
     },
 
+    // 구조화된 피드백 내용
+    strengths: { type: String, required: true }, // 좋았던 점
+    improvements: { type: String, required: true }, // 개선점
+    overall: { type: String, required: false }, // 전체적인 느낌 (선택사항)
+
+    // 기존 content 필드는 하위 호환성을 위해 유지하되 deprecated 처리
+    content: { type: String, required: false }, // deprecated
+
     // 피드백 내용
-    content: { type: String, required: true },
     writtenDate: { type: String }, // YYYY-MM-DD 형식
 
     // 피드백 상태

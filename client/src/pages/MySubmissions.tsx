@@ -417,6 +417,39 @@ const MySubmissions = () => {
     }
   };
 
+  const [notificationEnabled, setNotificationEnabled] = useState(true);
+
+  useEffect(() => {
+    if (!user) return;
+    axios
+      .get(`${import.meta.env.VITE_API_URL}/api/user/notification`, {
+        params: { uid: user.uid },
+        withCredentials: true,
+      })
+      .then(res => setNotificationEnabled(res.data.feedbackNotification))
+      .catch(() => setNotificationEnabled(true));
+  }, [user]);
+
+  const toggleNotification = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const checked = e.target.checked;
+    setNotificationEnabled(checked);
+    try {
+      await axios.patch(
+        `${import.meta.env.VITE_API_URL}/api/user/notification`,
+        { uid: user.uid, feedbackNotification: checked },
+        { withCredentials: true }
+      );
+      if (checked) {
+        alert('피드백 이메일 알림이 켜졌습니다.');
+      } else {
+        alert('피드백 이메일 알림이 꺼졌습니다.');
+      }
+    } catch {
+      alert('알림 설정 변경에 실패했습니다.');
+      setNotificationEnabled(!checked);
+    }
+  };
+
   if (!user) {
     return (
       <Layout>
@@ -468,6 +501,8 @@ const MySubmissions = () => {
             feedbackStats={feedbackStats}
             dailyFeedbackCount={dailyFeedbackCount.total}
             weeklyGrowth={weeklyGrowth}
+            notificationEnabled={notificationEnabled}
+            toggleNotification={toggleNotification}
           />
 
           {/* 피드백 미션 현황 */}

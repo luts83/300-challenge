@@ -27,12 +27,16 @@ interface FeedbackStatsProps {
     thisWeek: number;
     lastWeek: number;
   };
+  notificationEnabled: boolean;
+  toggleNotification: (event: React.ChangeEvent<HTMLInputElement>) => void;
 }
 
 export const FeedbackStats: React.FC<FeedbackStatsProps> = ({
   feedbackStats,
   dailyFeedbackCount,
   weeklyGrowth,
+  notificationEnabled,
+  toggleNotification,
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -46,6 +50,17 @@ export const FeedbackStats: React.FC<FeedbackStatsProps> = ({
         <h2 className="text-base sm:text-lg font-semibold text-gray-800 dark:text-gray-300 flex items-center gap-1.5 sm:gap-2 ">
           <span className="text-xl">💫</span>
           피드백 활동
+          {/* 알림 토글 스위치 */}
+          <label className="flex items-center ml-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={notificationEnabled}
+              onChange={toggleNotification}
+              onClick={e => e.stopPropagation()}
+              className="form-checkbox"
+            />
+            <span className="ml-1 text-sm">{notificationEnabled ? '알림 ON' : '알림 OFF'}</span>
+          </label>
         </h2>
         <button className="p-1.5 sm:p-2 hover:bg-gray-50 rounded-full transition-colors dark:text-gray-300 dark:hover:bg-gray-700">
           {isExpanded ? '▼' : '▶'}

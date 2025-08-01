@@ -28,7 +28,7 @@ const TestimonialCard: React.FC<TestimonialCardProps> = ({ content, author }) =>
         animate="animate"
         exit="exit"
         transition={{ duration: 0.5 }}
-        className="text-xl md:text-xl font-semibold text-gray-900 dark:text-gray-100 text-center leading-snug mb-8"
+        className="text-xl md:text-lg font-normal text-gray-900 dark:text-gray-100 text-center leading-snug mb-8"
       >
         “{content}”
       </motion.p>

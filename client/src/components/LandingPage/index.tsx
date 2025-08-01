@@ -1,27 +1,32 @@
 import React from 'react';
+import { motion } from 'framer-motion';
+// import TestimonialSection from './TestimonialSection';
 import HeroSection from './HeroSection';
 import ContentSection from './ContentSection';
-// import TestimonialSection from './TestimonialSection';
-import SpaceBackground from './SpaceBackground';
-// import FeatureSection from './FeatureSection';
+import WelcomeMessage from './WelcomeMessage';
+import Footer from './Footer';
+import ScrollToTop from '../ScrollToTop';
 
 interface LandingPageProps {
-  showContent: boolean;
-  onVideoEnd: () => void;
+  isFirstVisit: boolean;
 }
 
-const LandingPage: React.FC<LandingPageProps> = ({ showContent, onVideoEnd }) => {
+const LandingPage: React.FC<LandingPageProps> = ({ isFirstVisit }) => {
   return (
-    <div className="min-h-screen relative bg-[#1a1a2e] dark:bg-[#0a0a0a]">
-      <SpaceBackground />
-      <div className="relative z-10">
-        <HeroSection onVideoEnd={onVideoEnd} />
-        <div className="max-w-4xl mx-auto px-3 sm:px-4 py-4 sm:py-6">
-          <ContentSection show={showContent} />
-          {/* <TestimonialSection show={showContent} /> */}
-          {/* <FeatureSection show={showContent} /> */}
-        </div>
-      </div>
+    <div className="min-h-screen bg-gradient-to-b from-[#1a1a2e] to-[#16213e] dark:from-[#0a0a0a] dark:to-[#0f172a]">
+      <ScrollToTop />
+
+      {/* 히어로 섹션 또는 환영 메시지 */}
+      {isFirstVisit ? <HeroSection onVideoEnd={() => {}} /> : <WelcomeMessage />}
+
+      {/* 메인 콘텐츠 섹션 */}
+      <ContentSection show={true} />
+
+      {/* 사용자 후기 섹션 (임시 숨김) */}
+      {/* <TestimonialSection /> */}
+
+      {/* 풋터 */}
+      <Footer />
     </div>
   );
 };

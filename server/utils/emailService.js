@@ -1,4 +1,5 @@
 const nodemailer = require("nodemailer");
+const User = require("../models/User");
 
 // 이메일 전송을 위한 transporter 설정
 const transporter = nodemailer.createTransport({
@@ -34,7 +35,7 @@ const createFeedbackEmailTemplate = (feedback, submission, canViewFeedback) => {
 };
 
 // 이메일 전송 함수
-const sendFeedbackEmail = async (feedback, submission, canViewFeedback) => {
+async function sendFeedbackEmail(feedback, submission, canViewFeedback) {
   try {
     const mailOptions = {
       from: process.env.EMAIL_USER,
@@ -49,7 +50,7 @@ const sendFeedbackEmail = async (feedback, submission, canViewFeedback) => {
     console.error("이메일 전송 실패:", error);
     return false;
   }
-};
+}
 
 module.exports = {
   sendFeedbackEmail,

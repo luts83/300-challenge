@@ -18,57 +18,139 @@ const logger = require("./logger");
 function getManualTopicByDate(
   mode = "300",
   timezone = "Asia/Seoul",
-  offset = -540
+  offset = 540
 ) {
-  // 사용자 시간대 기준으로 현재 날짜 계산
+  // offset 부호 보정
+  offset = -offset;
+
+  // 1. 서버의 현재 시간을 기준으로 사용자의 시간을 계산합니다.
   const now = new Date();
-  const userTime = new Date(now.getTime() - offset * 60 * 1000);
+  const userTime = new Date(now.getTime() + offset * 60 * 1000);
 
-  // 기준일을 사용자 시간대 기준으로 설정
-  const baseDate = new Date(config.TOPIC.BASE_DATE + "T00:00:00.000Z");
-  const base = new Date(baseDate.getTime() - offset * 60 * 1000);
+  // 2. [핵심 수정] 사용자의 '오늘' 날짜를 서버 시간대가 아닌 UTC 기준으로 생성합니다.
+  // 이렇게 하면 어느 국가의 서버에서 실행되어도 항상 동일한 UTC 날짜 객체가 생성됩니다.
+  const today = new Date(
+    Date.UTC(
+      userTime.getUTCFullYear(),
+      userTime.getUTCMonth(),
+      userTime.getUTCDate()
+    )
+  );
 
-  const today = userTime;
-  const dayOfWeek = today.getDay(); // 0: 일요일, 6: 토요일
+  // 3. 기준 날짜도 UTC로 명확하게 설정합니다.
+  const base = new Date(config.TOPIC.BASE_DATE + "T00:00:00.000Z");
+
+  const dayOfWeek = today.getUTCDay(); // UTC 기준 요일 (0: 일요일, 1: 월요일)
   const diffDays = Math.floor((today - base) / (1000 * 60 * 60 * 24));
 
-  // 모드별로 다른 interval 적용
-  const interval =
-    mode === "1000"
-      ? config.TOPIC.INTERVAL_DAYS.MODE_1000
-      : config.TOPIC.INTERVAL_DAYS.MODE_300;
+  // [버그 수정] 평일 인덱스 계산 로직을 단순하고 정확하게 수정합니다.
+  let weekdayIndex = 0;
+  let cursor = new Date(base);
+  while (cursor < today) {
+    // 오늘 날짜 직전까지만 반복
+    const d = cursor.getUTCDay(); // UTC 요일로 비교
+    if (d >= 1 && d <= 5) {
+      // 월(1)~금(5)
+      weekdayIndex++;
+    }
+    cursor.setUTCDate(cursor.getUTCDate() + 1); // UTC 날짜로 하루 증가
+  }
 
-  const index = Math.floor(diffDays / interval);
+  const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
 
-  // 1000자 모드는 주중/주말 구분 없이 일주일 동안 하나의 주제 사용
+  // 주말 인덱스 계산: 기준 날짜부터 오늘까지의 주말 날짜 개수 계산
+  let weekendCount = 0;
+  cursor = new Date(base); // let 제거, 기존 cursor 변수 재사용
+  while (cursor < today) {
+    const d = cursor.getUTCDay();
+    if (d === 0 || d === 6) {
+      // 일요일(0) 또는 토요일(6)
+      weekendCount++;
+    }
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+
+  // 디버깅 로그 추가 (유저 정보 포함)
+  console.log("=== Topic Debug Info ===");
+  console.log("User Info:");
+  console.log("  - Mode:", mode);
+  console.log("  - Timezone:", timezone);
+  console.log("  - Offset (minutes):", offset);
+  console.log("Time Info:");
+  console.log("  - Server Time (now):", now.toISOString());
+  console.log("  - User Time:", userTime.toISOString());
+  console.log("  - Today (UTC):", today.toISOString());
+  console.log("  - Base Date:", base.toISOString());
+  console.log("Calculation Info:");
+  console.log("  - Day of Week:", dayOfWeek);
+  console.log("  - Weekday Index:", weekdayIndex);
+  console.log("  - Is Weekend:", isWeekend);
+
+  let selectedTopic;
+  if (mode === "300") {
+    if (isWeekend) {
+      selectedTopic = weekendTopics300[weekendCount % weekendTopics300.length];
+    } else {
+      selectedTopic = topics300[weekdayIndex % topics300.length];
+    }
+  } else if (mode === "1000") {
+    // 평일/주말 구분
+    if (isWeekend) {
+      selectedTopic =
+        weekendTopics1000[weekendCount % weekendTopics1000.length];
+    } else {
+      const todayMonday = new Date(today);
+      todayMonday.setUTCDate(today.getUTCDate() - today.getUTCDay() + 1);
+      const baseMonday = new Date(base);
+      baseMonday.setUTCDate(base.getUTCDate() - base.getUTCDay() + 1);
+      const weekDiff = Math.floor(
+        (todayMonday - baseMonday) / (1000 * 60 * 60 * 24 * 7)
+      );
+      selectedTopic = topics1000[weekDiff % topics1000.length];
+    }
+  }
+
+  console.log("  - Selected Topic:", selectedTopic);
+  console.log("========================");
+
+  if (mode === "300") {
+    if (isWeekend) {
+      const topic = weekendTopics300[weekendCount % weekendTopics300.length];
+      return topic
+        ? { topic, isManualTopic: true }
+        : { topic: null, isManualTopic: false };
+    } else {
+      // weekdayIndex가 오늘 주제에 대한 0-based 인덱스가 됩니다.
+      const topic = topics300[weekdayIndex % topics300.length];
+      return topic
+        ? { topic, isManualTopic: true }
+        : { topic: null, isManualTopic: false };
+    }
+  }
+
   if (mode === "1000") {
-    const topic = topics1000[index % topics1000.length];
-    if (!topic) {
-      logger.info(`📜 1000자 모드 주제 소진! AI 주제로 전환됩니다.`);
-      return { topic: null, isManualTopic: false };
+    if (isWeekend) {
+      const topic = weekendTopics1000[weekendCount % weekendTopics1000.length];
+      return topic
+        ? { topic, isManualTopic: true }
+        : { topic: null, isManualTopic: false };
+    } else {
+      const todayMonday = new Date(today);
+      todayMonday.setUTCDate(today.getUTCDate() - today.getUTCDay() + 1);
+      const baseMonday = new Date(base);
+      baseMonday.setUTCDate(base.getUTCDate() - base.getUTCDay() + 1);
+
+      const weekDiff = Math.floor(
+        (todayMonday - baseMonday) / (1000 * 60 * 60 * 24 * 7)
+      );
+      const topic = topics1000[weekDiff % topics1000.length];
+      return topic
+        ? { topic, isManualTopic: true }
+        : { topic: null, isManualTopic: false };
     }
-    return { topic, isManualTopic: true };
   }
 
-  // 300자 모드는 기존 로직 유지 (주말에는 주말 주제 사용)
-  if (dayOfWeek === 0 || dayOfWeek === 6) {
-    const topic = weekendTopics300[index % weekendTopics300.length];
-    if (!topic) {
-      logger.info(`📜 300자 모드 주말 주제 소진! AI 주제로 전환됩니다.`);
-      return { topic: null, isManualTopic: false };
-    }
-    return { topic, isManualTopic: true };
-  }
-
-  // 300자 모드 평일 주제
-  const topic = topics300[index % topics300.length];
-
-  if (!topic) {
-    logger.info(`📜 300자 모드 평일 주제 소진! AI 주제로 전환됩니다.`);
-    return { topic: null, isManualTopic: false };
-  }
-
-  return { topic, isManualTopic: true };
+  return { topic: null, isManualTopic: false };
 }
 
 module.exports = getManualTopicByDate;

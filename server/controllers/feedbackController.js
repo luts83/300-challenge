@@ -3,6 +3,7 @@ const Submission = require("../models/Submission");
 const Feedback = require("../models/Feedback");
 const logger = require("../utils/logger");
 const { sendFeedbackEmail } = require("../utils/emailService");
+const User = require("../models/User");
 
 // 피드백 가능 여부 확인 함수
 const canGiveFeedback = async (userUid, targetSubmission) => {
@@ -82,17 +83,30 @@ exports.getAvailableSubmissions = async (req, res) => {
 
 // 피드백 제출 API
 exports.submitFeedback = async (req, res) => {
-  const { toSubmissionId, fromUid, content } = req.body;
+  const { toSubmissionId, fromUid, strengths, improvements, overall } =
+    req.body;
 
+  // 구조화된 피드백 검증
   if (
-    !toSubmissionId ||
-    !fromUid ||
-    !content ||
-    content.trim().length < CONFIG.FEEDBACK.MIN_LENGTH
+    !strengths ||
+    !improvements ||
+    strengths.trim().length < CONFIG.FEEDBACK.STRUCTURED.MIN_LENGTH.STRENGTHS ||
+    improvements.trim().length <
+      CONFIG.FEEDBACK.STRUCTURED.MIN_LENGTH.IMPROVEMENTS
   ) {
-    return res
-      .status(400)
-      .json({ message: "유효한 피드백 데이터를 입력해주세요." });
+    return res.status(400).json({
+      message: "좋았던 점과 개선점을 각각 20자 이상 작성해주세요.",
+    });
+  }
+
+  // 전체적인 느낌이 있는 경우 길이 검증
+  if (
+    overall &&
+    overall.trim().length < CONFIG.FEEDBACK.STRUCTURED.MIN_LENGTH.OVERALL
+  ) {
+    return res.status(400).json({
+      message: "전체적인 느낌은 10자 이상 작성해주세요.",
+    });
   }
 
   try {
@@ -139,7 +153,7 @@ exports.submitFeedback = async (req, res) => {
       return res.status(403).json({ message: err.message });
     }
 
-    // 4. 새로운 피드백 데이터 생성
+    // 구조화된 피드백 데이터 생성
     const newFeedback = new Feedback({
       // 피드백 대상 글 정보
       toSubmissionId: targetSubmission._id,
@@ -161,9 +175,16 @@ exports.submitFeedback = async (req, res) => {
         email: fromUser.user.email,
       },
 
-      // 피드백 내용
-      content,
-      writtenDate: new Date().toISOString().slice(0, 10),
+      // 구조화된 피드백 내용
+      strengths,
+      improvements,
+      overall: overall || null,
+      content: `좋았던 점:\n${strengths}\n\n개선점:\n${improvements}${
+        overall ? `\n\n전체적인 느낌:\n${overall}` : ""
+      }`, // 하위 호환성
+
+      // 피드백 작성 날짜
+      writtenDate: new Date().toISOString().slice(0, 10), // YYYY-MM-DD 형식
 
       // 피드백 상태
       isRead: false,
@@ -173,9 +194,16 @@ exports.submitFeedback = async (req, res) => {
     // 5. 피드백 저장
     const savedFeedback = await newFeedback.save();
 
-    // 이메일 전송
+    // 이메일 알림 설정에 따라 전송
     try {
-      await sendFeedbackEmail(savedFeedback, targetSubmission);
+      // 피드백 대상 글의 유저(=알림 받을 유저) 정보 조회
+      const targetUser = await User.findOne({
+        email: targetSubmission.user.email,
+      });
+      // 알림이 켜져있을 때만 이메일 전송 (feedbackNotification === true)
+      if (targetUser && targetUser.feedbackNotification === true) {
+        await sendFeedbackEmail(savedFeedback, targetSubmission);
+      }
     } catch (emailError) {
       logger.error("피드백 알림 이메일 전송 실패:", emailError);
       // 이메일 전송 실패는 전체 프로세스를 중단시키지 않음

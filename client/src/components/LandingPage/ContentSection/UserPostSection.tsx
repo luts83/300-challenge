@@ -17,6 +17,7 @@ interface Submission {
   mode: 'mode_300' | 'mode_1000';
   likeCount: number;
   createdAt: string;
+  topic?: string;
 }
 
 const AUTO_SLIDE_DURATION = 180000; // 3분
@@ -113,9 +114,13 @@ const UserPostSection: React.FC<UserPostSectionProps> = ({ show }) => {
       }}
       className="mt-16"
     >
-      <h3 className="text-3xl font-bold text-center mb-12 bg-gradient-to-r from-blue-600 to-blue-400 bg-clip-text text-transparent">
+      <h3 className="text-3xl font-bold text-center mb-4 bg-gradient-to-r from-blue-600 to-blue-400 bg-clip-text text-transparent">
         실시간 사용자 글
       </h3>
+
+      <p className="text-lg sm:text-xl md:text-2xl font-bold text-center mb-8 bg-gradient-to-r from-pink-400 via-yellow-400 via-green-400 via-blue-400 to-purple-500 bg-clip-text text-transparent font-nanum-pen">
+        매일 수많은 사용자들이 글을 쓰고 피드백을 주고 받으며 자신의 생각을 나누고 있어요
+      </p>
 
       <div className="w-full">
         <div className="relative h-64 bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden">
@@ -143,8 +148,15 @@ const UserPostSection: React.FC<UserPostSectionProps> = ({ show }) => {
                       </p>
                     </div>
                   </div>
-                  <div className="text-sm text-gray-500 dark:text-gray-400">
-                    좋아요 {currentPost.likeCount}개
+                  <div className="flex items-center gap-3">
+                    {currentPost.topic && (
+                      <span className="text-xs text-gray-500 bg-gray-100 dark:bg-gray-600 px-2 py-1 rounded-full dark:text-gray-300">
+                        {currentPost.topic}
+                      </span>
+                    )}
+                    <div className="text-sm text-gray-500 dark:text-gray-400">
+                      좋아요 {currentPost.likeCount}개
+                    </div>
                   </div>
                 </div>
                 <p className="text-lg text-gray-700 dark:text-gray-300 leading-relaxed">
@@ -164,18 +176,6 @@ const UserPostSection: React.FC<UserPostSectionProps> = ({ show }) => {
               <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
             </motion.div>
           )}
-        </div>
-
-        <div
-          className="
-            mt-6 text-center
-            text-lg sm:text-xl md:text-2xl font-bold
-            bg-gradient-to-r from-pink-400 via-yellow-400 via-green-400 via-blue-400 to-purple-500
-            bg-clip-text text-transparent
-            font-nanum-pen
-          "
-        >
-          매일 수많은 사용자들이 글을 쓰고 피드백을 주고 받으며 자신의 생각을 나누고 있어요
         </div>
       </div>
     </motion.div>

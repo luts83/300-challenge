@@ -4,14 +4,23 @@ const PROMPT_TEMPLATE = require("./prompts/evaluationPrompts");
 
 module.exports = {
   ACCESS_CONTROL: {
-    ENABLED: true, // 🔐 클로즈드 베타 시작 시 true로 설정
-    ALLOWED_EMAILS: [], // 초기값은 빈 배열, 나중에 fetch로 덮어씀
+    ENABLED: true, // 로그인 제한 X (모든 가입자 로그인 허용)
+    ALLOWED_EMAILS: [], // 화이트리스트 이메일
+    WHITELIST_TOKEN_POLICY: {
+      DAILY_LIMIT_300: 1, // 300자: 매일 1개
+      WEEKLY_LIMIT_1000: 1, // 1000자: 주간 1개
+    },
+    NON_WHITELIST_TOKEN_POLICY: {
+      WEEKLY_LIMIT_300: 1, // 300자: 주간 1개
+      WEEKLY_LIMIT_1000: 1, // 1000자: 주간 1개
+    },
   },
 
   TOKEN: {
     DAILY_LIMIT_300: 1, // 300자 모드 하루 토큰 수 (현행 유지)
     DAILY_LIMIT_1000: 0, // 1000자 모드 일일 토큰 제한 제거
     WEEKLY_LIMIT_1000: 1, // 1000자 모드 주간 토큰 수 추가
+    WEEKLY_LIMIT_300: 1, // ← 이 부분 추가
     GOLDEN_KEY: 1, // STREAK_BONUS를 GOLDEN_KEY로 변경
   },
   SUBMISSION: {
@@ -33,6 +42,24 @@ module.exports = {
       RESTRICTIONS: {
         mode_300: ["mode_300", "mode_1000"],
         mode_1000: ["mode_300", "mode_1000"],
+      },
+    },
+    STRUCTURED: {
+      ENABLED: true,
+      MIN_LENGTH: {
+        STRENGTHS: 20,
+        IMPROVEMENTS: 20,
+        OVERALL: 10,
+      },
+      EXAMPLES: {
+        STRENGTHS: [
+          "구체적인 예시를 들어 설명한 부분이 인상적이었어요",
+          "문단 구성이 체계적이고 읽기 쉬웠어요",
+        ],
+        IMPROVEMENTS: [
+          "더 구체적인 사례를 추가하면 좋을 것 같아요",
+          "문장을 좀 더 간결하게 다듬으면 더욱 명확해질 것 같아요",
+        ],
       },
     },
   },

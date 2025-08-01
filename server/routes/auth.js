@@ -3,6 +3,7 @@ const express = require("express");
 const router = express.Router();
 const admin = require("../firebaseAdmin");
 const { checkEmailAccess } = require("../controllers/userController");
+const User = require("../models/User");
 
 router.post("/login", async (req, res) => {
   const { idToken } = req.body;
@@ -10,15 +11,28 @@ router.post("/login", async (req, res) => {
   try {
     const decoded = await admin.auth().verifyIdToken(idToken);
     const email = decoded.email;
+    const uid = decoded.uid;
+    const displayName = decoded.name || email.split("@")[0];
 
-    // ✅ 이메일 허용 체크 먼저!
-    if (!checkEmailAccess(email)) {
-      console.warn("허용되지 않은 이메일 시도:", email);
-      // ✅ 절대 쿠키 설정 없이 종료해야 함
-      return res.status(403).json({
-        message: "현재는 초대된 사용자만 접근할 수 있습니다.",
+    // ✅ User document가 없으면 자동 생성
+    let user = await User.findOne({ uid });
+    if (!user) {
+      user = await User.create({
+        uid,
+        email,
+        displayName,
+        feedbackNotification: true, // 기본값
       });
     }
+
+    // ✅ 이메일 허용 체크 먼저!
+    // if (!checkEmailAccess(email)) {
+    //   console.warn("허용되지 않은 이메일 시도:", email);
+    //   // ✅ 절대 쿠키 설정 없이 종료해야 함
+    //   return res.status(403).json({
+    //     message: "현재는 초대된 사용자만 접근할 수 있습니다.",
+    //   });
+    // }
 
     // ✅ 허용된 이메일만 쿠키 설정
     res.cookie("token", idToken, {
@@ -28,7 +42,7 @@ router.post("/login", async (req, res) => {
       maxAge: 1000 * 60 * 60 * 24,
     });
 
-    return res.status(200).json({ uid: decoded.uid, email });
+    return res.status(200).json({ uid, email });
   } catch (error) {
     console.error("Login error:", error);
     // ✅ 실패 시 쿠키도 남기지 않도록 종료

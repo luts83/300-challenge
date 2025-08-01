@@ -185,4 +185,62 @@ router.get("/recent", async (req, res) => {
   }
 });
 
+// 최근 AI 피드백 가져오기
+router.get("/ai-feedback", async (req, res) => {
+  try {
+    const recentSubmissions = await Submission.aggregate([
+      {
+        $match: {
+          score: { $exists: true, $ne: null },
+          aiFeedback: { $exists: true, $ne: null },
+        },
+      },
+      {
+        $sort: { createdAt: -1 },
+      },
+      {
+        $limit: 10,
+      },
+      {
+        $lookup: {
+          from: "users",
+          localField: "user.uid",
+          foreignField: "uid",
+          as: "userInfo",
+        },
+      },
+      {
+        $unwind: "$userInfo",
+      },
+      {
+        $project: {
+          id: "$_id",
+          title: "$title",
+          originalText: "$text", // text 필드가 실제 원문 내용
+          content: "$text", // text 필드를 content로도 제공
+          feedback: "$aiFeedback",
+          score: "$score",
+          user: {
+            displayName: "$user.displayName",
+          },
+          mode: "$mode",
+          topic: "$topic",
+          createdAt: 1,
+        },
+      },
+    ]);
+
+    res.json({
+      success: true,
+      data: recentSubmissions,
+    });
+  } catch (error) {
+    console.error("AI 피드백 조회 오류:", error);
+    res.status(500).json({
+      success: false,
+      message: "AI 피드백 조회 중 오류가 발생했습니다.",
+    });
+  }
+});
+
 module.exports = router;

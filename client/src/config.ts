@@ -34,6 +34,21 @@ export const CONFIG = {
         mode_1000: ['mode_300', 'mode_1000'], // 1000자 작성자가 피드백 가능한 모드들
       },
     },
+
+    // 구조화된 피드백 설정 추가
+    STRUCTURED: {
+      ENABLED: true,
+      MIN_LENGTH: {
+        STRENGTHS: 20,
+        IMPROVEMENTS: 20,
+        OVERALL: 10,
+      },
+      PLACEHOLDERS: {
+        STRENGTHS: '이 글의 좋았던 점을 구체적으로 작성해주세요 (최소 20자)',
+        IMPROVEMENTS: '개선할 수 있는 부분을 건설적으로 제안해주세요 (최소 20자)',
+        OVERALL: '전체적인 느낌이나 추가 의견을 자유롭게 작성해주세요 (선택사항)',
+      },
+    },
   },
 
   // 🤖 AI 피드백 설정

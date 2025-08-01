@@ -4,6 +4,7 @@ import { CONFIG } from '../../config';
 interface StructuredFeedbackFormProps {
   submissionId: string;
   onSubmit: (submissionId: string, feedback: StructuredFeedback) => void;
+  loading?: boolean;
 }
 
 interface StructuredFeedback {
@@ -15,6 +16,7 @@ interface StructuredFeedback {
 export const StructuredFeedbackForm: React.FC<StructuredFeedbackFormProps> = ({
   submissionId,
   onSubmit,
+  loading = false,
 }) => {
   const [feedback, setFeedback] = useState<StructuredFeedback>({
     strengths: '',
@@ -46,7 +48,8 @@ export const StructuredFeedbackForm: React.FC<StructuredFeedbackFormProps> = ({
           value={feedback.strengths}
           onChange={e => setFeedback(prev => ({ ...prev, strengths: e.target.value }))}
           placeholder={CONFIG.FEEDBACK.STRUCTURED.PLACEHOLDERS.STRENGTHS}
-          className="w-full h-24 p-3 border rounded-lg resize-none focus:ring-2 focus:ring-blue-500"
+          className="w-full h-24 p-3 border rounded-lg resize-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-500 dark:text-gray-300"
+          disabled={loading}
         />
         <div className="text-sm text-gray-500 mt-1">
           {feedback.strengths.length}자 / 최소 {CONFIG.FEEDBACK.STRUCTURED.MIN_LENGTH.STRENGTHS}자
@@ -62,7 +65,8 @@ export const StructuredFeedbackForm: React.FC<StructuredFeedbackFormProps> = ({
           value={feedback.improvements}
           onChange={e => setFeedback(prev => ({ ...prev, improvements: e.target.value }))}
           placeholder={CONFIG.FEEDBACK.STRUCTURED.PLACEHOLDERS.IMPROVEMENTS}
-          className="w-full h-24 p-3 border rounded-lg resize-none focus:ring-2 focus:ring-blue-500"
+          className="w-full h-24 p-3 border rounded-lg resize-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-500 dark:text-gray-300"
+          disabled={loading}
         />
         <div className="text-sm text-gray-500 mt-1">
           {feedback.improvements.length}자 / 최소{' '}
@@ -79,7 +83,8 @@ export const StructuredFeedbackForm: React.FC<StructuredFeedbackFormProps> = ({
           value={feedback.overall}
           onChange={e => setFeedback(prev => ({ ...prev, overall: e.target.value }))}
           placeholder={CONFIG.FEEDBACK.STRUCTURED.PLACEHOLDERS.OVERALL}
-          className="w-full h-20 p-3 border rounded-lg resize-none focus:ring-2 focus:ring-blue-500"
+          className="w-full h-20 p-3 border rounded-lg resize-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-500 dark:text-gray-300"
+          disabled={loading}
         />
         {feedback.overall && (
           <div className="text-sm text-gray-500 mt-1">
@@ -92,10 +97,10 @@ export const StructuredFeedbackForm: React.FC<StructuredFeedbackFormProps> = ({
       <div className="flex justify-end">
         <button
           onClick={handleSubmit}
-          disabled={!isValid()}
-          className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
+          disabled={!isValid() || loading}
+          className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
         >
-          피드백 제출
+          {loading ? '제출 중...' : '피드백 제출'}
         </button>
       </div>
     </div>

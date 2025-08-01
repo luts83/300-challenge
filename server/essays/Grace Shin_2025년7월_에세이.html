@@ -1,0 +1,495 @@
+
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grace Shin님의 7월 에세이</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: 'Noto Sans KR', 'Malgun Gothic', sans-serif; 
+            line-height: 1.8; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            padding: 40px 20px;
+            min-height: 100vh;
+        }
+        .container { 
+            max-width: 800px; 
+            margin: 0 auto; 
+            background: #ffffff;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+        .header { 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white; 
+            padding: 60px 40px; 
+            text-align: center;
+        }
+        .header h1 { 
+            font-size: 2.5em; 
+            margin-bottom: 20px; 
+            font-weight: 300;
+        }
+        .header .subtitle {
+            font-size: 1.2em;
+            opacity: 0.9;
+            margin-bottom: 30px;
+        }
+        .stats {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 30px;
+        }
+        .stat {
+            text-align: center;
+        }
+        .stat-number {
+            font-size: 2em;
+            font-weight: bold;
+            display: block;
+        }
+        .stat-label {
+            font-size: 0.9em;
+            opacity: 0.8;
+        }
+        .essay-content {
+            padding: 60px 40px;
+        }
+        .essay-title {
+            font-size: 2em;
+            color: #667eea;
+            margin-bottom: 40px;
+            text-align: center;
+            font-weight: 300;
+        }
+        .essay-text {
+            font-size: 1.1em;
+            line-height: 2;
+            color: #555;
+            margin-bottom: 30px;
+            text-align: justify;
+        }
+        .footer {
+            background: #f8f9fa;
+            padding: 40px;
+            text-align: center;
+            color: #666;
+        }
+        .writings-list {
+            margin-top: 40px;
+            padding: 40px;
+            background: #f8f9fa;
+        }
+        .writings-list h3 {
+            color: #667eea;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .writing-item {
+            margin-bottom: 20px;
+            padding: 20px;
+            background: white;
+            border-radius: 10px;
+            border-left: 4px solid #667eea;
+        }
+        .writing-date {
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+        .writing-title {
+            font-size: 1.1em;
+            margin-bottom: 10px;
+            color: #333;
+        }
+        .writing-content {
+            color: #666;
+            font-size: 0.9em;
+            line-height: 1.6;
+        }
+        
+        /* 스타일 분석 섹션 */
+        .style-analysis {
+            padding: 40px;
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        }
+        .style-analysis h3 {
+            color: #667eea;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 1.5em;
+        }
+        .analysis-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+        .analysis-card {
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+        .analysis-card h4 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 1.2em;
+        }
+        
+        /* 감정 분포 차트 */
+        .emotion-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .emotion-label {
+            width: 60px;
+            font-size: 0.9em;
+            color: #555;
+        }
+        .emotion-bar {
+            flex: 1;
+            height: 8px;
+            background: #e9ecef;
+            border-radius: 4px;
+            margin: 0 10px;
+            overflow: hidden;
+        }
+        .emotion-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+        .emotion-count {
+            width: 30px;
+            text-align: right;
+            font-size: 0.9em;
+            color: #667eea;
+            font-weight: bold;
+        }
+        
+        /* 스타일 태그 */
+        .style-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 15px;
+        }
+        .style-tag {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.8em;
+            font-weight: 500;
+        }
+        
+        /* 문장 통계 */
+        .sentence-stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+        }
+        .stat-item {
+            text-align: center;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        .stat-label {
+            display: block;
+            font-size: 0.8em;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        .stat-value {
+            display: block;
+            font-size: 1.1em;
+            color: #667eea;
+            font-weight: bold;
+        }
+        
+        /* 워드 클라우드 */
+        .word-cloud {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: center;
+        }
+        .word-item {
+            color: #667eea;
+            font-weight: 500;
+            opacity: 0.8;
+            transition: opacity 0.3s ease;
+        }
+        .word-item:hover {
+            opacity: 1;
+        }
+        
+        /* 문장 패턴 */
+        .pattern-stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+        }
+        .pattern-item {
+            text-align: center;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 10px;
+        }
+        .pattern-icon {
+            display: block;
+            font-size: 1.5em;
+            margin-bottom: 5px;
+        }
+        .pattern-label {
+            display: block;
+            font-size: 0.8em;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        .pattern-count {
+            display: block;
+            font-size: 1.2em;
+            color: #667eea;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Grace Shin님의 7월</h1>
+            <div class="subtitle">AI가 당신의 글들을 모아 만든 개인 에세이</div>
+            <div class="stats">
+                <div class="stat">
+                    <span class="stat-number">11</span>
+                    <span class="stat-label">총 글 수</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-number">7월</span>
+                    <span class="stat-label">기간</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-number">272</span>
+                    <span class="stat-label">평균 글자</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="essay-content">
+            <h2 class="essay-title">삶의 흐름 속에 피어난 순간들</h2>
+            <div class="essay-text">
+                <p>여행은 해마다 다른 옷을 입고 나를 맞이했다. 이른 아침 인천공항에 서면, 새로운 세상에 대한 떨림과 기대가 혼재되어 있었고, 비행기가 이륙할 때마다 두근거리는 마음은 여전히 쏠깃했다. 프랑스 출장에서 만난 파리는 우연치 않은 대화 속에서 뜻밖의 인연이 움트는 곳이었다. 익숙한 도시의 낯선 골목길을 순간 살아가며 마주친 사람들과 더불어 매일 똑같던 일상이 잠시 빛을 발하는 것 같은 기분이 들었다. 계획되지 않은 이야기는 늘 별다른 의미 없이도 내 안의 깊은 곳에 흔적을 남겼다. 삶의 무게를 항상 열심히 쥐고 살아가는 것이 아니라, 때때로 놓아보는 것도 필요하다는 것을 알게 했다.</p><p>일상 속에서는 글쓰기가 내게 잠깐의 휴식을 제공해준다. 단 세 줄로도 충분한 하루의 기록은 어느새 일상과 변화의 기준이 되었다. 바쁘게 흐른 하루 속에서 잠시 멈춰 그날의 작은 기쁨과 슬픔을 글로 남기는 것은 내 마음의 보드판에 새로운 그림을 그린다. 에세이를 쓰는 것은 생각의 실타래를 한 가닥씩 풀어내는 작업과도 같다. 머릿속 복잡한 생각들이 오롯이 글로 녹아내릴 때, 비로소 나의 목소리를 찾는 것 같다.</p><p>음식은 나의 세계를 더욱 풍부하게 해준다. 뜨거운 계란에 마요네즈를 뿌려 먹을 때의 크리미한 맛, 짭조름한 감자칩의 바삭함, 스프를 들이킬 때의 따뜻함은 각각 별개의 경험이다. 그러나 그것들이 서로 조화되어 내미는 맛은 그 이상의 무엇으로 다가온다. 먼 타국에서 마주한 단순한 맛의 어울림은 고향의 소박한 기억을 떠올리게 한다. 그렇게 내 일상 속에서 음식은 단순한 맛 이상의 것을 제공하며, 나의 모든 감각을 불러일으킨다.</p><p>가끔은, 커피의 쌉쌀함이 그리워질 때가 있다. 옥수수차 한 잔의 고소함과 태운 듯한 향기는 그리움을 덜어내는 작은 안식처다. 그릇에 몇 알 넣고 뜨거운 물을 부으면 멀리 떨어져 있던 한국의 차 맛이 떠오른다. 멀고도 가까운 거리의 감각 속에서, 나의 정서는 그렇게 여행을 한다. 커피 중독자에서 벗어나려 애쓰던 시간이 무색하게, 우연히 만난 옥수수차는 새로운 발견과 순간의 넉넉함을 안겨주는 도약이었다.</p><p>그렇게 나는 살아간다. 스스로의 내면을 성장시킬 목표를 세우고, 그 목표를 향해 부단히도 매일 걸어간다. 45세에 회사를 졸업하고 새 시작을 맞이할 그날까지 내 발걸음은 끊임없이 움직이고 있다. 새로운 장(章)을 준비하며 스스로를 위한 삶을 그려나가는 과정은, 때때로 지치고 힘들어도 내가 꿈꾸던 그날을 향해 가는 동력으로 작용한다. 내가 사랑하는 모든 것을 담아낼 수 있는 그런 날들을 향해, 나는 오늘도 쓰고 걷고, 살아간다. 내 앞에 놓인 모든 날들을 두 팔 벌려 환영하고, 그 속에서 새로움을 발견하며, 삶의 흐름 속에서 피어난 순간들을 감사히 받아들인다.</p>
+            </div>
+        </div>
+
+        <div class="style-analysis">
+            <h3>📊 내 글쓰기 스타일 분석</h3>
+            <div class="analysis-grid">
+                <div class="analysis-card">
+                    <h4>🎭 감정 분포</h4>
+                    <div class="emotion-chart">
+                        <div class="emotion-item">
+                                <span class="emotion-label">기쁨</span>
+                                <div class="emotion-bar">
+                                    <div class="emotion-fill" style="width: 60%"></div>
+                                </div>
+                                <span class="emotion-count">3</span>
+                            </div><div class="emotion-item">
+                                <span class="emotion-label">슬픔</span>
+                                <div class="emotion-bar">
+                                    <div class="emotion-fill" style="width: 20%"></div>
+                                </div>
+                                <span class="emotion-count">1</span>
+                            </div><div class="emotion-item">
+                                <span class="emotion-label">분노</span>
+                                <div class="emotion-bar">
+                                    <div class="emotion-fill" style="width: 0%"></div>
+                                </div>
+                                <span class="emotion-count">0</span>
+                            </div><div class="emotion-item">
+                                <span class="emotion-label">평온</span>
+                                <div class="emotion-bar">
+                                    <div class="emotion-fill" style="width: 40%"></div>
+                                </div>
+                                <span class="emotion-count">2</span>
+                            </div><div class="emotion-item">
+                                <span class="emotion-label">동기</span>
+                                <div class="emotion-bar">
+                                    <div class="emotion-fill" style="width: 100%"></div>
+                                </div>
+                                <span class="emotion-count">5</span>
+                            </div>
+                    </div>
+                </div>
+                
+                <div class="analysis-card">
+                    <h4>📝 문체 특징</h4>
+                    <div class="style-tags">
+                        <span class="style-tag">간결한</span><span class="style-tag">명확한</span><span class="style-tag">감정적인</span><span class="style-tag">성장 지향적</span><span class="style-tag">여행을 즐기는</span><span class="style-tag">음식에 예민한</span>
+                    </div>
+                    <div class="sentence-stats">
+                        <div class="stat-item">
+                            <span class="stat-label">평균 글 길이</span>
+                            <span class="stat-value">272자</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">짧은 문장</span>
+                            <span class="stat-value">15개</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">긴 문장</span>
+                            <span class="stat-value">5개</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="analysis-card">
+                    <h4>🔤 개인적 키워드</h4>
+                    <div class="word-cloud">
+                        <span class="word-item" style="font-size: 20px">좋아하는</span><span class="word-item" style="font-size: 18px">글쓰기</span><span class="word-item" style="font-size: 18px">함께</span><span class="word-item" style="font-size: 18px">쓰는</span><span class="word-item" style="font-size: 18px">일을</span><span class="word-item" style="font-size: 18px">삶은</span><span class="word-item" style="font-size: 18px">특히</span><span class="word-item" style="font-size: 18px">한다</span>
+                    </div>
+                </div>
+                
+                <div class="analysis-card">
+                    <h4>💬 문장 패턴</h4>
+                    <div class="pattern-stats">
+                        <div class="pattern-item">
+                            <span class="pattern-icon">❓</span>
+                            <span class="pattern-label">질문형</span>
+                            <span class="pattern-count">1개</span>
+                        </div>
+                        <div class="pattern-item">
+                            <span class="pattern-icon">❗</span>
+                            <span class="pattern-label">감탄형</span>
+                            <span class="pattern-count">16개</span>
+                        </div>
+                        <div class="pattern-item">
+                            <span class="pattern-icon">💬</span>
+                            <span class="pattern-label">대화형</span>
+                            <span class="pattern-count">12개</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="writings-list">
+            <h3>📝 이번 달 작성한 글들</h3>
+            
+                <div class="writing-item">
+                    <div class="writing-date">2025. 7. 1.</div>
+                    <div class="writing-title">매일 글쓰기 챌린지 참여하기☺️</div>
+                    <div class="writing-content">안녕하세요 여러분!
+
+글쓰기 습관을 만들어주고, 글쓰기 실력 향상을 돕는 딜라이팅 AI입니다.
+
+한달 동안 기수원들과 함께 챌린지에 참여하는 글쓰기 챌린지 2기 모집이 시작되었어요...</div>
+                </div>
+            
+                <div class="writing-item">
+                    <div class="writing-date">2025. 7. 7.</div>
+                    <div class="writing-title">딱 3줄로 정리하는 24시간 </div>
+                    <div class="writing-content">무슨 일이 있어도 꼭 '하려고 하는' 일상 루틴이 하나 있다.
+
+오전과 오후로 나누어 한 일을 정리하고, 단 3줄이라도 일기를 쓰는 것이다. 단 몇 줄 쓰는 일기조차 쓸 겨를 없이...</div>
+                </div>
+            
+                <div class="writing-item">
+                    <div class="writing-date">2025. 7. 8.</div>
+                    <div class="writing-title">위험회피형 인간</div>
+                    <div class="writing-content">최근 오징어 게임의 세번째 시즌이 공개됐다.
+
+계속해서 게임을 진행하려는 그룹과 멈추고자 하는 그룹. 두 그룹이 팽팽하게 신경전을 벌이며 이야기가 이어져 간다.
+
+나는 전자를 보며...</div>
+                </div>
+            
+                <div class="writing-item">
+                    <div class="writing-date">2025. 7. 11.</div>
+                    <div class="writing-title">삶은 계란에는 OOOO가 딱이지!</div>
+                    <div class="writing-content">노른자가 적당하게 익은 따끈한 삶은 계란.
+
+제가 참 좋아하는 음식 중 하나인데요. 대부분 후추를 톡톡 뿌린 소금에 찍어먹죠. 하지만, 저는 삶은 계란에 마요네즈를 뿌려먹습니다.
+...</div>
+                </div>
+            
+                <div class="writing-item">
+                    <div class="writing-date">2025. 7. 13.</div>
+                    <div class="writing-title">계획하지 않았던 대화들</div>
+                    <div class="writing-content">이번 주, 월요일부터 목요일까지 프랑스로 출장을 다녀왔다. 
+
+파리에서 열리는 전시회에 부스 운영을 하기 위해 리더들과 팀원들이 한자리에 모였다. 처음 만나는 사람도 있었고, 늘 ...</div>
+                </div>
+            
+                <div class="writing-item">
+                    <div class="writing-date">2025. 7. 15.</div>
+                    <div class="writing-title">'우리‘의 행복을 위해서라면</div>
+                    <div class="writing-content">나는 돈을 잘 쓰지 않는 스타일이다. 
+
+딱히 물욕도 없고, 음식도 늘 비슷한걸 먹고, 사람을 자주 만나는 것도 아니라 돈 쓸 일이 많지 않은 편. 
+
+그래서 200만 원으로도 꽤...</div>
+                </div>
+            
+                <div class="writing-item">
+                    <div class="writing-date">2025. 7. 17.</div>
+                    <div class="writing-title">오 신기하(네 근데 피하고 싶)다</div>
+                    <div class="writing-content">이 주제에 대해 ‘호기심이 생긴다‘라는 답변을 할 수 있다면 이상적일 것이다.
+
+하지만, 내가 드는 감정은 그렇지 않다.
+
+특히 나와 생각이 많이 다르다면 ‘피로감‘을 느낄 가능성...</div>
+                </div>
+            
+                <div class="writing-item">
+                    <div class="writing-date">2025. 7. 20.</div>
+                    <div class="writing-title">머리 속에 있는 생각을 글로 정리하기</div>
+                    <div class="writing-content">이번 주, 반드시 상반기 리뷰 문서를 작성하겠다고 다짐했다.
+
+주초에 디지큐 뉴스레터에 이미 한글로도 한 번 정리해 발행했었다. 그렇기에 업무용으로 영어로 작성하는게 어렵지 않을 ...</div>
+                </div>
+            
+                <div class="writing-item">
+                    <div class="writing-date">2025. 7. 22.</div>
+                    <div class="writing-title">45세에 새출발</div>
+                    <div class="writing-content">50대가 되기 전에 은퇴하고 싶다는 막연한 소망이 있었다. 
+
+이 글을 쓰면서 '45세'라는 나름의 목표를 정해본다. 45세 전에 '회사'에 종속된 삶을 은퇴하고, 온전히 나의 것...</div>
+                </div>
+            
+                <div class="writing-item">
+                    <div class="writing-date">2025. 7. 29.</div>
+                    <div class="writing-title">84제곱미터</div>
+                    <div class="writing-content">영어 제목은 Wall to wall, 원제는 84제곱미터. 
+
+지난 주말, 넷플릭스에서 볼거리를 찾던 중 발견한 영화다. 국민 평수라 불리는 34평형 아파트를 영끌해 구매한 주인공...</div>
+                </div>
+            
+                <div class="writing-item">
+                    <div class="writing-date">2025. 7. 30.</div>
+                    <div class="writing-title">고소하고 쌉쌀한 그 맛</div>
+                    <div class="writing-content">나는 영국에 살고 있다. 
+
+아쉽게도 해외에는 한국처럼 맛있고 특별한 음료들을 접하기 쉽지 않다. 그래서 왠만하면 집에서 음료를 만들어서 마신다. 
+
+나는 커피를 매우 좋아하는 편...</div>
+                </div>
+            
+        </div>
+
+        <div class="footer">
+            <p>딜라이팅.AI가 당신의 글들을 분석하여 만든 개인 맞춤형 에세이입니다.</p>
+            <p>📧 Grace Shin님의 7월 에세이</p>
+        </div>
+    </div>
+</body>
+</html>
+  

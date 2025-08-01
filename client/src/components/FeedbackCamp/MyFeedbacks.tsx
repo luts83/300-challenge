@@ -93,8 +93,14 @@ export const MyFeedbacks: React.FC<MyFeedbacksProps> = ({
                       <div className="flex flex-wrap items-center gap-2 text-xs text-gray-600 mt-1 dark:text-gray-300">
                         <span>{feedback.submissionAuthor?.displayName || '익명'}</span>
                         <span className="text-gray-400 dark:text-gray-300">•</span>
-                        <span>{format(new Date(feedback.createdAt), 'PPP', { locale: ko })}</span>
-                        <HelpfulButton submissionId={feedback.toSubmissionId} userUid={user?.uid} />
+                        <span>
+                          {new Date(feedback.createdAt).toLocaleDateString('ko-KR', {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric',
+                          })}
+                        </span>
+                        <HelpfulButton submissionId={feedback.toSubmissionId} />
                         <span
                           className={`px-2 py-0.5 rounded-full text-xs font-medium ${
                             feedback.mode === 'mode_300'
@@ -121,13 +127,63 @@ export const MyFeedbacks: React.FC<MyFeedbacksProps> = ({
                         )}
                         <div>
                           <div className="flex items-center justify-between text-xs text-gray-500 mb-1 dark:text-gray-300">
-                            <span>내 피드백</span>
+                            <span className="font-medium">내 피드백</span>
                             <span>
-                              {format(new Date(feedback.createdAt), 'PPP a h:mm', { locale: ko })}
+                              {new Date(feedback.createdAt).toLocaleDateString('ko-KR', {
+                                year: 'numeric',
+                                month: 'long',
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })}
                             </span>
                           </div>
-                          <div className="text-sm text-gray-800 dark:text-gray-300 whitespace-pre-wrap">
-                            {feedback.content}
+                          <div className="text-sm text-gray-800 dark:text-gray-300">
+                            {/* 구조화된 피드백이 있는 경우 */}
+                            {feedback.strengths && feedback.improvements ? (
+                              <div className="space-y-3">
+                                {/* 좋았던 점 */}
+                                <div>
+                                  <div className="text-xs text-gray-500 mb-1 dark:text-gray-300">
+                                    <span className="font-medium text-green-600 dark:text-green-400">
+                                      ✨ 좋았던 점
+                                    </span>
+                                  </div>
+                                  <div className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
+                                    {feedback.strengths}
+                                  </div>
+                                </div>
+
+                                {/* 개선점 */}
+                                <div>
+                                  <div className="text-xs text-gray-500 mb-1 dark:text-gray-300">
+                                    <span className="font-medium text-green-600 dark:text-green-400">
+                                      🔧 개선점
+                                    </span>
+                                  </div>
+                                  <div className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
+                                    {feedback.improvements}
+                                  </div>
+                                </div>
+
+                                {/* 전체적인 느낌 (있는 경우만) */}
+                                {feedback.overall && (
+                                  <div>
+                                    <div className="text-xs text-gray-500 mb-1 dark:text-gray-300">
+                                      <span className="font-medium text-green-600 dark:text-green-400">
+                                        💭 전체적인 느낌
+                                      </span>
+                                    </div>
+                                    <div className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
+                                      {feedback.overall}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              /* 기존 피드백 형식 (하위 호환성) */
+                              <div className="whitespace-pre-wrap">{feedback.content}</div>
+                            )}
                           </div>
                         </div>
                       </div>

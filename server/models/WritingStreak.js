@@ -27,8 +27,10 @@ writingStreakSchema.methods.shouldStartNewWeek = function () {
 
   const now = new Date();
   const monday = new Date();
-  monday.setHours(0, 0, 0, 0);
-  monday.setDate(monday.getDate() - monday.getDay() + 1);
+  // UTC 기준으로 월요일 0시 계산
+  const dayOfWeek = monday.getUTCDay(); // 0=일요일, 1=월요일, ...
+  monday.setUTCDate(monday.getUTCDate() - dayOfWeek + 1); // 이번 주 월요일로 설정
+  monday.setUTCHours(0, 0, 0, 0); // UTC 0시로 설정
 
   return this.currentWeekStartDate < monday;
 };

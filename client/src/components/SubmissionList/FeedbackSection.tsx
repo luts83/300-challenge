@@ -20,6 +20,9 @@ interface FeedbackItem {
   writer: {
     displayName: string;
   };
+  strengths: string;
+  improvements: string;
+  overall?: string;
 }
 
 interface FeedbackSectionProps {
@@ -49,19 +52,53 @@ export const FeedbackSection: React.FC<FeedbackSectionProps> = ({
           {hasFeedback ? (
             <div className="space-y-2 sm:space-y-3">
               {feedbacks.map((feedback, index) => (
-                <div
-                  key={index}
-                  className="p-2.5 sm:p-3 bg-white dark:bg-gray-800 text-black dark:text-white rounded-lg shadow-sm"
-                >
-                  <p className="text-sm sm:text-base text-gray-700 dark:text-gray-300 break-all whitespace-pre-wrap">
-                    {feedback.content}
-                  </p>
-                  <div className="flex items-center gap-2 mt-2 text-xs text-gray-500 dark:text-gray-300">
-                    <span className="font-medium text-gray-600 dark:text-gray-300">
-                      {feedback.writer.displayName}
-                    </span>
+                <div key={index} className="p-3 bg-white rounded-lg shadow-sm">
+                  {/* 구조화된 피드백이 있는 경우 */}
+                  {feedback.strengths && feedback.improvements ? (
+                    <>
+                      {/* 좋았던 점 */}
+                      <div className="mb-3">
+                        <h5 className="text-sm font-medium text-green-600 mb-1">✨ 좋았던 점</h5>
+                        <p className="text-sm text-gray-700">{feedback.strengths}</p>
+                      </div>
+
+                      {/* 개선점 */}
+                      <div className="mb-3">
+                        <h5 className="text-sm font-medium text-blue-600 mb-1">🔧 개선점</h5>
+                        <p className="text-sm text-gray-700">{feedback.improvements}</p>
+                      </div>
+
+                      {/* 전체적인 느낌 (있는 경우만) */}
+                      {feedback.overall && (
+                        <div className="mb-3">
+                          <h5 className="text-sm font-medium text-purple-600 mb-1">
+                            💭 전체적인 느낌
+                          </h5>
+                          <p className="text-sm text-gray-700">{feedback.overall}</p>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    /* 기존 피드백 형식 (하위 호환성) */
+                    <div className="mb-3">
+                      <h5 className="text-sm font-medium text-purple-600 mb-1">💭 전체적인 느낌</h5>
+                      <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                        {feedback.content}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* 작성자 정보 */}
+                  <div className="flex items-center gap-2 text-xs text-gray-500">
+                    <span className="font-medium">{feedback.writer.displayName}</span>
                     <span>•</span>
-                    <span>{format(new Date(feedback.createdAt), 'PPP', { locale: ko })}</span>
+                    <span>
+                      {new Date(feedback.createdAt).toLocaleDateString('ko-KR', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric',
+                      })}
+                    </span>
                   </div>
                 </div>
               ))}

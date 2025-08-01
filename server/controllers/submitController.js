@@ -7,6 +7,8 @@ const WritingStreak = require("../models/WritingStreak");
 const mongoose = require("mongoose");
 const logger = require("../utils/logger");
 const { handleTokenChange } = require("../utils/tokenHistory");
+const { checkEmailAccess } = require("../controllers/userController");
+const User = require("../models/User");
 
 // 1. 먼저 함수 정의를 파일 상단에 추가
 const checkFirstSubmissionOfDay = async (uid) => {
@@ -185,12 +187,22 @@ const evaluateSubmission = async (text, mode, topic, retryCount = 2) => {
   }
 };
 
-const handleSubmit = async (req, res) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
+async function handleSubmit(req, res) {
+  const {
+    title,
+    text,
+    topic,
+    mode,
+    duration,
+    forceSubmit,
+    isMinLengthMet,
+    charCount,
+    user,
+  } = req.body;
 
   try {
-    const { text, title, topic, user, mode, sessionCount, duration } = req.body;
+    const session = await mongoose.startSession();
+    session.startTransaction();
 
     // 제출 시점 로깅 추가
     console.log("\n📝 새로운 글 제출:", {
@@ -253,52 +265,135 @@ const handleSubmit = async (req, res) => {
     // 토큰 리셋 체크 - 수정된 부분
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-
-    if (userToken.lastRefreshed < today) {
-      userToken.tokens_300 = TOKEN.DAILY_LIMIT_300;
-      userToken.lastRefreshed = now;
-      await handleTokenChange(
-        user.uid,
-        {
-          type: "DAILY_RESET",
-          amount: TOKEN.DAILY_LIMIT_300,
-          mode: "mode_300",
-          timestamp: now,
-        },
-        {
-          session,
-          user: {
-            email: user.email,
-            displayName: user.displayName || user.email.split("@")[0],
-          },
-        }
-      );
-    }
-
-    // 주간 토큰 리셋 체크 - 수정된 부분
     const monday = new Date();
-    monday.setDate(monday.getDate() - monday.getDay() + 1);
-    monday.setHours(0, 0, 0, 0);
+    // UTC 기준으로 월요일 0시 계산 (lastWeeklyRefreshed와 동일한 기준)
+    const mondayDayOfWeek = monday.getUTCDay(); // 0=일요일, 1=월요일, ...
+    monday.setUTCDate(monday.getUTCDate() - mondayDayOfWeek + 1); // 이번 주 월요일로 설정
+    monday.setUTCHours(0, 0, 0, 0); // UTC 0시로 설정
 
-    if (userToken.lastWeeklyRefreshed < monday) {
-      userToken.tokens_1000 = TOKEN.WEEKLY_LIMIT_1000;
-      userToken.lastWeeklyRefreshed = monday;
-      await handleTokenChange(
-        user.uid,
-        {
-          type: "WEEKLY_RESET",
-          amount: TOKEN.WEEKLY_LIMIT_1000,
-          mode: "mode_1000",
-          timestamp: now,
-        },
-        {
-          session,
-          user: {
-            email: user.email,
-            displayName: user.displayName || user.email.split("@")[0],
+    const isWhitelisted = await checkEmailAccess(user.email);
+    // 가입일 기반 분기 추가
+    let daysSinceJoin = 9999;
+    if (!isWhitelisted) {
+      const userDoc = await User.findOne({ uid: user.uid });
+      if (userDoc && userDoc.createdAt) {
+        daysSinceJoin = Math.floor(
+          (now - userDoc.createdAt) / (1000 * 60 * 60 * 24)
+        );
+      }
+    }
+    console.log(
+      `[토큰 지급] 유저: ${user.email} (${user.uid}) / 화이트리스트: ${isWhitelisted} / 가입 후 ${daysSinceJoin}일 경과`
+    );
+
+    // 300자 토큰 지급
+    if (isWhitelisted) {
+      // 매일 리셋
+      if (userToken.lastRefreshed < today) {
+        userToken.tokens_300 = TOKEN.DAILY_LIMIT_300;
+        userToken.lastRefreshed = now;
+        console.log(
+          `[토큰 지급] 화이트리스트 유저에게 300자 토큰 지급 (일일 리셋)`
+        );
+        await handleTokenChange(
+          user.uid,
+          {
+            type: "DAILY_RESET",
+            amount: TOKEN.DAILY_LIMIT_300,
+            mode: "mode_300",
+            timestamp: now,
           },
-        }
-      );
+          {
+            session,
+            user: {
+              email: user.email,
+              displayName: user.displayName || user.email.split("@")[0],
+            },
+          }
+        );
+      }
+    } else if (daysSinceJoin < 7) {
+      // 비참여자, 가입 후 7일 이내: 매일 지급
+      if (userToken.lastRefreshed < today) {
+        userToken.tokens_300 = TOKEN.DAILY_LIMIT_300;
+        userToken.lastRefreshed = now;
+        console.log(
+          `[토큰 지급] 신규 비참여자(가입 7일 이내)에게 300자 토큰 지급 (일일 리셋)`
+        );
+        await handleTokenChange(
+          user.uid,
+          {
+            type: "DAILY_RESET",
+            amount: TOKEN.DAILY_LIMIT_300,
+            mode: "mode_300",
+            timestamp: now,
+          },
+          {
+            session,
+            user: {
+              email: user.email,
+              displayName: user.displayName || user.email.split("@")[0],
+            },
+          }
+        );
+      }
+    } else {
+      // 비참여자, 가입 7일 이후: 주간 지급
+      console.log("[디버그] 주간 지급 분기 진입:", {
+        lastWeeklyRefreshed: userToken.lastWeeklyRefreshed,
+        monday,
+        now,
+        지급조건: userToken.lastWeeklyRefreshed < monday,
+      });
+      if (userToken.lastWeeklyRefreshed < monday) {
+        userToken.tokens_300 = TOKEN.WEEKLY_LIMIT_300;
+        userToken.tokens_1000 = TOKEN.WEEKLY_LIMIT_1000;
+        userToken.lastWeeklyRefreshed = monday;
+        // 300자 지급 기록
+        await handleTokenChange(
+          user.uid,
+          {
+            type: "WEEKLY_RESET",
+            amount: TOKEN.WEEKLY_LIMIT_300,
+            mode: "mode_300",
+            timestamp: now,
+          },
+          {
+            session,
+            user: {
+              email: user.email,
+              displayName: user.displayName || user.email.split("@")[0],
+            },
+          }
+        );
+        // 1000자 지급 기록
+        await handleTokenChange(
+          user.uid,
+          {
+            type: "WEEKLY_RESET",
+            amount: TOKEN.WEEKLY_LIMIT_1000,
+            mode: "mode_1000",
+            timestamp: now,
+          },
+          {
+            session,
+            user: {
+              email: user.email,
+              displayName: user.displayName || user.email.split("@")[0],
+            },
+          }
+        );
+      } else {
+        console.log(
+          `[토큰 지급] 비화이트리스트 유저(가입 7일 초과), 주간 리셋 아님 → 토큰 지급 없음`,
+          {
+            lastWeeklyRefreshed: userToken.lastWeeklyRefreshed,
+            monday,
+            now,
+            지급조건: userToken.lastWeeklyRefreshed < monday,
+          }
+        );
+      }
     }
 
     // 토큰 체크
@@ -322,7 +417,7 @@ const handleSubmit = async (req, res) => {
       topic,
       user,
       mode,
-      sessionCount,
+      sessionCount: 1, // 임시로 1로 설정
       duration,
       submissionDate: now.toISOString().slice(0, 10),
       score,
@@ -528,22 +623,25 @@ const handleSubmit = async (req, res) => {
     });
   } catch (error) {
     await session.abortTransaction();
-    console.error("❌ 제출 처리 오류:", {
-      작성자: user.displayName,
-      제목: title,
-      모드: mode,
-      오류: error.message,
-      시간: new Date().toLocaleString("ko-KR", { timeZone: "Asia/Seoul" }),
-    });
-    return res.status(500).json({
-      success: false,
-      message: "서버 오류가 발생했습니다.",
-      error: process.env.NODE_ENV === "development" ? error.message : undefined,
-    });
+    // [오류 상황에서만] 상세 디버깅 로그
+    console.error(
+      `[제출 실패] 유저: ${user?.email} (${user?.uid}), mode: ${mode}`
+    );
+    console.error(`- title: ${title}`);
+    console.error(`- text(앞 50자): ${text?.slice(0, 50)}...`);
+    console.error(
+      `- duration: ${duration}, forceSubmit: ${forceSubmit}, charCount: ${charCount}`
+    );
+    console.error(`- 요청 파라미터:`, req.body);
+    console.error(`[에러 상세]`, error);
+
+    return res
+      .status(500)
+      .json({ message: "서버 오류", error: error?.message || error });
   } finally {
     session.endSession();
   }
-};
+}
 
 const handleStreakCompletion = async (user, streak, userToken) => {
   const session = await mongoose.startSession();
@@ -589,10 +687,16 @@ const handleStreakCompletion = async (user, streak, userToken) => {
 // 새로운 주인지 확인하는 헬퍼 함수
 function isNewWeek(lastDate, currentDate) {
   const lastMonday = new Date(lastDate);
-  lastMonday.setDate(lastMonday.getDate() - (lastMonday.getDay() - 1));
+  // UTC 기준으로 월요일 0시 계산
+  const lastDayOfWeek = lastMonday.getUTCDay();
+  lastMonday.setUTCDate(lastMonday.getUTCDate() - lastDayOfWeek + 1);
+  lastMonday.setUTCHours(0, 0, 0, 0);
 
   const currentMonday = new Date(currentDate);
-  currentMonday.setDate(currentMonday.getDate() - (currentMonday.getDay() - 1));
+  // UTC 기준으로 월요일 0시 계산
+  const currentDayOfWeek = currentMonday.getUTCDay();
+  currentMonday.setUTCDate(currentMonday.getUTCDate() - currentDayOfWeek + 1);
+  currentMonday.setUTCHours(0, 0, 0, 0);
 
   return lastMonday.getTime() < currentMonday.getTime();
 }

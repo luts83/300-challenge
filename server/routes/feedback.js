@@ -242,6 +242,9 @@ router.get("/given/:uid", async (req, res) => {
     const transformed = paged.map((fb) => ({
       _id: fb._id,
       content: fb.content,
+      strengths: fb.strengths,
+      improvements: fb.improvements,
+      overall: fb.overall,
       fromUid: fb.fromUid,
       toSubmissionId: fb.toSubmissionId?._id || null,
       submissionTitle: fb.toSubmissionId?.title || "",
@@ -689,6 +692,43 @@ router.get("/all-submissions/:uid", async (req, res) => {
     console.error("❌ 전체 글 목록 조회 실패:", err);
     res.status(500).json({ message: "서버 오류입니다." });
   }
+});
+
+// 오늘 내가 남긴 피드백(모드별) 개수 반환
+router.get("/given-today/:uid", async (req, res) => {
+  const { uid } = req.params;
+  const today = new Date().toISOString().slice(0, 10);
+
+  // 오늘 내가 남긴 피드백 모두 조회
+  const feedbacks = await Feedback.find({
+    fromUid: uid,
+    writtenDate: today,
+  });
+
+  // 모드별 개수 집계
+  const mode300 = feedbacks.filter(
+    (fb) => fb.submissionMode === "mode_300"
+  ).length;
+  const mode1000 = feedbacks.filter(
+    (fb) => fb.submissionMode === "mode_1000"
+  ).length;
+
+  res.json({
+    mode_300: mode300,
+    mode_1000: mode1000,
+    total: feedbacks.length,
+  });
+});
+
+router.get("/all-dates/:uid", async (req, res) => {
+  const { uid } = req.params;
+  const submissions = await Submission.find({ "user.uid": uid }).select(
+    "createdAt"
+  );
+  const dates = submissions.map((sub) =>
+    sub.createdAt.toISOString().slice(0, 10)
+  );
+  res.json({ dates: Array.from(new Set(dates)) });
 });
 
 module.exports = router;
