@@ -1,12 +1,24 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useCallback, useMemo } from 'react';
 
 function isLowEndDevice() {
   if (typeof window === 'undefined') return false;
   return (
     (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4) ||
-    (navigator.deviceMemory && navigator.deviceMemory <= 4) ||
+    ((navigator as any).deviceMemory && (navigator as any).deviceMemory <= 4) ||
     window.innerWidth < 600
   );
+}
+
+// 성능 최적화를 위한 디바이스 감지
+function getDevicePerformance() {
+  if (typeof window === 'undefined') return 'high';
+
+  const isMobile = window.innerWidth <= 768;
+  const isLowEnd = isLowEndDevice();
+
+  if (isLowEnd) return 'low';
+  if (isMobile) return 'medium';
+  return 'high';
 }
 
 const SpaceBackground: React.FC = () => {
@@ -15,19 +27,26 @@ const SpaceBackground: React.FC = () => {
   const particlesRef = useRef<HTMLDivElement>(null);
   const mouseGlowRef = useRef<HTMLDivElement>(null);
 
-  // 저사양/모바일이면 아예 렌더하지 않음
-  if (isLowEndDevice()) return null;
+  // 성능 레벨에 따른 설정
+  const performanceLevel = useMemo(() => getDevicePerformance(), []);
+  const isVisible = useRef(true);
 
-  // 별똥별 생성
-  const createShootingStars = () => {
+  // 별똥별 생성 (성능 최적화)
+  const createShootingStars = useCallback(() => {
     const container = shootingStarsRef.current;
     if (!container) return;
 
     const createMultipleStars = () => {
-      const starCount = Math.floor(Math.random() * 3) + 1;
+      if (!isVisible.current) return;
+
+      // 성능 레벨에 따른 별똥별 개수 조절
+      const maxStars = performanceLevel === 'high' ? 3 : performanceLevel === 'medium' ? 2 : 1;
+      const starCount = Math.floor(Math.random() * maxStars) + 1;
 
       for (let i = 0; i < starCount; i++) {
         setTimeout(() => {
+          if (!isVisible.current) return;
+
           const star = document.createElement('div');
           star.className = 'shooting-star';
           star.style.top = `${Math.random() * 70}%`;
@@ -37,29 +56,42 @@ const SpaceBackground: React.FC = () => {
           star.style.animationDelay = `${Math.random() * 0.5}s`;
           container.appendChild(star);
 
-          setTimeout(() => star.remove(), (duration + 1) * 1000);
+          setTimeout(
+            () => {
+              if (star.parentNode) {
+                star.remove();
+              }
+            },
+            (duration + 1) * 1000
+          );
         }, i * 200);
       }
     };
 
     createMultipleStars();
-    const interval1 = setInterval(createMultipleStars, 800);
-    const interval2 = setInterval(() => {
-      if (Math.random() > 0.3) createMultipleStars();
-    }, 500);
+
+    // 성능 레벨에 따른 인터벌 조절
+    const interval1 = setInterval(createMultipleStars, performanceLevel === 'high' ? 800 : 1200);
+    const interval2 = setInterval(
+      () => {
+        if (Math.random() > 0.3 && isVisible.current) createMultipleStars();
+      },
+      performanceLevel === 'high' ? 500 : 800
+    );
 
     return () => {
       clearInterval(interval1);
       clearInterval(interval2);
     };
-  };
+  }, [performanceLevel]);
 
-  // 반짝이는 별 생성
-  const createTwinklingStars = () => {
+  // 반짝이는 별 생성 (성능 최적화)
+  const createTwinklingStars = useCallback(() => {
     const container = twinklingStarsRef.current;
     if (!container) return;
 
-    const starCount = window.innerWidth > 768 ? 80 : 40;
+    // 성능 레벨에 따른 별 개수 조절
+    const starCount = performanceLevel === 'high' ? 80 : performanceLevel === 'medium' ? 50 : 25;
 
     for (let i = 0; i < starCount; i++) {
       const star = document.createElement('div');
@@ -73,14 +105,16 @@ const SpaceBackground: React.FC = () => {
       star.style.height = `${size}px`;
       container.appendChild(star);
     }
-  };
+  }, [performanceLevel]);
 
-  // 파티클 생성
-  const createParticles = () => {
+  // 파티클 생성 (성능 최적화)
+  const createParticles = useCallback(() => {
     const container = particlesRef.current;
     if (!container) return;
 
-    const particleCount = window.innerWidth > 768 ? 120 : 60;
+    // 성능 레벨에 따른 파티클 개수 조절
+    const particleCount =
+      performanceLevel === 'high' ? 120 : performanceLevel === 'medium' ? 80 : 40;
 
     for (let i = 0; i < particleCount; i++) {
       const particle = document.createElement('div');
@@ -89,11 +123,12 @@ const SpaceBackground: React.FC = () => {
       particle.style.animationDelay = `${Math.random() * 40}s`;
       container.appendChild(particle);
     }
-  };
+  }, [performanceLevel]);
 
-  // 마우스 글로우 효과
-  const initMouseGlow = () => {
-    if (window.innerWidth <= 768) return;
+  // 마우스 글로우 효과 (성능 최적화)
+  const initMouseGlow = useCallback(() => {
+    // 모바일에서는 마우스 글로우 비활성화
+    if (window.innerWidth <= 768 || performanceLevel === 'low') return;
 
     const glow = mouseGlowRef.current;
     if (!glow) return;
@@ -102,6 +137,7 @@ const SpaceBackground: React.FC = () => {
       mouseY = 0;
     let glowX = 0,
       glowY = 0;
+    let animationId: number;
 
     const handleMouseMove = (e: MouseEvent) => {
       mouseX = e.clientX;
@@ -114,12 +150,14 @@ const SpaceBackground: React.FC = () => {
     };
 
     const animate = () => {
+      if (!isVisible.current) return;
+
       glowX += (mouseX - glowX) * 0.1;
       glowY += (mouseY - glowY) * 0.1;
       if (glow) {
-        glow.style.transform = `translate3d(${glowX}px, ${glowY}px, 0)`; // ← 이 줄로 수정!
+        glow.style.transform = `translate3d(${glowX}px, ${glowY}px, 0)`;
       }
-      requestAnimationFrame(animate);
+      animationId = requestAnimationFrame(animate);
     };
 
     document.addEventListener('mousemove', handleMouseMove);
@@ -129,23 +167,37 @@ const SpaceBackground: React.FC = () => {
     return () => {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseleave', handleMouseLeave);
+      if (animationId) {
+        cancelAnimationFrame(animationId);
+      }
     };
-  };
+  }, [performanceLevel]);
 
   useEffect(() => {
-    // 별/파티클 개수 줄이기
-    const starCount = window.innerWidth > 768 ? 80 : 40;
-    const particleCount = window.innerWidth > 768 ? 120 : 60;
+    // 저사양/모바일이면 아예 렌더하지 않음
+    if (isLowEndDevice()) return;
+
     const cleanup1 = createShootingStars();
     createTwinklingStars();
     createParticles();
     const cleanup2 = initMouseGlow();
 
+    // 페이지 가시성 변경 감지
+    const handleVisibilityChange = () => {
+      isVisible.current = !document.hidden;
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
     return () => {
       cleanup1?.();
       cleanup2?.();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, []);
+  }, [createShootingStars, createTwinklingStars, createParticles, initMouseGlow]);
+
+  // 저사양/모바일이면 아예 렌더하지 않음
+  if (isLowEndDevice()) return null;
 
   return (
     <>
@@ -154,7 +206,7 @@ const SpaceBackground: React.FC = () => {
       <div ref={shootingStarsRef} className="shooting-stars" />
       <div ref={twinklingStarsRef} className="twinkling-stars" />
       <div ref={particlesRef} className="particles" />
-      <div ref={mouseGlowRef} className="mouse-glow" />
+      {performanceLevel !== 'low' && <div ref={mouseGlowRef} className="mouse-glow" />}
     </>
   );
 };

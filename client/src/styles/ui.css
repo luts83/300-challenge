@@ -1,4 +1,8 @@
 /* client/src/styles/ui.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 @layer components {
   /* ────────────────────────────── */
   /* 🔷 Layout: 섹션 레이아웃 정리 */
@@ -388,4 +392,35 @@
 .twinkle-star,
 .particle {
   will-change: transform, opacity;
+}
+
+/* 성능 최적화를 위한 미디어 쿼리 */
+@media (max-width: 768px) {
+  .shooting-star::after {
+    width: 60px !important;
+  }
+
+  .mouse-glow {
+    display: none !important;
+  }
+
+  .particle {
+    animation-duration: 15s !important;
+  }
+}
+
+/* 저사양 디바이스 최적화 */
+@media (prefers-reduced-motion: reduce) {
+  .shooting-star,
+  .twinkle-star,
+  .particle,
+  .nebula,
+  .aurora {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+
+  .mouse-glow {
+    display: none !important;
+  }
 }

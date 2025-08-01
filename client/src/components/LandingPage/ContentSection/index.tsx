@@ -58,7 +58,7 @@ const ContentSection: React.FC<ContentSectionProps> = ({ show }) => {
   return (
     <motion.div className="max-w-4xl mx-auto px-4 py-16 space-y-16">
       {/* 환영 섹션 */}
-      <AnimatedSection>
+      <AnimatedSection show={show}>
         <div className="text-center">
           <h2 className="text-4xl font-bold mb-6 bg-gradient-to-r from-blue-600 to-blue-400 bg-clip-text text-transparent">
             당신만의 글쓰기 여정을 시작하세요
@@ -117,7 +117,7 @@ const ContentSection: React.FC<ContentSectionProps> = ({ show }) => {
       </AnimatedSection>
 
       {/* 주요 기능 섹션 */}
-      <AnimatedSection>
+      <AnimatedSection show={show}>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           <FeatureCard
             icon="✍️"
@@ -150,7 +150,7 @@ const ContentSection: React.FC<ContentSectionProps> = ({ show }) => {
       <UseCaseSection show={show} />
 
       {/* 실시간 사용자 글 섹션 */}
-      <AnimatedSection>
+      <AnimatedSection show={show}>
         <UserPostSection show={show} />
       </AnimatedSection>
 
@@ -161,7 +161,7 @@ const ContentSection: React.FC<ContentSectionProps> = ({ show }) => {
       <MonthlyEssaySection show={show} />
 
       {/* 유튜브 영상 임베드 */}
-      <AnimatedSection>
+      <AnimatedSection show={show}>
         <h3 className="text-3xl font-bold text-center mb-4 bg-gradient-to-r from-blue-600 to-blue-400 bg-clip-text text-transparent">
           딜라이팅 AI 소개 영상
         </h3>
@@ -185,7 +185,7 @@ const ContentSection: React.FC<ContentSectionProps> = ({ show }) => {
       </AnimatedSection>
 
       {/* CTA 섹션 */}
-      <AnimatedSection>
+      <AnimatedSection show={show}>
         <div className="text-center">
           <h3 className="text-3xl font-bold text-center mb-6 bg-gradient-to-r from-blue-600 to-blue-400 bg-clip-text text-transparent">
             지금, 시작하세요!
