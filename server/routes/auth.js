@@ -2,7 +2,10 @@
 const express = require("express");
 const router = express.Router();
 const admin = require("../firebaseAdmin");
-const { checkEmailAccess } = require("../controllers/userController");
+const {
+  checkEmailAccess,
+  detectNonWhitelistedUserActivity,
+} = require("../controllers/userController");
 const User = require("../models/User");
 
 router.post("/login", async (req, res) => {
@@ -24,6 +27,13 @@ router.post("/login", async (req, res) => {
         feedbackNotification: true, // 기본값
       });
     }
+
+    // 비화이트리스트 유저 활동 로깅
+    await detectNonWhitelistedUserActivity("로그인", {
+      email: email,
+      displayName: displayName,
+      uid: uid,
+    });
 
     // ✅ 이메일 허용 체크 먼저!
     // if (!checkEmailAccess(email)) {

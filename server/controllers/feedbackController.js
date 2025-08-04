@@ -4,6 +4,10 @@ const Feedback = require("../models/Feedback");
 const logger = require("../utils/logger");
 const { sendFeedbackEmail } = require("../utils/emailService");
 const User = require("../models/User");
+const {
+  checkEmailAccess,
+  detectNonWhitelistedUserActivity,
+} = require("./userController");
 
 // 피드백 가능 여부 확인 함수
 const canGiveFeedback = async (userUid, targetSubmission) => {
@@ -140,6 +144,14 @@ exports.submitFeedback = async (req, res) => {
         .status(404)
         .json({ message: "피드백 작성자 정보를 찾을 수 없습니다." });
     }
+
+    // 비화이트리스트 유저 활동 로깅
+    await detectNonWhitelistedUserActivity("피드백 제출", {
+      email: fromUser.user.email,
+      displayName:
+        fromUser.user.displayName || fromUser.user.email.split("@")[0],
+      uid: fromUid,
+    });
 
     // 3. 피드백 작성 가능 여부 확인
     try {

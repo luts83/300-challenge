@@ -116,11 +116,38 @@ const Write300 = () => {
     } else {
       // 자동 제출 시에도 최소 글자 수 확인
       if (!isMinLengthMet) {
-        alert(
-          '자동 제출이 불가능합니다. 최소 글자 수를 충족하지 않았습니다.\n메인페이지로 이동합니다.'
-        );
-        navigate('/');
-        return;
+        // 클립보드에 자동 저장
+        const contentToSave = `제목: ${title}\n\n내용:\n${text}`;
+
+        try {
+          await navigator.clipboard.writeText(contentToSave);
+
+          const userChoice = confirm(
+            `⏰ 시간 초과로 자동 제출이 불가능합니다.\n\n` +
+              `📝 작성하신 내용이 클립보드에 자동 저장되었습니다!\n\n` +
+              `현재 글자 수: ${charCount}자 (필요: ${CONFIG.SUBMISSION.MODE_300.MIN_LENGTH}자)\n\n` +
+              `다시 작성하시겠습니까? (취소하면 메인페이지로 이동합니다)`
+          );
+
+          if (userChoice) {
+            // 다시 작성 선택 시 - 타이머 재시작
+            setStartTime(Date.now());
+            setIsStarted(true);
+            return;
+          } else {
+            // 메인페이지로 이동
+            navigate('/');
+            return;
+          }
+        } catch (clipboardError) {
+          // 클립보드 접근 실패 시 기존 방식으로 처리
+          console.error('클립보드 저장 실패:', clipboardError);
+          alert(
+            '자동 제출이 불가능합니다. 최소 글자 수를 충족하지 않았습니다.\n메인페이지로 이동합니다.'
+          );
+          navigate('/');
+          return;
+        }
       }
     }
 

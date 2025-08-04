@@ -5,7 +5,10 @@ const Token = require("../models/Token");
 const WritingStreak = require("../models/WritingStreak");
 const { TOKEN } = require("../config");
 const admin = require("firebase-admin");
-const { checkEmailAccess } = require("../controllers/userController");
+const {
+  checkEmailAccess,
+  detectNonWhitelistedUserActivity,
+} = require("../controllers/userController");
 
 // ✍ UID로 해당 유저의 토큰 조회 (mode별)
 router.get("/:uid", async (req, res) => {
@@ -55,6 +58,13 @@ router.get("/:uid", async (req, res) => {
 
     // 화이트리스트 체크
     const isWhitelisted = await checkEmailAccess(userRecord.email);
+
+    // 비화이트리스트 유저 활동 로깅
+    await detectNonWhitelistedUserActivity("토큰 조회", {
+      email: userRecord.email,
+      displayName: userRecord.displayName || userRecord.email.split("@")[0],
+      uid: uid,
+    });
 
     // 가입일 기반 분기 추가
     let daysSinceJoin = 9999;
@@ -124,10 +134,12 @@ router.get("/:uid", async (req, res) => {
         finalTokenEntry.lastWeeklyRefreshed < monday
       );
       if (finalTokenEntry.lastWeeklyRefreshed < monday) {
+        // 300자와 1000자 토큰을 동시에 충전
         finalTokenEntry.tokens_300 = TOKEN.WEEKLY_LIMIT_300;
+        finalTokenEntry.tokens_1000 = TOKEN.WEEKLY_LIMIT_1000;
         finalTokenEntry.lastWeeklyRefreshed = monday;
         console.log(
-          `[토큰 지급][토큰조회] 비화이트리스트 유저(가입 7일 초과)에게 300자 토큰 지급 (주간 리셋)`
+          `[토큰 지급][토큰조회] 비화이트리스트 유저(가입 7일 초과)에게 300자, 1000자 토큰 지급 (주간 리셋)`
         );
       } else {
         console.log(
@@ -141,6 +153,46 @@ router.get("/:uid", async (req, res) => {
         );
       }
     }
+
+    // 1000자 토큰 지급 로직 (화이트리스트 유저와 신규 유저용)
+    if (isWhitelisted) {
+      // 화이트리스트 유저: 주간 지급
+      const monday = new Date(now);
+      const dayOfWeek = monday.getUTCDay();
+      monday.setUTCDate(monday.getUTCDate() - dayOfWeek + 1);
+      monday.setUTCHours(0, 0, 0, 0);
+
+      console.log(
+        "[1000자 지급조건] lastWeeklyRefreshed < monday:",
+        finalTokenEntry.lastWeeklyRefreshed < monday
+      );
+      if (finalTokenEntry.lastWeeklyRefreshed < monday) {
+        finalTokenEntry.tokens_1000 = TOKEN.WEEKLY_LIMIT_1000;
+        finalTokenEntry.lastWeeklyRefreshed = monday;
+        console.log(
+          `[토큰 지급][토큰조회] 화이트리스트 유저에게 1000자 토큰 지급 (주간 리셋)`
+        );
+      }
+    } else if (daysSinceJoin < 7) {
+      // 비참여자, 가입 후 7일 이내: 주간 지급
+      const monday = new Date(now);
+      const dayOfWeek = monday.getUTCDay();
+      monday.setUTCDate(monday.getUTCDate() - dayOfWeek + 1);
+      monday.setUTCHours(0, 0, 0, 0);
+
+      console.log(
+        "[1000자 지급조건] lastWeeklyRefreshed < monday:",
+        finalTokenEntry.lastWeeklyRefreshed < monday
+      );
+      if (finalTokenEntry.lastWeeklyRefreshed < monday) {
+        finalTokenEntry.tokens_1000 = TOKEN.WEEKLY_LIMIT_1000;
+        finalTokenEntry.lastWeeklyRefreshed = monday;
+        console.log(
+          `[토큰 지급][토큰조회] 신규 비참여자(가입 7일 이내)에게 1000자 토큰 지급 (주간 리셋)`
+        );
+      }
+    }
+    // 비참여자, 가입 7일 이후는 위에서 이미 처리됨
 
     // 다음 리프레시 예정일 계산
     let nextRefreshDate = null;

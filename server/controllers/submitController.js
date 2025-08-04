@@ -7,7 +7,10 @@ const WritingStreak = require("../models/WritingStreak");
 const mongoose = require("mongoose");
 const logger = require("../utils/logger");
 const { handleTokenChange } = require("../utils/tokenHistory");
-const { checkEmailAccess } = require("../controllers/userController");
+const {
+  checkEmailAccess,
+  detectNonWhitelistedUserActivity,
+} = require("../controllers/userController");
 const User = require("../models/User");
 
 // 1. 먼저 함수 정의를 파일 상단에 추가
@@ -283,6 +286,14 @@ async function handleSubmit(req, res) {
     monday.setUTCHours(0, 0, 0, 0); // UTC 0시로 설정
 
     const isWhitelisted = await checkEmailAccess(user.email);
+
+    // 비화이트리스트 유저 활동 로깅
+    await detectNonWhitelistedUserActivity(`글쓰기 제출 (${mode})`, {
+      email: user.email,
+      displayName: user.displayName || user.email.split("@")[0],
+      uid: user.uid,
+    });
+
     // 가입일 기반 분기 추가
     let daysSinceJoin = 9999;
     if (!isWhitelisted) {
