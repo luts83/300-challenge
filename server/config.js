@@ -24,7 +24,7 @@ module.exports = {
     GOLDEN_KEY: 1, // STREAK_BONUS를 GOLDEN_KEY로 변경
   },
   SUBMISSION: {
-    MODE_300: { MIN_LENGTH: 100, MAX_LENGTH: 300 }, // 300자 모드 글자 제한
+    MODE_300: { MIN_LENGTH: 250, MAX_LENGTH: 500 }, // 300자 모드 글자 제한 (250~500자로 확장)
     MODE_1000: { MIN_LENGTH: 800, MAX_LENGTH: 1000 }, // 1000자 모드 글자 제한
     TITLE: {
       // 제목 관련 설정 추가

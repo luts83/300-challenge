@@ -9,7 +9,7 @@ export const CONFIG = {
 
   // ✍ 글자 수 제한
   SUBMISSION: {
-    MODE_300: { MIN_LENGTH: 100, MAX_LENGTH: 300 },
+    MODE_300: { MIN_LENGTH: 250, MAX_LENGTH: 500 }, // 300자 모드 글자 제한 (250~500자로 확장)
     MODE_1000: { MIN_LENGTH: 800, MAX_LENGTH: 1000 },
     TITLE: {
       REQUIRED: true,

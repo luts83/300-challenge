@@ -302,13 +302,13 @@ const Write300 = () => {
                 setText(e.target.value);
                 if (!startTime) setStartTime(Date.now()); // 처음 입력 시 타이머 시작
               }}
-              placeholder={`300자 이내로 자유롭게 작성해보세요.`}
+              placeholder={`250자 이상 500자 이내로 자유롭게 작성해보세요.`}
               className="w-full h-64 p-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none text-base placeholder:text-base dark:bg-gray-600 dark:text-gray-300"
-              maxLength={300}
+              maxLength={500}
               disabled={tokens === 0}
             />
             <div className="absolute right-2 bottom-2 text-xs md:text-sm text-gray-500">
-              {text.length}/300
+              {text.length}/500
             </div>
           </div>
 

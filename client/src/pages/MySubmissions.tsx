@@ -192,8 +192,8 @@ const MySubmissions = () => {
 
   const canSubmit = useMemo(() => {
     return (
-      text.length >= (mode === 'mode_300' ? 100 : 300) && // 최소 글자 수
-      text.length <= (mode === 'mode_300' ? 300 : 1000) && // 최대 글자 수
+      text.length >= (mode === 'mode_300' ? 250 : 800) && // 최소 글자 수
+      text.length <= (mode === 'mode_300' ? 500 : 1000) && // 최대 글자 수
       title.trim().length > 0 && // 제목 필수
       title.length <= 50 && // 제목 최대 길이
       isStarted // 타이머 시작됨

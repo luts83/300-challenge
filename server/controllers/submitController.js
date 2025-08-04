@@ -68,13 +68,14 @@ function isEmptyFeedback(feedbackObj) {
 }
 
 // AI 평가 함수 수정
-const evaluateSubmission = async (text, mode, topic, retryCount = 2) => {
+const evaluateSubmission = async (text, title, mode, topic, retryCount = 2) => {
   const { AI } = require("../config");
 
   try {
     logger.debug("AI 평가 시작:", {
       mode,
       textLength: text.length,
+      titleLength: title.length,
       retryCount,
     });
 
@@ -89,7 +90,7 @@ const evaluateSubmission = async (text, mode, topic, retryCount = 2) => {
           },
           {
             role: "user",
-            content: AI.PROMPT_TEMPLATE[mode](text, topic),
+            content: AI.PROMPT_TEMPLATE[mode](text, title, topic),
           },
         ],
       },
@@ -130,7 +131,13 @@ const evaluateSubmission = async (text, mode, topic, retryCount = 2) => {
           cleaned,
         });
         await new Promise((res) => setTimeout(res, 1000));
-        return await evaluateSubmission(text, mode, topic, retryCount - 1);
+        return await evaluateSubmission(
+          text,
+          title,
+          mode,
+          topic,
+          retryCount - 1
+        );
       }
 
       // 재시도 횟수 소진 시 에러 피드백 반환
@@ -146,6 +153,10 @@ const evaluateSubmission = async (text, mode, topic, retryCount = 2) => {
         ? parsed.improvements
         : [],
       writing_tips: parsed.writing_tips || "",
+      improved_version: parsed.improved_version || {
+        title: "",
+        content: "",
+      },
     };
 
     // 빈 피드백 체크
@@ -155,7 +166,7 @@ const evaluateSubmission = async (text, mode, topic, retryCount = 2) => {
         { validatedFeedback }
       );
       await new Promise((res) => setTimeout(res, 1000));
-      return await evaluateSubmission(text, mode, topic, retryCount - 1);
+      return await evaluateSubmission(text, title, mode, topic, retryCount - 1);
     }
 
     return {
@@ -408,7 +419,12 @@ async function handleSubmit(req, res) {
     }
 
     // AI 평가 실행
-    const { score, feedback } = await evaluateSubmission(text, mode, topic);
+    const { score, feedback } = await evaluateSubmission(
+      text,
+      title,
+      mode,
+      topic
+    );
 
     // 제출물 저장
     const submission = new Submission({
