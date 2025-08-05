@@ -99,12 +99,13 @@ const Write300 = () => {
 
     const finalDuration = startTime ? Math.floor((Date.now() - startTime) / 1000) : 0;
 
-    // 글자 수 검증
-    const charCount = getCharCount(text);
+    // 글자 수 검증 - 현재 text 상태를 미리 저장
+    const currentText = text; // 현재 텍스트 상태를 미리 저장
+    const charCount = getCharCount(currentText);
     const isMinLengthMet = charCount >= CONFIG.SUBMISSION.MODE_300.MIN_LENGTH;
 
     if (!forceSubmit) {
-      if (!text.trim()) {
+      if (!currentText.trim()) {
         return alert('내용을 입력해주세요.');
       }
 
@@ -117,7 +118,7 @@ const Write300 = () => {
       // 자동 제출 시에도 최소 글자 수 확인
       if (!isMinLengthMet) {
         // 클립보드에 자동 저장
-        const contentToSave = `제목: ${title}\n\n내용:\n${text}`;
+        const contentToSave = `제목: ${title}\n\n내용:\n${currentText}`;
 
         try {
           await navigator.clipboard.writeText(contentToSave);
@@ -169,7 +170,7 @@ const Write300 = () => {
     try {
       const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/submit`, {
         title,
-        text,
+        text: currentText, // 저장된 텍스트 사용
         topic: dailyTopic || null,
         mode: 'mode_300',
         duration: finalDuration,
