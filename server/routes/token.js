@@ -10,6 +10,9 @@ const {
   detectNonWhitelistedUserActivity,
 } = require("../controllers/userController");
 
+// 디버그 로그 캐시 (유저별로 한 번만 출력)
+const debugLogCache = new Set();
+
 // ✍ UID로 해당 유저의 토큰 조회 (mode별)
 router.get("/:uid", async (req, res) => {
   const { uid } = req.params;
@@ -28,11 +31,20 @@ router.get("/:uid", async (req, res) => {
     monday.setDate(monday.getDate() - monday.getDay() + 1);
     monday.setHours(0, 0, 0, 0);
 
-    // 디버깅: 시간 정보 모두 출력
-    console.log("[토큰 지급 디버그]");
-    console.log("now:", now.toISOString());
-    console.log("today (0시):", today.toISOString());
-    console.log("monday (이번주 월요일 0시):", monday.toISOString());
+    // 디버깅: 시간 정보는 한 번만 출력 (유저별)
+    const debugKey = `${uid}_${today.toISOString().split("T")[0]}`;
+    if (!debugLogCache.has(debugKey)) {
+      console.log(`[토큰 지급 디버그] ${userRecord.email} (${uid})`);
+      console.log("now:", now.toISOString());
+      console.log("today (0시):", today.toISOString());
+      console.log("monday (이번주 월요일 0시):", monday.toISOString());
+      debugLogCache.add(debugKey);
+
+      // 캐시 크기 제한 (메모리 누수 방지)
+      if (debugLogCache.size > 1000) {
+        debugLogCache.clear();
+      }
+    }
 
     let finalTokenEntry = tokenEntry;
     if (!finalTokenEntry) {
@@ -77,29 +89,32 @@ router.get("/:uid", async (req, res) => {
         );
       }
     }
-    console.log(
-      `[토큰 지급][토큰조회] 유저: ${userRecord.email} (${uid}) / 화이트리스트: ${isWhitelisted} / 가입 후 ${daysSinceJoin}일 경과`
-    );
-    if (finalTokenEntry) {
+
+    // 유저 정보 로그는 한 번만 출력
+    if (
+      !debugLogCache.has(`${uid}_userinfo_${today.toISOString().split("T")[0]}`)
+    ) {
       console.log(
-        "lastRefreshed:",
-        finalTokenEntry.lastRefreshed?.toISOString?.() ||
-          finalTokenEntry.lastRefreshed
+        `[토큰 지급][토큰조회] 유저: ${userRecord.email} (${uid}) / 화이트리스트: ${isWhitelisted} / 가입 후 ${daysSinceJoin}일 경과`
       );
-      console.log(
-        "lastWeeklyRefreshed:",
-        finalTokenEntry.lastWeeklyRefreshed?.toISOString?.() ||
-          finalTokenEntry.lastWeeklyRefreshed
-      );
+      if (finalTokenEntry) {
+        console.log(
+          "lastRefreshed:",
+          finalTokenEntry.lastRefreshed?.toISOString?.() ||
+            finalTokenEntry.lastRefreshed
+        );
+        console.log(
+          "lastWeeklyRefreshed:",
+          finalTokenEntry.lastWeeklyRefreshed?.toISOString?.() ||
+            finalTokenEntry.lastWeeklyRefreshed
+        );
+      }
+      debugLogCache.add(`${uid}_userinfo_${today.toISOString().split("T")[0]}`);
     }
 
     // 300자 토큰 지급 (submitController.js와 동일한 분기 및 디버깅)
     if (isWhitelisted) {
       // 매일 리셋
-      console.log(
-        "[지급조건] lastRefreshed < today:",
-        finalTokenEntry.lastRefreshed < today
-      );
       if (finalTokenEntry.lastRefreshed < today) {
         finalTokenEntry.tokens_300 = TOKEN.DAILY_LIMIT_300;
         finalTokenEntry.lastRefreshed = now;
@@ -109,10 +124,6 @@ router.get("/:uid", async (req, res) => {
       }
     } else if (daysSinceJoin < 7) {
       // 비참여자, 가입 후 7일 이내: 매일 지급
-      console.log(
-        "[지급조건] lastRefreshed < today:",
-        finalTokenEntry.lastRefreshed < today
-      );
       if (finalTokenEntry.lastRefreshed < today) {
         finalTokenEntry.tokens_300 = TOKEN.DAILY_LIMIT_300;
         finalTokenEntry.lastRefreshed = now;
@@ -129,10 +140,6 @@ router.get("/:uid", async (req, res) => {
       monday.setUTCDate(monday.getUTCDate() - dayOfWeek + 1); // 이번 주 월요일로 설정
       monday.setUTCHours(0, 0, 0, 0); // UTC 0시로 설정
 
-      console.log(
-        "[지급조건] lastWeeklyRefreshed < monday:",
-        finalTokenEntry.lastWeeklyRefreshed < monday
-      );
       if (finalTokenEntry.lastWeeklyRefreshed < monday) {
         // 300자와 1000자 토큰을 동시에 충전
         finalTokenEntry.tokens_300 = TOKEN.WEEKLY_LIMIT_300;
@@ -140,16 +147,6 @@ router.get("/:uid", async (req, res) => {
         finalTokenEntry.lastWeeklyRefreshed = monday;
         console.log(
           `[토큰 지급][토큰조회] 비화이트리스트 유저(가입 7일 초과)에게 300자, 1000자 토큰 지급 (주간 리셋)`
-        );
-      } else {
-        console.log(
-          `[토큰 지급][토큰조회] 비화이트리스트 유저(가입 7일 초과), 주간 리셋 아님 → 토큰 지급 없음`,
-          {
-            lastWeeklyRefreshed: finalTokenEntry.lastWeeklyRefreshed,
-            monday,
-            now,
-            지급조건: finalTokenEntry.lastWeeklyRefreshed < monday,
-          }
         );
       }
     }
@@ -162,10 +159,6 @@ router.get("/:uid", async (req, res) => {
       monday.setUTCDate(monday.getUTCDate() - dayOfWeek + 1);
       monday.setUTCHours(0, 0, 0, 0);
 
-      console.log(
-        "[1000자 지급조건] lastWeeklyRefreshed < monday:",
-        finalTokenEntry.lastWeeklyRefreshed < monday
-      );
       if (finalTokenEntry.lastWeeklyRefreshed < monday) {
         finalTokenEntry.tokens_1000 = TOKEN.WEEKLY_LIMIT_1000;
         finalTokenEntry.lastWeeklyRefreshed = monday;
@@ -180,10 +173,6 @@ router.get("/:uid", async (req, res) => {
       monday.setUTCDate(monday.getUTCDate() - dayOfWeek + 1);
       monday.setUTCHours(0, 0, 0, 0);
 
-      console.log(
-        "[1000자 지급조건] lastWeeklyRefreshed < monday:",
-        finalTokenEntry.lastWeeklyRefreshed < monday
-      );
       if (finalTokenEntry.lastWeeklyRefreshed < monday) {
         finalTokenEntry.tokens_1000 = TOKEN.WEEKLY_LIMIT_1000;
         finalTokenEntry.lastWeeklyRefreshed = monday;
