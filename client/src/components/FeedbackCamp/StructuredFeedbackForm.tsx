@@ -125,7 +125,8 @@ export const StructuredFeedbackForm: React.FC<StructuredFeedbackFormProps> = ({
         {showGuide && (
           <div className="mt-3 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-700">
             <p className="text-sm text-blue-700 dark:text-blue-300 mb-3 font-medium">
-              💡 건설적인 제안을 위한 가이드입니다. 클릭하면 자동으로 입력됩니다.
+              💡 건설적인 제안을 위한 가이드입니다. 클릭하면 자동으로 입력됩니다. 하지만 되도록 직접
+              피드백을 주시면 많은 도움이 될 거에요.
             </p>
             <div className="space-y-2">
               {FEEDBACK_GUIDES.map(guide => (
