@@ -66,7 +66,7 @@ module.exports = {
   AI: {
     ENABLE_300: true,
     ENABLE_1000: true,
-    MODEL: "openai/gpt-4o", //"anthropic/claude-3-haiku",
+    MODEL: "google/gemini-2.0-flash-exp", // Gemini 2.5 Pro로 변경
     SYSTEM_MESSAGE:
       "당신은 전문적인 글쓰기 코치입니다. 건설적이고 구체적인 피드백을 제공합니다.",
 
