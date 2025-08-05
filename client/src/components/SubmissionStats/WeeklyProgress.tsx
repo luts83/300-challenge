@@ -138,14 +138,6 @@ export const WeeklyProgress: React.FC<WeeklyProgressProps> = ({ className = '' }
   // 1000자 글 작성 여부 확인
   const hasWritten1000Char = tokens && tokens.tokens_1000 === 0;
 
-  // 디버깅용 로그
-  console.log('토큰 데이터 상태:', {
-    tokens,
-    tokenLoading,
-    hasWritten1000Char,
-    tokens_1000: tokens?.tokens_1000,
-  });
-
   return (
     <>
       {showCelebration && (
