@@ -52,10 +52,17 @@ interface StreakData {
   lastStreakCompletion: string | null;
 }
 
+interface TokenData {
+  tokens_300: number;
+  tokens_1000: number;
+  goldenKeys: number;
+}
+
 export const WeeklyProgress: React.FC<WeeklyProgressProps> = ({ className = '' }) => {
   const { user } = useUser();
   const [progress, setProgress] = useState<boolean[]>(Array(TOTAL_DAYS).fill(false));
   const [showCelebration, setShowCelebration] = useState(false);
+  const [tokenData, setTokenData] = useState<TokenData | null>(null);
 
   const handleStreakCompletion = async () => {
     if (!user) return;
@@ -88,15 +95,27 @@ export const WeeklyProgress: React.FC<WeeklyProgressProps> = ({ className = '' }
     }
   };
 
+  const fetchTokenData = async () => {
+    if (!user) return;
+    try {
+      const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/token/${user.uid}`);
+      setTokenData(response.data);
+    } catch (error) {
+      console.error('토큰 정보 조회 실패:', error);
+    }
+  };
+
   // 컴포넌트 마운트 시 데이터 가져오기
   useEffect(() => {
     fetchStreak();
+    fetchTokenData();
   }, [user]);
 
   // 글 작성 완료 이벤트 구독
   useEffect(() => {
     const handleSubmissionComplete = () => {
       fetchStreak();
+      fetchTokenData(); // 토큰 정보도 함께 업데이트
     };
 
     window.addEventListener('submissionComplete', handleSubmissionComplete);
@@ -107,6 +126,7 @@ export const WeeklyProgress: React.FC<WeeklyProgressProps> = ({ className = '' }
   useEffect(() => {
     const handleFocus = () => {
       fetchStreak();
+      fetchTokenData(); // 토큰 정보도 함께 업데이트
     };
 
     window.addEventListener('focus', handleFocus);
@@ -130,6 +150,9 @@ export const WeeklyProgress: React.FC<WeeklyProgressProps> = ({ className = '' }
     }
     return false;
   };
+
+  // 1000자 글 작성 여부 확인
+  const hasWritten1000Char = tokenData && tokenData.tokens_1000 === 0;
 
   return (
     <>
@@ -175,8 +198,9 @@ export const WeeklyProgress: React.FC<WeeklyProgressProps> = ({ className = '' }
         {remainingDays > 0 ? (
           isStreakBroken(progress) ? (
             <div className={STYLES.remainingMessage}>
-              🌟 이번 주는 연속 작성 챌린지에 성공하지 못하셨어요! 하지만 실망하지 마세요! 1000자
-              글쓰기를 하면 황금열쇠 1개가 지급됩니다.
+              {hasWritten1000Char
+                ? '🌟 이번 주는 연속 작성 챌린지에 성공하지 못하셨어요! 하지만 이미 1000자 글을 작성하셨으니 황금열쇠를 받으실 수 있어요! ✨'
+                : '🌟 이번 주는 연속 작성 챌린지에 성공하지 못하셨어요! 하지만 실망하지 마세요! 1000자 글쓰기를 하면 황금열쇠 1개가 지급됩니다.'}
             </div>
           ) : (
             <div className={STYLES.remainingMessage}>
