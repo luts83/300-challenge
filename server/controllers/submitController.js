@@ -214,8 +214,9 @@ async function handleSubmit(req, res) {
     user,
   } = req.body;
 
+  let session;
   try {
-    const session = await mongoose.startSession();
+    session = await mongoose.startSession();
     session.startTransaction();
 
     // 제출 시점 로깅 추가
@@ -666,7 +667,9 @@ async function handleSubmit(req, res) {
       .status(500)
       .json({ message: "서버 오류", error: error?.message || error });
   } finally {
-    session.endSession();
+    if (session) {
+      session.endSession();
+    }
   }
 }
 
