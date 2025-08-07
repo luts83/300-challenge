@@ -94,3 +94,98 @@ cache/
 # 백업 파일들
 *.bak
 *~
+
+# 추가 보안 및 민감한 파일들
+# Firebase 관련 파일들
+firebase-service-account.json
+firebaseAdmin.js
+*.firebase.json
+
+# 데이터베이스 관련 파일들
+*.sql
+*.dump
+*.backup
+*.db
+*.sqlite
+*.sqlite3
+
+# 테스트 및 임시 스크립트 파일들
+testTokenReset.js
+migrateUserTokenHistory.js
+*.test.js
+*.spec.js
+
+# 로그 및 디버그 파일들
+debug.log
+error.log
+access.log
+*.log.*
+
+# 환경 설정 파일들 (개발자별)
+.env.*
+!.env.example
+
+# IDE 및 에디터 설정
+.vscode/settings.json
+.vscode/launch.json
+.vscode/extensions.json
+*.code-workspace
+
+# 운영체제 파일들
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# 임시 및 캐시 디렉토리
+.temp/
+.tmp/
+.cache/
+cache/
+temp/
+tmp/
+
+# 빌드 아티팩트
+*.tgz
+*.tar
+*.gz
+
+# 사용자 데이터 및 개인정보
+user_data/
+personal_data/
+private/
+secrets/
+
+# 분석 및 통계 파일들
+analytics/
+stats/
+reports/
+*.csv
+*.xlsx
+*.xls
+
+# 이미지 및 미디어 파일들 (대용량)
+*.mp4
+*.avi
+*.mov
+*.wmv
+*.flv
+*.webm
+*.mkv
+
+# 압축 파일들
+*.zip
+*.rar
+*.7z
+*.tar.gz
+*.tar.bz2
+
+# 백업 및 복사본
+*_backup/
+*_copy/
+*_old/
+*_bak/
