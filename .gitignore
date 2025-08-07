@@ -67,6 +67,9 @@ server/wordclouds/
 server/archive/
 client/archive/
 
+# 에세이 및 문서 폴더들
+server/essays/
+
 # 데이터베이스 백업 및 덤프 파일
 *.sql
 *.dump
@@ -168,7 +171,7 @@ reports/
 *.xlsx
 *.xls
 
-# 이미지 및 미디어 파일들 (대용량)
+# 이미지 및 미디어 파일들 (대용량) - public 폴더 제외
 *.mp4
 *.avi
 *.mov
@@ -176,6 +179,9 @@ reports/
 *.flv
 *.webm
 *.mkv
+!client/public/**/*.mp4
+!client/public/**/*.avi
+!client/public/**/*.mov
 
 # 압축 파일들
 *.zip
