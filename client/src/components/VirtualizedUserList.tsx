@@ -33,6 +33,9 @@ const VirtualizedUserList: React.FC<VirtualizedUserListProps> = ({
 }) => {
   const [listHeight, setListHeight] = useState(400);
 
+  // 모바일에서 AutoSizer 문제 방지
+  const isMobile = window.innerWidth < 768;
+
   // 사용자 카드 렌더링 함수
   const UserCard = useCallback(
     ({ index, style }: { index: number; style: React.CSSProperties }) => {
@@ -115,6 +118,58 @@ const VirtualizedUserList: React.FC<VirtualizedUserListProps> = ({
     [users.length, hasMore, loading, listHeight, onLoadMore]
   );
 
+  // 모바일에서는 일반 리스트 사용
+  if (isMobile) {
+    return (
+      <div className="max-h-96 overflow-y-auto border border-gray-200 dark:border-gray-600 rounded-lg">
+        <div className="space-y-2 p-2">
+          {users.map((user, index) => (
+            <div
+              key={user.uid}
+              className={`p-3 border-2 rounded-lg cursor-pointer transition-all ${
+                selectedUser === user.uid
+                  ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                  : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500'
+              }`}
+              onClick={() => onUserSelect(user.uid)}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium text-gray-900 dark:text-white truncate text-sm">
+                    {user.displayName || '익명'}
+                  </div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400 truncate mt-1">
+                    {user.email}
+                  </div>
+                </div>
+                <div className="flex-shrink-0">
+                  <div className="text-xs text-gray-400 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded-full whitespace-nowrap">
+                    {user.submissionCount || 0}개 글
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+          {hasMore && (
+            <div className="flex justify-center p-2">
+              {loading ? (
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" />
+              ) : (
+                <button
+                  onClick={onLoadMore}
+                  className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+                >
+                  더 보기
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // 데스크탑에서는 가상화된 리스트 사용
   return (
     <div className="h-96 border border-gray-200 dark:border-gray-600 rounded-lg overflow-hidden">
       <AutoSizer onResize={({ height }) => setListHeight(height)}>
