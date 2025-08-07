@@ -73,7 +73,7 @@ const VirtualizedTopicRanking: React.FC<VirtualizedTopicRankingProps> = ({
                 <div className="flex items-center gap-2 ml-2">
                   <span className={`text-lg font-bold ${scoreColor}`}>
                     {typeof averageScore === 'number' && !isNaN(averageScore)
-                      ? averageScore.toFixed(1)
+                      ? (averageScore || 0).toFixed(1)
                       : '0.0'}
                   </span>
                   <span className="text-xs text-gray-500">점</span>

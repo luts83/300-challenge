@@ -1188,7 +1188,7 @@ const Dashboard = () => {
                             </div>
                             <div className="flex items-center gap-2 sm:ml-2">
                               <span className={`text-lg font-bold ${scoreColor}`}>
-                                {averageScore.toFixed(1)}
+                                {(averageScore || 0).toFixed(1)}
                               </span>
                               <span className="text-xs text-gray-500">점</span>
                             </div>
@@ -1280,7 +1280,7 @@ const Dashboard = () => {
                     평균 점수
                   </h3>
                   <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                    {stats.averageScore.toFixed(1)}
+                    {(stats.averageScore || 0).toFixed(1)}
                   </p>
                 </div>
                 <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
@@ -1330,7 +1330,10 @@ const Dashboard = () => {
                       <div className="flex justify-between items-center">
                         <span className="text-sm text-gray-600 dark:text-gray-400">평균 점수</span>
                         <span className="text-xl font-bold text-green-600 dark:text-green-400">
-                          {stats.userProfile.writingStats.mode_300.averageScore.toFixed(1)}점
+                          {(stats.userProfile?.writingStats?.mode_300?.averageScore || 0).toFixed(
+                            1
+                          )}
+                          점
                         </span>
                       </div>
 
@@ -1390,7 +1393,10 @@ const Dashboard = () => {
                       <div className="flex justify-between items-center">
                         <span className="text-sm text-gray-600 dark:text-gray-400">평균 점수</span>
                         <span className="text-xl font-bold text-blue-600 dark:text-blue-400">
-                          {stats.userProfile.writingStats.mode_1000.averageScore.toFixed(1)}점
+                          {(stats.userProfile?.writingStats?.mode_1000?.averageScore || 0).toFixed(
+                            1
+                          )}
+                          점
                         </span>
                       </div>
 
