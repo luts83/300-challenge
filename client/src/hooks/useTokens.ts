@@ -22,8 +22,12 @@ export const useTokens = () => {
 
     setIsLoading(true);
     try {
+      // 사용자의 시간대 정보 가져오기
+      const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const userOffset = new Date().getTimezoneOffset();
+
       const response = await axios.get<TokenData>(
-        `${import.meta.env.VITE_API_URL}/api/tokens/${user.uid}`
+        `${import.meta.env.VITE_API_URL}/api/tokens/${user.uid}?timezone=${encodeURIComponent(userTimezone)}&offset=${userOffset}`
       );
 
       setTokens({

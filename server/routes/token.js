@@ -17,23 +17,72 @@ const debugLogCache = new Set();
 router.get("/:uid", async (req, res) => {
   const { uid } = req.params;
 
+  // 사용자 시간대 정보 파싱
+  const timezone = req.query.timezone || "Asia/Seoul";
+  const offset = parseInt(req.query.offset) || -540; // 기본값: 한국 시간
+
   try {
     // Firebase에서 사용자 정보 조회
-    const userRecord = await admin.auth().getUser(uid);
+    let userRecord;
+    try {
+      userRecord = await admin.auth().getUser(uid);
+    } catch (firebaseError) {
+      console.error(`❌ Firebase 사용자 조회 실패 (UID: ${uid}):`, {
+        error: firebaseError.message,
+        code: firebaseError.code,
+        uid: uid,
+      });
+
+      // Firebase에서 사용자를 찾을 수 없는 경우
+      if (firebaseError.code === "auth/user-not-found") {
+        return res.status(404).json({
+          error: "사용자를 찾을 수 없습니다.",
+          message:
+            "Firebase에서 해당 사용자 정보를 찾을 수 없습니다. 다시 로그인해주세요.",
+          code: "USER_NOT_FOUND",
+        });
+      }
+
+      // 기타 Firebase 오류
+      return res.status(500).json({
+        error: "Firebase 인증 오류",
+        message: "사용자 인증에 문제가 발생했습니다.",
+        code: "FIREBASE_ERROR",
+      });
+    }
 
     // Token 모델에서 토큰 정보 조회
     const tokenEntry = await Token.findOne({ uid });
 
     const now = new Date();
-    const today = new Date(now);
-    today.setHours(0, 0, 0, 0);
-    const monday = new Date(now);
-    monday.setDate(monday.getDate() - monday.getDay() + 1);
-    monday.setHours(0, 0, 0, 0);
 
-    // 디버깅: 시간 정보는 한 번만 출력 (유저별)
+    // 사용자 시간대 기준으로 오늘 날짜 계산
+    const userTime = new Date(now.getTime() + offset * 60 * 1000);
+    const today = new Date(
+      Date.UTC(
+        userTime.getUTCFullYear(),
+        userTime.getUTCMonth(),
+        userTime.getUTCDate()
+      )
+    );
+
+    // 사용자 시간대 기준으로 월요일 계산
+    const userMonday = new Date(userTime);
+    const dayOfWeek = userMonday.getUTCDay(); // 0=일요일, 1=월요일, ...
+    const monday = new Date(
+      Date.UTC(
+        userMonday.getUTCFullYear(),
+        userMonday.getUTCMonth(),
+        userMonday.getUTCDate() - dayOfWeek + 1
+      )
+    );
+
+    // 디버깅: 시간 정보는 개발 환경에서만 출력 (유저별)
     const debugKey = `${uid}_${today.toISOString().split("T")[0]}`;
-    if (!debugLogCache.has(debugKey)) {
+    if (
+      process.env.NODE_ENV === "development" &&
+      !debugLogCache.has(debugKey)
+    ) {
       console.log(`[토큰 지급 디버그] ${userRecord.email} (${uid})`);
       console.log("now:", now.toISOString());
       console.log("today (0시):", today.toISOString());
@@ -133,12 +182,7 @@ router.get("/:uid", async (req, res) => {
       }
     } else {
       // 비참여자, 가입 7일 이후: 주간 지급
-      // UTC 기준으로 월요일 0시 계산 (lastWeeklyRefreshed와 동일한 기준)
-      const monday = new Date(now);
-      const dayOfWeek = monday.getUTCDay(); // 0=일요일, 1=월요일, ...
-      const daysToMonday = dayOfWeek === 0 ? 1 : 8 - dayOfWeek; // 월요일까지 남은 일수
-      monday.setUTCDate(monday.getUTCDate() - dayOfWeek + 1); // 이번 주 월요일로 설정
-      monday.setUTCHours(0, 0, 0, 0); // UTC 0시로 설정
+      // 사용자 시간대 기준으로 월요일 계산 (이미 위에서 계산된 monday 사용)
 
       if (finalTokenEntry.lastWeeklyRefreshed < monday) {
         // 300자와 1000자 토큰을 동시에 충전
@@ -153,11 +197,7 @@ router.get("/:uid", async (req, res) => {
 
     // 1000자 토큰 지급 로직 (화이트리스트 유저와 신규 유저용)
     if (isWhitelisted) {
-      // 화이트리스트 유저: 주간 지급
-      const monday = new Date(now);
-      const dayOfWeek = monday.getUTCDay();
-      monday.setUTCDate(monday.getUTCDate() - dayOfWeek + 1);
-      monday.setUTCHours(0, 0, 0, 0);
+      // 화이트리스트 유저: 주간 지급 (사용자 시간대 기준으로 이미 계산된 monday 사용)
 
       if (finalTokenEntry.lastWeeklyRefreshed < monday) {
         finalTokenEntry.tokens_1000 = TOKEN.WEEKLY_LIMIT_1000;
@@ -167,11 +207,7 @@ router.get("/:uid", async (req, res) => {
         );
       }
     } else if (daysSinceJoin < 7) {
-      // 비참여자, 가입 후 7일 이내: 주간 지급
-      const monday = new Date(now);
-      const dayOfWeek = monday.getUTCDay();
-      monday.setUTCDate(monday.getUTCDate() - dayOfWeek + 1);
-      monday.setUTCHours(0, 0, 0, 0);
+      // 비참여자, 가입 후 7일 이내: 주간 지급 (사용자 시간대 기준으로 이미 계산된 monday 사용)
 
       if (finalTokenEntry.lastWeeklyRefreshed < monday) {
         finalTokenEntry.tokens_1000 = TOKEN.WEEKLY_LIMIT_1000;

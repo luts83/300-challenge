@@ -27,8 +27,13 @@ const TokenDisplay = () => {
 
     try {
       setLoading(true);
+
+      // 사용자의 시간대 정보 가져오기
+      const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const userOffset = new Date().getTimezoneOffset();
+
       const response = await axios.get<TokenData>(
-        `${import.meta.env.VITE_API_URL}/api/tokens/${user.uid}`
+        `${import.meta.env.VITE_API_URL}/api/tokens/${user.uid}?timezone=${encodeURIComponent(userTimezone)}&offset=${userOffset}`
       );
 
       setTokens({
@@ -39,8 +44,25 @@ const TokenDisplay = () => {
         lastWeeklyRefreshed: response.data.lastWeeklyRefreshed,
       });
       setError(null);
-    } catch (error) {
-      const errorMessage = '토큰 정보를 불러오는데 실패했습니다.';
+    } catch (error: any) {
+      let errorMessage = '토큰 정보를 불러오는데 실패했습니다.';
+
+      // 서버에서 반환한 구체적인 오류 메시지가 있으면 사용
+      if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      }
+
+      // 특정 오류 코드에 따른 처리
+      if (error.response?.data?.code === 'USER_NOT_FOUND') {
+        errorMessage = '사용자 정보를 찾을 수 없습니다. 다시 로그인해주세요.';
+        // 로그아웃 처리
+        setTimeout(() => {
+          window.location.href = '/login';
+        }, 2000);
+      }
+
       setError(errorMessage);
       toast.error(errorMessage);
     } finally {

@@ -42,7 +42,6 @@ async function fetchAllowedEmailsFromSheet() {
       .filter((row) => row[0] && row[1]?.toLowerCase() === "true")
       .map((row) => row[0]);
 
-    console.log("✅ 허용된 이메일 목록:", emails);
     return emails;
   } catch (error) {
     console.error("❌ 이메일 목록 가져오기 실패:", error);

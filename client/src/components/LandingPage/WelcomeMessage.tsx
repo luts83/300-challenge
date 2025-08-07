@@ -10,7 +10,6 @@ const WelcomeMessage: React.FC = () => {
       try {
         const particlesJS = (window as any).particlesJS;
         if (particlesJS && particlesRef.current) {
-          console.log('particles.js 초기화 시작');
           particlesJS('particles-js', {
             particles: {
               number: {
@@ -113,7 +112,6 @@ const WelcomeMessage: React.FC = () => {
             },
             retina_detect: true,
           });
-          console.log('particles.js 초기화 완료');
         } else {
           console.error('particles.js 또는 particlesRef를 찾을 수 없음');
         }

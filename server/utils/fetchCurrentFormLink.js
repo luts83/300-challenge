@@ -41,10 +41,8 @@ async function fetchCurrentFormLink() {
     const currentFormLink = rows[0]?.[0]; // 첫 번째 행의 첫 번째 값
 
     if (currentFormLink) {
-      console.log("✅ 현재 기수 폼 링크:", currentFormLink);
       return currentFormLink;
     } else {
-      console.log("⚠️ 폼 링크가 없습니다. 기본 링크 사용");
       return "https://docs.google.com/forms/d/e/1FAIpQLSc09fvgAKZsYmA8o2V9LT2ZBdjSzYII6uEdASZF8WN0YerdiA/viewform";
     }
   } catch (error) {

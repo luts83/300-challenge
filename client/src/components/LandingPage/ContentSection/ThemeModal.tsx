@@ -36,7 +36,6 @@ const ThemeModal: React.FC<ThemeModalProps> = ({ isOpen, onClose }) => {
   const fetchFormLink = async () => {
     try {
       const apiUrl = import.meta.env.VITE_API_URL || '';
-      console.log('🔍 폼 링크 API 호출:', `${apiUrl}/api/landing/current-form-link`);
 
       const response = await fetch(`${apiUrl}/api/landing/current-form-link`, {
         method: 'GET',
@@ -47,13 +46,9 @@ const ThemeModal: React.FC<ThemeModalProps> = ({ isOpen, onClose }) => {
       });
 
       const responseData = await response.json();
-      console.log('📋 폼 링크 API 응답:', responseData);
 
       if (responseData.success && responseData.data.formLink) {
-        console.log('✅ 새로운 폼 링크 설정:', responseData.data.formLink);
         setFormLink(responseData.data.formLink);
-      } else {
-        console.log('⚠️ 폼 링크 응답 형식 오류:', responseData);
       }
     } catch (error) {
       console.error('❌ 폼 링크 가져오기 실패:', error);

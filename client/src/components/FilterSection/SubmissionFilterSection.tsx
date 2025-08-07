@@ -37,11 +37,6 @@ export const SubmissionFilterSection: React.FC<SubmissionFilterSectionProps> = (
 }) => {
   const [isMobileFilterExpanded, setIsMobileFilterExpanded] = useState(false);
 
-  // Counts가 업데이트될 때마다 콘솔에 로그 출력
-  // useEffect(() => {
-  //   console.log('Counts:', counts);
-  // }, [counts]);
-
   // handleFeedbackFilterToggle 함수 활성화
   const handleFeedbackFilterToggle = (filter: string) => {
     setFeedbackFilter(feedbackFilter === filter ? null : filter);
@@ -58,10 +53,6 @@ export const SubmissionFilterSection: React.FC<SubmissionFilterSectionProps> = (
     mode_300: counts.mode_300,
     mode_1000: counts.mode_1000,
   };
-
-  // useEffect(() => {
-  //   console.log('Counts:', counts);
-  // }, [counts]);
 
   return (
     <div className="bg-white dark:bg-gray-800 text-black dark:text-white rounded-lg shadow-sm p-3 sm:p-4 mb-4 border border-gray-100 dark:border-gray-700">

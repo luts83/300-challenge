@@ -85,6 +85,43 @@ The application can be configured through the `config.ts` file in the client dir
 - AI feedback settings
 - Topic display settings
 
+## 향후 개발 계획
+
+### 🚀 스마트 글쓰기 가이드 시스템 (개발 중)
+
+현재 비활성화된 상태로 보관 중인 고도화된 글쓰기 가이드 기능들:
+
+#### 📋 구현된 컴포넌트들
+
+- **SmartWritingGuide**: 실시간 진행률 및 단계별 가이드
+- **WritingStructureAnalyzer**: 글쓰기 구조 분석 및 점수 평가
+- **EndingTemplateGuide**: 끝맺음 패턴 템플릿 제공
+- **RealTimeWritingFeedback**: 실시간 글쓰기 품질 피드백
+
+#### 🎯 고도화 방향
+
+1. **AI 기반 개선 제안**: 더 정교한 글쓰기 패턴 분석
+2. **개인화된 가이드**: 사용자별 글쓰기 스타일 학습
+3. **게이미피케이션**: 점수 시스템과 배지 시스템
+4. **사회적 학습**: 다른 사용자의 좋은 글쓰기 패턴 공유
+
+#### 📁 관련 파일들
+
+```
+client/src/components/
+├── SmartWritingGuide.tsx          # 메인 가이드 컴포넌트
+├── WritingStructureAnalyzer.tsx   # 구조 분석기
+├── EndingTemplateGuide.tsx        # 끝맺음 템플릿
+└── RealTimeWritingFeedback.tsx    # 실시간 피드백
+```
+
+### 🔧 활성화 방법
+
+필요시 다음 파일들의 주석을 해제하여 기능을 활성화할 수 있습니다:
+
+- `client/src/pages/Write300.tsx`
+- `client/src/pages/Write1000.tsx`
+
 ## License
 
 Digiocean

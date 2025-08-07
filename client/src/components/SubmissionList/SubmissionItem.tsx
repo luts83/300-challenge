@@ -2,7 +2,7 @@ import React from 'react';
 import { format } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { FeedbackSection } from './FeedbackSection';
-import AIFeedback from '../AIFeedback';
+import AIFeedback from '../AiFeedback';
 import { useUser } from '../../context/UserContext';
 import { LikeDisplay } from '../HelpfulButton';
 
@@ -15,6 +15,7 @@ interface Submission {
   createdAt: string;
   mode: 'mode_300' | 'mode_1000';
   feedbackUnlocked?: boolean;
+  dilatingVersionUnlocked?: boolean;
   aiFeedback?: string;
   topic?: string;
   likeCount?: number;
@@ -122,7 +123,12 @@ export const SubmissionItem = React.memo(
                   🤖 AI 평가
                 </h4>
                 {submission.aiFeedback ? (
-                  <AIFeedback feedback={submission.aiFeedback} />
+                  <AIFeedback
+                    feedback={submission.aiFeedback}
+                    mode={submission.mode}
+                    submissionId={submission._id}
+                    dilatingVersionUnlocked={submission.dilatingVersionUnlocked}
+                  />
                 ) : (
                   <div className="flex items-center gap-2">
                     <span className="text-lg font-bold text-blue-600 dark:text-blue-300">

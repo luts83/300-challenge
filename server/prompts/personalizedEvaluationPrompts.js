@@ -1,3 +1,4 @@
+const userProfileService = require("../services/userProfileService");
 const {
   topics300,
   topics1000,
@@ -38,7 +39,7 @@ const detectWritingStyle = (text) => {
   return Object.keys(scores).find((key) => scores[key] === maxScore);
 };
 
-// 스타일별 평가 안내문 (더 구체적이고 차별화된 지침)
+// 스타일별 평가 안내문
 const styleInstruction = {
   goal: "이 글은 목표를 설정하고 계획을 서술하는 스타일입니다. 현실성, 구체성, 실행 가능성, 단계별 접근법을 중심으로 평가해주세요.",
   emotive:
@@ -53,7 +54,7 @@ const styleInstruction = {
     "일반적인 서술형 글입니다. 전반적인 글의 완성도, 가독성, 메시지 전달력을 기준으로 평가해주세요.",
 };
 
-// 랜덤 평가 관점 추가 (매번 다른 시각 제공)
+// 랜덤 평가 관점 추가
 const randomPerspectives = [
   "독자의 관점에서 이 글이 어떻게 읽힐지 고려해주세요.",
   "글쓴이의 개성과 독창성이 잘 드러나는지 살펴보세요.",
@@ -63,7 +64,280 @@ const randomPerspectives = [
   "독자에게 어떤 가치나 인사이트를 제공하는지 고려해주세요.",
 ];
 
-// 기존 지침과 기준 함수들 (그대로 유지)
+// 개인화된 프롬프트 생성
+async function generatePersonalizedPrompt(userId, text, title, mode, topic) {
+  try {
+    // 1. 사용자 프로필 가져오기
+    const profile = await userProfileService.getUserProfile(userId);
+
+    if (!profile || profile.writingHistory[mode].length < 3) {
+      // 히스토리가 부족하면 기본 프롬프트 사용
+      return generateDefaultPrompt(text, title, mode, topic);
+    }
+
+    // 2. 개인화 정보 추출
+    const personalizationData = extractPersonalizationData(profile, mode);
+
+    // 3. 맞춤형 프롬프트 생성
+    return generateCustomizedPrompt(
+      text,
+      title,
+      mode,
+      topic,
+      personalizationData
+    );
+  } catch (error) {
+    console.error("❌ 개인화 프롬프트 생성 실패:", error);
+    return generateDefaultPrompt(text, title, mode, topic);
+  }
+}
+
+// 개인화 정보 추출
+function extractPersonalizationData(profile, mode) {
+  const modeKey = mode === "mode_300" ? "mode_300" : "mode_1000";
+  const history = profile.writingHistory[modeKey] || [];
+  const stats = profile.writingStats[modeKey] || {};
+  const recentHistory = history.slice(-5);
+
+  return {
+    mode: mode,
+    averageScore: stats.averageScore || 0,
+    scoreTrend: stats.scoreTrend || "stable",
+    strengthAreas: stats.strengthAreas || [],
+    weaknessAreas: stats.weaknessAreas || [],
+    recentScores: recentHistory.map((h) => h.score),
+    writingStyle: stats.writingStyle || {},
+    preferredTopics: stats.preferredTopics || [],
+    commonMistakes: stats.commonMistakes || [],
+    writingFrequency: stats.writingFrequency || 0,
+  };
+}
+
+// 맞춤형 프롬프트 생성
+function generateCustomizedPrompt(text, title, mode, topic, personalData) {
+  const isAssigned =
+    topic &&
+    topic !== "자유주제" &&
+    topic !== "주말에는 자유 주제로 글을 써보세요" &&
+    (mode === "mode_300" ? allTopics300 : allTopics1000).includes(topic.trim());
+  const style = detectWritingStyle(text);
+  const randomPerspective =
+    randomPerspectives[Math.floor(Math.random() * randomPerspectives.length)];
+
+  return `
+[사전 검토 및 평가 스탠스 설정]
+1. **글의 완성도 및 성의 분석:**
+   * 제출된 글이 최소한의 완성도(적정 분량, 명확한 문단 구분 등)를 갖추었는가?
+   * 글쓴이가 스스로 "시간이 없다", "대충 썼다" 등 성의 부족을 드러내는 표현을 사용했는가?
+   * 내용이 장난스럽거나 평가의 의미가 없을 정도로 단편적인가?
+
+2. **주제 정확성 검증:**
+   * **원본 주제 확인**: 주어진 주제와 실제 글 내용이 일치하는지 정확히 판단하세요
+   * **주제 이탈 여부**: 글의 핵심 내용이 주제에서 벗어났는지 객관적으로 평가하세요
+   * **주제 전달력**: 주제가 글을 통해 명확하게 전달되었는지 확인하세요
+   * **중요**: 주제를 잘못 인식하여 평가하지 마세요. 글의 실제 내용을 기준으로 판단하세요
+
+3. **정교한 점수 체계 적용:**
+   * **앞자리 (10의 자리) 결정 기준:**
+     - 9x: 탁월한 글 - 독창적이고 깊이 있는 내용, 뛰어난 표현력, 완벽한 구조
+     - 8x: 우수한 글 - 좋은 내용과 표현, 약간의 개선점 있음
+     - 7x: 양호한 글 - 기본적으로 잘 쓴 글, 명확한 개선점 존재
+     - 6x: 보통 글 - 기본 요구사항은 충족하나 개선이 필요한 글
+     - 5x: 미흡한 글 - 기본 요구사항을 충족하지 못하나 노력의 흔적은 있음
+     - 4x: 부족한 글 - 심각한 문제가 있으나 완전히 포기하지는 않은 글
+     - 3x: 매우 부족한 글 - 주제 이탈, 극도로 짧거나 성의 없는 글
+     - 2x: 문제가 많은 글 - 거의 읽을 수 없거나 주제와 완전히 무관한 글
+     - 1x: 평가 불가능한 글 - 극도로 짧거나 의미 없는 글
+
+   * **뒷자리 (1의 자리) 결정 기준:**
+     - 0-2: 기본 요구사항만 충족, 추가 개선 필요
+     - 3-4: 약간의 장점이 있으나 개선점이 더 많음
+     - 5-6: 장점과 개선점이 균형적
+     - 7-8: 장점이 개선점보다 많음
+     - 9: 해당 등급에서 거의 완벽에 가까움
+
+4. **평가 기준의 일관성 확보:**
+   * **내용**: 주제 이해도, 메시지 전달력, 내용의 깊이와 풍부성
+   * **표현**: 문장의 자연스러움, 독자 흥미 유발, 표현의 생동감
+   * **구조**: 논리적 흐름, 문단 구성, 전체적 일관성
+   * **기술**: 문법, 맞춤법, 문장 구조의 정확성
+   * **중요**: 각 기준을 동일한 기준으로 일관되게 평가하세요
+
+5. **평가 스탠스 결정:**
+   * **만약 글의 성의나 완성도가 현저히 부족하다고 판단되면:** '엄격한 비평가'의 입장에서 평가를 진행한다. 전체 점수를 50점 미만으로 책정하고, '개선점'에 왜 이 글이 좋은 평가를 받기 어려운지를 핵심적으로 지적한다. 장점은 무리해서 찾지 말고, "글의 길이가 짧아 구체적인 장점을 찾기 어렵습니다." 와 같이 솔직하게 기술한다.
+   * **만약 글이 충분한 성의를 갖추었다고 판단되면:** '친절한 코치'의 입장에서 잠재력을 끌어내는 방향으로 상세하게 평가한다.
+
+[사용자 개인 정보 - ${mode === "mode_300" ? "300자 모드" : "1000자 모드"}]
+- 평균 점수: ${personalData.averageScore}점
+- 최근 점수 트렌드: ${getTrendDescription(personalData.scoreTrend)}
+- 강점 영역: ${personalData.strengthAreas.join(", ") || "없음"}
+- 개선 필요 영역: ${personalData.weaknessAreas.join(", ") || "없음"}
+- 최근 5개 글 점수: ${personalData.recentScores.join(", ")}
+- 선호 주제: ${personalData.preferredTopics.join(", ") || "없음"}
+- 자주 하는 실수: ${personalData.commonMistakes.join(", ") || "없음"}
+- 글쓰기 빈도: 주 ${personalData.writingFrequency}회
+
+**개인화 평가 필수 지침:**
+1. **점수 일관성 유지**: 이 사용자의 평균 점수(${
+    personalData.averageScore
+  }점)를 기준으로 ±${
+    mode === "mode_300" ? "8" : "10"
+  }점 범위 내에서 평가하세요. 급격한 점수 변동은 피하세요.
+
+2. **강점 영역 활용**: ${
+    personalData.strengthAreas.length > 0
+      ? `이 사용자의 강점 영역(${personalData.strengthAreas.join(
+          ", "
+        )})을 살려 더욱 발전시킬 수 있는 구체적인 방안을 제시하세요.`
+      : "이 사용자의 새로운 강점을 발견하고 발전시킬 수 있는 방안을 제시하세요."
+  }
+
+3. **약점 영역 집중 개선**: ${
+    personalData.weaknessAreas.length > 0
+      ? `이 사용자의 개선 필요 영역(${personalData.weaknessAreas.join(
+          ", "
+        )})에 특별히 집중하여 구체적이고 실천 가능한 개선 방안을 제시하세요.`
+      : "전반적인 글쓰기 능력 향상을 위한 구체적인 방안을 제시하세요."
+  }
+
+4. **이전 피드백과 차별화**: 이 사용자의 최근 점수(${personalData.recentScores.join(
+    ", "
+  )})를 참고하여, 이전에 받지 못한 새로운 관점의 피드백을 제공하세요.
+
+5. **개인적 성장 추세 고려**: ${
+    personalData.scoreTrend === "improving"
+      ? "이 사용자는 점수 개선 추세를 보이고 있습니다. 이러한 성장을 더욱 가속화할 수 있는 방안을 제시하세요."
+      : personalData.scoreTrend === "declining"
+      ? "이 사용자는 점수 하락 추세를 보이고 있습니다. 이러한 추세를 반전시킬 수 있는 구체적인 방안을 제시하세요."
+      : "이 사용자는 안정적인 점수를 유지하고 있습니다. 다음 단계로 도약할 수 있는 방안을 제시하세요."
+  }
+
+${
+  mode === "mode_1000"
+    ? `
+[1000자 모드 글쓰기 스타일]
+- 문장 길이: 평균 ${personalData.writingStyle.sentenceLength || 0}단어
+- 문단 구조: ${personalData.writingStyle.paragraphStructure || "unknown"}
+- 어휘 수준: ${personalData.writingStyle.vocabularyLevel || "unknown"}
+- 논리적 흐름: ${personalData.writingStyle.logicalFlow || "unknown"}
+`
+    : ""
+}
+
+[글 스타일 분석 결과]
+시스템이 분석한 글의 스타일은 '${style}' 입니다.
+${styleInstruction[style]}
+**단, 만약 분석된 스타일이 글의 실제 내용과 맞지 않다고 판단되면, 시스템 분석 결과를 무시하고 가장 적절하다고 생각하는 스타일의 평가 기준을 적용하거나 'general' 기준으로 평가해주세요.**
+
+[평가 대상 글]
+제목: ${title}
+주제: ${topic || "자유주제"}
+내용: ${text}
+
+[개인화 평가 가이드라인 - 반드시 준수하세요]
+1. **점수 일관성**: 사용자 평균 점수(${personalData.averageScore}점) ± ${
+    mode === "mode_300" ? "8" : "10"
+  }점 범위 내에서 평가하세요. 급격한 변동은 피하세요.
+
+2. **개인 맞춤 조언**: ${
+    personalData.weaknessAreas.length > 0
+      ? `약점 영역(${personalData.weaknessAreas.join(
+          ", "
+        )})에 집중한 구체적 개선 방안을 반드시 제시하세요.`
+      : "전반적인 글쓰기 능력 향상을 위한 구체적 방안을 제시하세요."
+  }
+
+3. **강점 활용**: ${
+    personalData.strengthAreas.length > 0
+      ? `강점 영역(${personalData.strengthAreas.join(
+          ", "
+        )})을 더욱 발전시킬 수 있는 방향을 제안하세요.`
+      : "새로운 강점을 발견하고 발전시킬 수 있는 방향을 제안하세요."
+  }
+
+4. **차별화된 피드백**: 이전 점수(${personalData.recentScores.join(
+    ", "
+  )})를 참고하여 새로운 관점의 피드백을 제공하세요.
+
+5. **성장 추세 반영**: ${
+    personalData.scoreTrend === "improving"
+      ? "개선 추세를 가속화할 수 있는 방안을 제시하세요."
+      : personalData.scoreTrend === "declining"
+      ? "하락 추세를 반전시킬 수 있는 구체적 방안을 제시하세요."
+      : "안정적 수준에서 다음 단계로 도약할 수 있는 방안을 제시하세요."
+  }
+
+[평가 지침]
+${isAssigned ? getAssignedTopicGuidelines(mode) : getFreeTopicGuidelines(mode)}
+
+[추가 지시]
+${randomPerspective}
+이전에 자주 등장하는 피드백 문구(예: "감각적 묘사 추가", "문장 간결화", "구체적 예시 추가")는 피하고, 이 글에 고유한 피드백을 제공해주세요.
+
+**개선된 버전 작성 시 주의사항:**
+- **원본의 핵심 내용과 경험을 그대로 유지하세요** - 새로운 내용을 창작하지 말고 원본의 실제 경험과 상황을 그대로 보존하세요
+- **절대 사실을 왜곡하지 마세요** - 원본에 명시된 구체적인 내용, 순서, 관계를 그대로 유지하세요
+- 지적된 개선점들을 실제로 반영하여 더 완성도 높은 글로 재작성하세요
+- 원본과 동일한 분량(${
+    mode === "mode_300" ? "250~500자" : "800~1000자"
+  })으로 작성하세요
+- 제목도 함께 개선하여 글의 내용과 더 잘 맞도록 하세요
+- **중요: 원본의 핵심 메시지와 경험을 훼손하지 마세요**
+- **표현력과 구조만 개선하세요:**
+  - 문장을 더 자연스럽고 읽기 쉽게 다듬기
+  - 문단 구조를 더 논리적으로 정리하기
+  - 반복되는 표현이나 어색한 문장 수정하기
+  - 구체적인 세부사항은 그대로 유지하기
+  - **한글 문법에 맞는 쉼표 사용하기** - 쉼표를 남발하지 말고 필요한 곳에만 사용하기
+- **킥이 되는 한 문장 추가:**
+  - 원본의 경험을 바탕으로 독자들이 공감하거나 감동을 느낄 수 있는 한 문장
+  - 예시: "그 순간 깨달았다 - 실패는 끝이 아니라 새로운 시작의 신호였다"
+  - 예시: "어려운 상황에서도 포기하지 않는 내 모습이 자랑스러웠다"
+  - 예시: "이번 경험을 통해 진정한 성공이 무엇인지 알게 되었다"
+- 사용자가 "이렇게 표현하면 더 좋겠구나!"라고 느낄 수 있는 실용적이면서도 영감을 주는 예시가 되도록 해주세요
+- 원본의 개성과 감정은 유지하되, 표현력만 한 단계 끌어올린 버전을 만들어주세요
+
+**중요: 위의 개인화 정보를 반드시 활용하여 이 사용자에게만 해당하는 맞춤형 피드백을 제공해주세요.**
+특히 ${
+    personalData.weaknessAreas.length > 0
+      ? personalData.weaknessAreas.join(", ") + " 영역의 개선점"
+      : "전반적인 글쓰기 능력 향상"
+  }에 집중해서 조언해주세요.
+
+[응답 형식]
+{
+  "critical_flaw": "글의 가치를 심각하게 훼손하는 치명적인 문제점 (예: 주제 이탈, 내용의 모순, 극도의 성의 부족 등). 문제가 없다면 '없음'으로 기술.",
+  "overall_score": 0-100 사이 점수,
+  "criteria_scores": {
+    ${isAssigned ? getAssignedTopicCriteria(mode) : getFreeTopicCriteria(mode)}
+  },
+  "strengths": [
+    "구체적인 장점1 (성의 없는 글의 경우, '찾기 어려움' 등으로 솔직하게 기술)",
+    "구체적인 장점2 (예시 포함)",
+    "구체적인 장점3 (예시 포함)"
+  ],
+  "improvements": [
+    "구체적인 개선점1 (성의 없는 글의 경우, 왜 점수가 낮은지 핵심 이유를 지적)",
+    "구체적인 개선점2 (예시 포함)",
+    "구체적인 개선점3 (예시 포함)"
+  ],
+  "writing_tips": "다음 글쓰기를 위한 매우 구체적인 조언. '이렇게 써보세요' 형식으로, 실제 글의 문장을 활용한 'Before -> After' 예시를 최소 1개 이상 포함하여 제시할 것.",
+  "improved_version": {
+    "title": "개선된 제목 (원본 제목의 문제점을 수정한 버전)",
+    "content": "원본의 핵심 내용과 경험을 그대로 유지하면서 표현력과 구조만 개선한 글. 원본에 명시된 구체적인 내용, 순서, 관계를 절대 왜곡하지 않고, 한글 문법에 맞는 쉼표 사용을 하며, 지적된 문제점들을 수정하고, 원본의 경험을 바탕으로 독자들이 공감하거나 감동을 느낄 수 있는 킥이 되는 한 문장을 추가하여 더 생생하고 매력적인 글로 재작성. 원본과 동일한 분량(${
+      mode === "mode_300" ? "250~500자" : "800~1000자"
+    })으로 작성할 것."
+  }
+}
+
+응답은 반드시 유효한 JSON 형식만 출력해주세요. 마크다운 코드 블럭(\`\`\`)이나 설명 문구는 절대 포함하지 마세요.
+모든 줄바꿈(엔터)은 \\n 으로 escape 처리하고, 문자열 안 따옴표는 \\"로 escape 처리하세요.
+모든 항목을 반드시 빠짐없이 JSON으로 반환해주세요.
+**중요: critical_flaw가 존재한다면, overall_score는 반드시 70점 미만이어야 합니다.**
+`;
+}
+
+// 기존 지침과 기준 함수들
 const getAssignedTopicGuidelines = (mode) => `
 // 지정 주제 평가 지침
 1. 평가의 정확성과 신뢰성을 최우선으로 해주세요:
@@ -134,7 +408,7 @@ const getFreeTopicGuidelines = (mode) => `
    - 억지로 장점이나 개선점을 만들지 않습니다
 `;
 
-// 평가 기준 함수들에서 제목 평가 제거하고 기존 요소들에 통합
+// 평가 기준 함수들
 const getAssignedTopicCriteria = (mode) => {
   if (mode === "mode_300") {
     return `
@@ -255,20 +529,98 @@ const getFreeTopicCriteria = (mode) => {
   }
 };
 
-// 템플릿 생성 함수
-const PROMPT_TEMPLATE = {
-  mode_300: (text, title, topic) => {
-    const mode = "mode_300";
-    const isAssigned =
-      topic &&
-      topic !== "자유주제" &&
-      topic !== "주말에는 자유 주제로 글을 써보세요" &&
-      allTopics300.includes(topic.trim());
-    const style = detectWritingStyle(text);
-    const randomPerspective =
-      randomPerspectives[Math.floor(Math.random() * randomPerspectives.length)];
-
+// 모드별 평가 가이드라인
+function getModeSpecificGuidelines(mode, personalData) {
+  if (mode === "mode_300") {
     return `
+[300자 모드 맞춤 가이드라인]
+- 핵심 메시지 전달력에 집중
+- 간결성과 명확성 평가
+- 압축된 표현력 중시
+- 사용자 평균: ${personalData.averageScore}점 (±8점 범위)
+- 강점 활용: ${
+      personalData.strengthAreas.length > 0
+        ? personalData.strengthAreas.join(", ") + " 영역에서 더욱 간결하게"
+        : "간결한 표현에 집중"
+    }
+- 개선 포인트: ${
+      personalData.weaknessAreas.length > 0
+        ? personalData.weaknessAreas.join(", ") + " 영역의 핵심 전달력 향상"
+        : "핵심 메시지 전달력 향상"
+    }
+`;
+  } else if (mode === "mode_1000") {
+    return `
+[1000자 모드 맞춤 가이드라인]
+- 내용의 깊이와 전개력 평가
+- 문단 구성과 논리적 흐름 중시
+- 상세한 설명력과 근거 제시
+- 사용자 평균: ${personalData.averageScore}점 (±10점 범위)
+- 강점 활용: ${
+      personalData.strengthAreas.length > 0
+        ? personalData.strengthAreas.join(", ") + " 영역에서 더욱 상세하게"
+        : "상세한 전개에 집중"
+    }
+- 개선 포인트: ${
+      personalData.weaknessAreas.length > 0
+        ? personalData.weaknessAreas.join(", ") + " 영역의 전개력 향상"
+        : "내용 전개력 향상"
+    }
+`;
+  }
+}
+
+// 트렌드 설명
+function getTrendDescription(trend) {
+  switch (trend) {
+    case "improving":
+      return "상승 중 (점수 개선 추세)";
+    case "declining":
+      return "하락 중 (점수 감소 추세)";
+    case "stable":
+      return "안정적 (점수 유지 추세)";
+    default:
+      return "알 수 없음";
+  }
+}
+
+// 평가 기준
+function getEvaluationCriteria(mode) {
+  if (mode === "mode_300") {
+    return `
+- content: 주제 이해도와 핵심 메시지 전달 (간결성 중시)
+- expression: 압축된 표현력과 명확성
+- structure: 핵심 내용의 논리적 배열
+- originality: 독창적인 관점과 아이디어
+- consistency: 일관된 톤과 스타일
+- insight: 깊이 있는 통찰력
+- development: 핵심 내용의 효과적 전개
+`;
+  } else {
+    return `
+- content: 주제 이해도와 내용의 깊이
+- expression: 풍부한 표현력과 어휘 사용
+- structure: 문단 구성과 논리적 구조
+- originality: 독창적인 관점과 아이디어
+- consistency: 일관된 톤과 스타일
+- insight: 깊이 있는 통찰력과 분석
+- development: 내용의 체계적 전개와 근거 제시
+`;
+  }
+}
+
+// 기본 프롬프트 (히스토리 부족 시) - 개선된 버전
+function generateDefaultPrompt(text, title, mode, topic) {
+  const isAssigned =
+    topic &&
+    topic !== "자유주제" &&
+    topic !== "주말에는 자유 주제로 글을 써보세요" &&
+    (mode === "mode_300" ? allTopics300 : allTopics1000).includes(topic.trim());
+  const style = detectWritingStyle(text);
+  const randomPerspective =
+    randomPerspectives[Math.floor(Math.random() * randomPerspectives.length)];
+
+  return `
 [사전 검토 및 평가 스탠스 설정]
 1. **글의 완성도 및 성의 분석:**
    * 제출된 글이 최소한의 완성도(적정 분량, 명확한 문단 구분 등)를 갖추었는가?
@@ -299,24 +651,6 @@ const PROMPT_TEMPLATE = {
      - 5-6: 장점과 개선점이 균형적
      - 7-8: 장점이 개선점보다 많음
      - 9: 해당 등급에서 거의 완벽에 가까움
-
-   * **구체적인 점수 예시:**
-     - 95-99: 해당 분야에서 거의 완벽한 글
-     - 90-94: 탁월하지만 약간의 개선점 존재
-     - 85-89: 우수하지만 명확한 개선점 있음
-     - 80-84: 좋은 글이나 개선이 필요한 부분 존재
-     - 75-79: 양호하나 개선점이 더 많음
-     - 70-74: 기본적으로 괜찮지만 개선 필요
-     - 65-69: 보통 수준이나 개선점이 많음
-     - 60-64: 기본 요구사항은 충족하나 개선이 많이 필요
-     - 55-59: 미흡하나 노력의 흔적은 있음
-     - 50-54: 기본 요구사항을 충족하지 못함
-     - 45-49: 심각한 문제가 있음
-     - 40-44: 매우 부족함
-     - 35-39: 문제가 많음
-     - 30-34: 평가하기 어려운 수준
-     - 20-29: 거의 읽을 수 없음
-     - 10-19: 의미 없는 글
 
 4. **평가 기준의 일관성 확보:**
    * **내용**: 주제 이해도, 메시지 전달력, 내용의 깊이와 풍부성
@@ -351,8 +685,8 @@ ${randomPerspective}
 - **절대 사실을 왜곡하지 마세요** - 원본에 명시된 구체적인 내용, 순서, 관계를 그대로 유지하세요
 - 지적된 개선점들을 실제로 반영하여 더 완성도 높은 글로 재작성하세요
 - 원본과 동일한 분량(${
-      mode === "mode_300" ? "250~500자" : "800~1000자"
-    })으로 작성하세요
+    mode === "mode_300" ? "250~500자" : "800~1000자"
+  })으로 작성하세요
 - 제목도 함께 개선하여 글의 내용과 더 잘 맞도록 하세요
 - **중요: 원본의 핵심 메시지와 경험을 훼손하지 마세요**
 - **표현력과 구조만 개선하세요:**
@@ -400,154 +734,9 @@ ${randomPerspective}
 모든 항목을 반드시 빠짐없이 JSON으로 반환해주세요.
 **중요: critical_flaw가 존재한다면, overall_score는 반드시 70점 미만이어야 합니다.**
 `;
-  },
-
-  mode_1000: (text, title, topic) => {
-    const mode = "mode_1000";
-    const isAssigned =
-      topic &&
-      topic !== "자유주제" &&
-      topic !== "주말에는 자유 주제로 글을 써보세요" &&
-      allTopics1000.includes(topic.trim());
-    const style = detectWritingStyle(text);
-    const randomPerspective =
-      randomPerspectives[Math.floor(Math.random() * randomPerspectives.length)];
-
-    return `
-[사전 검토 및 평가 스탠스 설정]
-1. **글의 완성도 및 성의 분석:**
-   * 제출된 글이 최소한의 완성도(적정 분량, 명확한 문단 구분 등)를 갖추었는가?
-   * 글쓴이가 스스로 "시간이 없다", "대충 썼다" 등 성의 부족을 드러내는 표현을 사용했는가?
-   * 내용이 장난스럽거나 평가의 의미가 없을 정도로 단편적인가?
-
-2. **주제 정확성 검증:**
-   * **원본 주제 확인**: 주어진 주제와 실제 글 내용이 일치하는지 정확히 판단하세요
-   * **주제 이탈 여부**: 글의 핵심 내용이 주제에서 벗어났는지 객관적으로 평가하세요
-   * **주제 전달력**: 주제가 글을 통해 명확하게 전달되었는지 확인하세요
-   * **중요**: 주제를 잘못 인식하여 평가하지 마세요. 글의 실제 내용을 기준으로 판단하세요
-
-3. **정교한 점수 체계 적용:**
-   * **앞자리 (10의 자리) 결정 기준:**
-     - 9x: 탁월한 글 - 독창적이고 깊이 있는 내용, 뛰어난 표현력, 완벽한 구조
-     - 8x: 우수한 글 - 좋은 내용과 표현, 약간의 개선점 있음
-     - 7x: 양호한 글 - 기본적으로 잘 쓴 글, 명확한 개선점 존재
-     - 6x: 보통 글 - 기본 요구사항은 충족하나 개선이 필요한 글
-     - 5x: 미흡한 글 - 기본 요구사항을 충족하지 못하나 노력의 흔적은 있음
-     - 4x: 부족한 글 - 심각한 문제가 있으나 완전히 포기하지는 않은 글
-     - 3x: 매우 부족한 글 - 주제 이탈, 극도로 짧거나 성의 없는 글
-     - 2x: 문제가 많은 글 - 거의 읽을 수 없거나 주제와 완전히 무관한 글
-     - 1x: 평가 불가능한 글 - 극도로 짧거나 의미 없는 글
-
-   * **뒷자리 (1의 자리) 결정 기준:**
-     - 0-2: 기본 요구사항만 충족, 추가 개선 필요
-     - 3-4: 약간의 장점이 있으나 개선점이 더 많음
-     - 5-6: 장점과 개선점이 균형적
-     - 7-8: 장점이 개선점보다 많음
-     - 9: 해당 등급에서 거의 완벽에 가까움
-
-   * **구체적인 점수 예시:**
-     - 95-99: 해당 분야에서 거의 완벽한 글
-     - 90-94: 탁월하지만 약간의 개선점 존재
-     - 85-89: 우수하지만 명확한 개선점 있음
-     - 80-84: 좋은 글이나 개선이 필요한 부분 존재
-     - 75-79: 양호하나 개선점이 더 많음
-     - 70-74: 기본적으로 괜찮지만 개선 필요
-     - 65-69: 보통 수준이나 개선점이 많음
-     - 60-64: 기본 요구사항은 충족하나 개선이 많이 필요
-     - 55-59: 미흡하나 노력의 흔적은 있음
-     - 50-54: 기본 요구사항을 충족하지 못함
-     - 45-49: 심각한 문제가 있음
-     - 40-44: 매우 부족함
-     - 35-39: 문제가 많음
-     - 30-34: 평가하기 어려운 수준
-     - 20-29: 거의 읽을 수 없음
-     - 10-19: 의미 없는 글
-
-4. **평가 기준의 일관성 확보:**
-   * **내용**: 주제 이해도, 메시지 전달력, 내용의 깊이와 풍부성
-   * **표현**: 문장의 자연스러움, 독자 흥미 유발, 표현의 생동감
-   * **구조**: 논리적 흐름, 문단 구성, 전체적 일관성
-   * **기술**: 문법, 맞춤법, 문장 구조의 정확성
-   * **중요**: 각 기준을 동일한 기준으로 일관되게 평가하세요
-
-5. **평가 스탠스 결정:**
-   * **만약 글의 성의나 완성도가 현저히 부족하다고 판단되면:** '엄격한 비평가'의 입장에서 평가를 진행한다. 전체 점수를 50점 미만으로 책정하고, '개선점'에 왜 이 글이 좋은 평가를 받기 어려운지를 핵심적으로 지적한다. 장점은 무리해서 찾지 말고, "글의 길이가 짧아 구체적인 장점을 찾기 어렵습니다." 와 같이 솔직하게 기술한다.
-   * **만약 글이 충분한 성의를 갖추었다고 판단되면:** '친절한 코치'의 입장에서 잠재력을 끌어내는 방향으로 상세하게 평가한다.
-
-[글 스타일 분석 결과]
-시스템이 분석한 글의 스타일은 '${style}' 입니다.
-${styleInstruction[style]}
-**단, 만약 분석된 스타일이 글의 실제 내용과 맞지 않다고 판단되면, 시스템 분석 결과를 무시하고 가장 적절하다고 생각하는 스타일의 평가 기준을 적용하거나 'general' 기준으로 평가해주세요.**
-
-[평가 대상 글]
-제목: ${title}
-주제: ${topic || "자유주제"}
-내용: ${text}
-
-[평가 지침]
-${isAssigned ? getAssignedTopicGuidelines(mode) : getFreeTopicGuidelines(mode)}
-
-[추가 지시]
-${randomPerspective}
-이전에 자주 등장하는 피드백 문구(예: "감각적 묘사 추가", "문장 간결화", "구체적 예시 추가")는 피하고, 이 글에 고유한 피드백을 제공해주세요.
-
-**개선된 버전 작성 시 주의사항:**
-- 원본 글의 핵심 메시지와 의도를 그대로 유지하세요
-- 지적된 개선점들을 실제로 반영하여 더 완성도 높은 글로 재작성하세요
-- 원본과 동일한 분량(${
-      mode === "mode_300" ? "250~500자" : "800~1000자"
-    })으로 작성하세요
-- 제목도 함께 개선하여 글의 내용과 더 잘 맞도록 하세요
-- **중요: 너무 완벽하고 밋밋한 글이 되지 않도록 주의하세요**
-- **글맛을 살려주는 킥이 되는 문장이나 표현을 최소 1개 이상 포함하세요**
-- **예시:**
-  - 감각적인 묘사나 비유
-  - 독자의 마음을 울리는 한 문장
-  - 생각을 깊게 하는 질문이나 통찰
-  - 일상적이지만 특별한 순간을 포착한 표현
-  - 감정을 자극하는 강렬한 문장
-- 사용자가 "이런 표현도 가능하구나!"라고 느낄 수 있는 실용적이면서도 영감을 주는 예시가 되도록 해주세요
-- 원본의 개성과 감정은 유지하되, 표현력을 한 단계 끌어올린 버전을 만들어주세요
-
-[응답 형식]
-{
-  "critical_flaw": "글의 가치를 심각하게 훼손하는 치명적인 문제점 (예: 주제 이탈, 내용의 모순, 극도의 성의 부족 등). 문제가 없다면 '없음'으로 기술.",
-  "overall_score": 0-100 사이 점수,
-  "criteria_scores": {
-    ${isAssigned ? getAssignedTopicCriteria(mode) : getFreeTopicCriteria(mode)}
-  },
-  "strengths": [
-    "구체적인 장점1 (성의 없는 글의 경우, '찾기 어려움' 등으로 솔직하게 기술)",
-    "구체적인 장점2 (예시 포함)",
-    "구체적인 장점3 (예시 포함)"
-  ],
-  "improvements": [
-    "구체적인 개선점1 (성의 없는 글의 경우, 왜 점수가 낮은지 핵심 이유를 지적)",
-    "구체적인 개선점2 (예시 포함)",
-    "구체적인 개선점3 (예시 포함)"
-  ],
-  "writing_tips": "다음 글쓰기를 위한 매우 구체적인 조언. '이렇게 써보세요' 형식으로, 실제 글의 문장을 활용한 'Before -> After' 예시를 최소 1개 이상 포함하여 제시할 것.",
-  "improved_version": {
-    "title": "개선된 제목 (원본 제목의 문제점을 수정한 버전)",
-    "content": "개선점을 반영한 글의 전체 내용. 원본 글의 핵심 메시지는 유지하되, 지적된 문제점들을 수정하여 더 완성도 높은 글로 재작성. 원본과 동일한 분량(${
-      mode === "mode_300" ? "250~500자" : "800~1000자"
-    })으로 작성할 것."
-  }
 }
 
-응답은 반드시 유효한 JSON 형식만 출력해주세요. 마크다운 코드 블럭(\`\`\`)이나 설명 문구는 절대 포함하지 마세요.
-모든 줄바꿈(엔터)은 \\n 으로 escape 처리하고, 문자열 안 따옴표는 \\"로 escape 처리하세요.
-모든 항목을 반드시 빠짐없이 JSON으로 반환해주세요.
-**중요: critical_flaw가 존재한다면, overall_score는 반드시 70점 미만이어야 합니다.**
-
-**매우 중요: criteria_scores의 각 항목은 반드시 "score"와 "feedback" 필드를 모두 포함해야 합니다.**
-예시:
-"content": {
-  "score": 85,
-  "feedback": "주제를 잘 이해하고 핵심 메시지를 명확하게 전달했습니다."
-}
-`;
-  },
+module.exports = {
+  generatePersonalizedPrompt,
+  generateDefaultPrompt,
 };
-
-module.exports = PROMPT_TEMPLATE;

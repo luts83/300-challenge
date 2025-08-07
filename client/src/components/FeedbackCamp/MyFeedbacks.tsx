@@ -27,7 +27,6 @@ export const MyFeedbacks: React.FC<MyFeedbacksProps> = ({
   const { user } = useUser();
 
   const fetchGivenFeedbacks = async () => {
-    console.log('fetchGivenFeedbacks 호출됨');
     if (!user) return;
     try {
       // ... (이하 생략)

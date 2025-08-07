@@ -70,22 +70,6 @@ function getManualTopicByDate(
     cursor.setUTCDate(cursor.getUTCDate() + 1);
   }
 
-  // 디버깅 로그 추가 (유저 정보 포함)
-  console.log("=== Topic Debug Info ===");
-  console.log("User Info:");
-  console.log("  - Mode:", mode);
-  console.log("  - Timezone:", timezone);
-  console.log("  - Offset (minutes):", offset);
-  console.log("Time Info:");
-  console.log("  - Server Time (now):", now.toISOString());
-  console.log("  - User Time:", userTime.toISOString());
-  console.log("  - Today (UTC):", today.toISOString());
-  console.log("  - Base Date:", base.toISOString());
-  console.log("Calculation Info:");
-  console.log("  - Day of Week:", dayOfWeek);
-  console.log("  - Weekday Index:", weekdayIndex);
-  console.log("  - Is Weekend:", isWeekend);
-
   let selectedTopic;
   if (mode === "300") {
     if (isWeekend) {
@@ -109,9 +93,6 @@ function getManualTopicByDate(
       selectedTopic = topics1000[weekDiff % topics1000.length];
     }
   }
-
-  console.log("  - Selected Topic:", selectedTopic);
-  console.log("========================");
 
   if (mode === "300") {
     if (isWeekend) {

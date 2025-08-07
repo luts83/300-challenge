@@ -12,6 +12,11 @@ const {
   detectNonWhitelistedUserActivity,
 } = require("../controllers/userController");
 const User = require("../models/User");
+const userProfileService = require("../services/userProfileService");
+const {
+  generatePersonalizedPrompt,
+} = require("../prompts/personalizedEvaluationPrompts");
+const { calculateWeightedScore } = require("../utils/responseFormatter");
 
 // 1. 먼저 함수 정의를 파일 상단에 추가
 const checkFirstSubmissionOfDay = async (uid) => {
@@ -70,8 +75,15 @@ function isEmptyFeedback(feedbackObj) {
   );
 }
 
-// AI 평가 함수 수정
-const evaluateSubmission = async (text, title, mode, topic, retryCount = 2) => {
+// AI 평가 함수 수정 (개인화 지원)
+const evaluateSubmission = async (
+  text,
+  title,
+  mode,
+  topic,
+  userId,
+  retryCount = 2
+) => {
   const { AI } = require("../config");
 
   try {
@@ -79,33 +91,106 @@ const evaluateSubmission = async (text, title, mode, topic, retryCount = 2) => {
       mode,
       textLength: text.length,
       titleLength: title.length,
+      userId,
       retryCount,
     });
 
-    const response = await axios.post(
-      "https://openrouter.ai/api/v1/chat/completions",
-      {
-        model: AI.MODEL,
-        messages: [
-          {
-            role: "system",
-            content: AI.SYSTEM_MESSAGE,
-          },
-          {
-            role: "user",
-            content: AI.PROMPT_TEMPLATE[mode](text, title, topic),
-          },
-        ],
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-          "HTTP-Referer": "https://dwriting.ai",
-          "Content-Type": "application/json",
-        },
-        timeout: 30000, // 30초 타임아웃
-      }
+    // 개인화된 프롬프트 생성
+    const personalizedPrompt = await generatePersonalizedPrompt(
+      userId,
+      text,
+      title,
+      mode,
+      topic
     );
+
+    let response;
+    try {
+      response = await axios.post(
+        "https://openrouter.ai/api/v1/chat/completions",
+        {
+          model: AI.MODEL,
+          messages: [
+            {
+              role: "system",
+              content: AI.SYSTEM_MESSAGE,
+            },
+            {
+              role: "user",
+              content: personalizedPrompt,
+            },
+          ],
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+            "HTTP-Referer": "https://dwriting.ai",
+            "Content-Type": "application/json",
+          },
+          timeout: 30000, // 30초 타임아웃
+        }
+      );
+    } catch (axiosError) {
+      logger.error("❌ AI API 요청 실패:", {
+        error: axiosError.message,
+        status: axiosError.response?.status,
+        statusText: axiosError.response?.statusText,
+        data: axiosError.response?.data,
+        text,
+        title,
+        mode,
+        topic,
+        userId,
+      });
+
+      if (retryCount > 0) {
+        logger.warn(
+          `[AI 평가] API 요청 실패, 재시도 남은 횟수: ${retryCount}.`
+        );
+        await new Promise((res) => setTimeout(res, 2000)); // 재시도 간격 증가
+        return await evaluateSubmission(
+          text,
+          title,
+          mode,
+          topic,
+          userId,
+          retryCount - 1
+        );
+      }
+
+      throw new Error(`AI API 요청 실패: ${axiosError.message}`);
+    }
+
+    // AI 응답 구조 검증
+    if (
+      !response.data ||
+      !response.data.choices ||
+      !response.data.choices[0] ||
+      !response.data.choices[0].message
+    ) {
+      logger.error("❌ AI 응답 구조 오류:", {
+        responseData: response.data,
+        status: response.status,
+        statusText: response.statusText,
+      });
+
+      if (retryCount > 0) {
+        logger.warn(
+          `[AI 평가] 응답 구조 오류, 재시도 남은 횟수: ${retryCount}.`
+        );
+        await new Promise((res) => setTimeout(res, 1000));
+        return await evaluateSubmission(
+          text,
+          title,
+          mode,
+          topic,
+          userId,
+          retryCount - 1
+        );
+      }
+
+      throw new Error("AI 응답 구조가 올바르지 않습니다.");
+    }
 
     const evaluation = response.data.choices[0].message.content;
     logger.debug("원본 AI 응답:", evaluation);
@@ -127,30 +212,64 @@ const evaluateSubmission = async (text, title, mode, topic, retryCount = 2) => {
     try {
       parsed = JSON.parse(cleaned);
     } catch (e) {
+      logger.error("❌ JSON 파싱 실패:", {
+        error: e.message,
+        cleaned: cleaned.substring(0, 500) + "...", // 로그 길이 제한
+        originalEvaluation: evaluation.substring(0, 500) + "...",
+        text: text.substring(0, 100) + "...",
+        title,
+        mode,
+        topic,
+      });
+
       // 파싱 실패 시 재시도
       if (retryCount > 0) {
-        logger.warn(`[AI 평가] 파싱 오류, 재시도 남은 횟수: ${retryCount}.`, {
-          error: e.message,
-          cleaned,
-        });
-        await new Promise((res) => setTimeout(res, 1000));
+        logger.warn(`[AI 평가] 파싱 오류, 재시도 남은 횟수: ${retryCount}.`);
+        await new Promise((res) => setTimeout(res, 2000));
         return await evaluateSubmission(
           text,
           title,
           mode,
           topic,
+          userId,
           retryCount - 1
         );
       }
 
-      // 재시도 횟수 소진 시 에러 피드백 반환
-      throw new Error("AI 응답 파싱에 실패했습니다.");
+      // 재시도 횟수 소진 시 기본 피드백 반환
+      logger.error("❌ JSON 파싱 재시도 실패, 기본 피드백 반환");
+      return {
+        score: 50,
+        feedback: JSON.stringify({
+          overall_score: 50,
+          criteria_scores: {
+            content: { score: 50, feedback: "AI 평가 중 오류가 발생했습니다." },
+            expression: {
+              score: 50,
+              feedback: "AI 평가 중 오류가 발생했습니다.",
+            },
+            structure: {
+              score: 50,
+              feedback: "AI 평가 중 오류가 발생했습니다.",
+            },
+            technical: {
+              score: 50,
+              feedback: "AI 평가 중 오류가 발생했습니다.",
+            },
+          },
+          strengths: ["AI 평가 시스템 점검 중입니다."],
+          improvements: ["잠시 후 다시 시도해주세요."],
+          writing_tips:
+            "AI 평가 시스템에 일시적인 문제가 발생했습니다. 잠시 후 다시 시도해주세요.",
+          improved_version: { title: title, content: text },
+        }),
+      };
     }
 
     // 응답 검증
     const validatedFeedback = {
       overall_score: Number(parsed.overall_score) || 0,
-      criteria_scores: parsed.criteria_scores || {},
+      criteria_scores: {},
       strengths: Array.isArray(parsed.strengths) ? parsed.strengths : [],
       improvements: Array.isArray(parsed.improvements)
         ? parsed.improvements
@@ -162,6 +281,43 @@ const evaluateSubmission = async (text, title, mode, topic, retryCount = 2) => {
       },
     };
 
+    // criteria_scores 처리 - AI 응답 구조에 맞게 정규화
+    console.log(
+      "🔍 AI 응답 criteria_scores 원본:",
+      JSON.stringify(parsed.criteria_scores, null, 2)
+    );
+
+    if (parsed.criteria_scores && typeof parsed.criteria_scores === "object") {
+      Object.entries(parsed.criteria_scores).forEach(([key, value]) => {
+        console.log(`🔍 처리 중: ${key} =`, value, typeof value);
+
+        if (typeof value === "object" && value !== null) {
+          // { score: number, feedback: string } 구조
+          validatedFeedback.criteria_scores[key] = {
+            score: Number(value.score) || 0,
+            feedback: String(value.feedback || "평가 정보가 없습니다."),
+          };
+        } else if (typeof value === "number") {
+          // 단순 숫자 값
+          validatedFeedback.criteria_scores[key] = {
+            score: Number(value) || 0,
+            feedback: "평가 정보가 없습니다.",
+          };
+        } else {
+          // 기타 경우 - 기본값 설정
+          validatedFeedback.criteria_scores[key] = {
+            score: 0,
+            feedback: "평가 정보가 없습니다.",
+          };
+        }
+      });
+    }
+
+    console.log(
+      "🔍 처리된 criteria_scores:",
+      JSON.stringify(validatedFeedback.criteria_scores, null, 2)
+    );
+
     // 빈 피드백 체크
     if (isEmptyFeedback(validatedFeedback) && retryCount > 0) {
       logger.warn(
@@ -169,12 +325,50 @@ const evaluateSubmission = async (text, title, mode, topic, retryCount = 2) => {
         { validatedFeedback }
       );
       await new Promise((res) => setTimeout(res, 1000));
-      return await evaluateSubmission(text, title, mode, topic, retryCount - 1);
+      return await evaluateSubmission(
+        text,
+        title,
+        mode,
+        topic,
+        userId,
+        retryCount - 1
+      );
     }
 
+    // 주제 타입 판단 (지정 주제 vs 자유 주제)
+    const isAssignedTopic =
+      topic &&
+      topic !== "자유주제" &&
+      topic !== "주말에는 자유 주제로 글을 써보세요" &&
+      (mode === "mode_300"
+        ? require("../data/manualTopics").topics300.concat(
+            require("../data/manualTopics").weekendTopics300
+          )
+        : require("../data/manualTopics").topics1000.concat(
+            require("../data/manualTopics").weekendTopics1000
+          )
+      ).includes(topic.trim());
+
+    // 가중치 적용된 점수 계산
+    const weightedScore = calculateWeightedScore(
+      validatedFeedback.criteria_scores,
+      mode,
+      isAssignedTopic
+    );
+
+    // 가중치 적용된 점수로 업데이트
+    validatedFeedback.overall_score = weightedScore;
+
+    // 점수 일관성 검증 (개인화된 평가에서만)
+    const consistentFeedback = await validateScoreConsistency(
+      userId,
+      validatedFeedback,
+      mode
+    );
+
     return {
-      score: validatedFeedback.overall_score,
-      feedback: JSON.stringify(validatedFeedback),
+      score: consistentFeedback.overall_score,
+      feedback: JSON.stringify(consistentFeedback),
     };
   } catch (error) {
     logger.error("AI 평가 오류:", {
@@ -201,6 +395,44 @@ const evaluateSubmission = async (text, title, mode, topic, retryCount = 2) => {
   }
 };
 
+// 개선된 평가 시스템 적용
+const ImprovedEvaluationSystem = require("../utils/evaluationSystem");
+
+// 점수 일관성 검증 함수 (개선된 버전)
+async function validateScoreConsistency(userId, feedback, mode) {
+  try {
+    const originalScore = feedback.overall_score;
+
+    // 개선된 평가 시스템 적용
+    const finalScore = await ImprovedEvaluationSystem.applyUserTypeEvaluation(
+      userId,
+      originalScore,
+      mode
+    );
+
+    // 점수 업데이트
+    feedback.overall_score = finalScore;
+
+    // 평가 결과 로깅
+    const profile = await userProfileService.getUserProfile(userId);
+    const modeKey = mode === "mode_300" ? "mode_300" : "mode_1000";
+    const writingCount = profile.writingHistory[modeKey].length;
+
+    ImprovedEvaluationSystem.logEvaluationResult(
+      userId,
+      originalScore,
+      finalScore,
+      mode,
+      writingCount
+    );
+
+    return feedback;
+  } catch (error) {
+    console.error("❌ 개선된 점수 일관성 검증 실패:", error);
+    return feedback; // 에러 시 원본 피드백 반환
+  }
+}
+
 async function handleSubmit(req, res) {
   const {
     title,
@@ -212,12 +444,18 @@ async function handleSubmit(req, res) {
     isMinLengthMet,
     charCount,
     user,
+    timezone,
+    offset,
   } = req.body;
 
   let session;
   try {
     session = await mongoose.startSession();
     session.startTransaction();
+
+    // 사용자 시간대 정보 파싱
+    const userTimezone = timezone || "Asia/Seoul";
+    const userOffset = parseInt(offset) || -540; // 기본값: 한국 시간
 
     // 제출 시점 로깅 추가
     console.log("\n📝 새로운 글 제출:", {
@@ -260,8 +498,10 @@ async function handleSubmit(req, res) {
       });
     }
 
-    const now = new Date();
-    const dayOfWeek = now.getDay();
+    // 토큰 리셋 체크 - 사용자 시간대 기준으로 수정
+    const currentTime = new Date();
+
+    const dayOfWeek = currentTime.getDay();
     let streak = null;
 
     // 토큰 처리
@@ -272,19 +512,31 @@ async function handleSubmit(req, res) {
         tokens_300: TOKEN.DAILY_LIMIT_300,
         tokens_1000: TOKEN.WEEKLY_LIMIT_1000,
         goldenKeys: 0,
-        lastRefreshed: now,
+        lastRefreshed: currentTime,
         lastWeeklyRefreshed: new Date(),
       });
     }
 
-    // 토큰 리셋 체크 - 수정된 부분
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const monday = new Date();
-    // UTC 기준으로 월요일 0시 계산 (lastWeeklyRefreshed와 동일한 기준)
-    const mondayDayOfWeek = monday.getUTCDay(); // 0=일요일, 1=월요일, ...
-    monday.setUTCDate(monday.getUTCDate() - mondayDayOfWeek + 1); // 이번 주 월요일로 설정
-    monday.setUTCHours(0, 0, 0, 0); // UTC 0시로 설정
+    // 사용자 시간대 기준으로 오늘 날짜 계산
+    const userTime = new Date(currentTime.getTime() + userOffset * 60 * 1000);
+    const today = new Date(
+      Date.UTC(
+        userTime.getUTCFullYear(),
+        userTime.getUTCMonth(),
+        userTime.getUTCDate()
+      )
+    );
+
+    // 사용자 시간대 기준으로 월요일 계산
+    const userMonday = new Date(userTime);
+    const mondayDayOfWeek = userMonday.getUTCDay(); // 0=일요일, 1=월요일, ...
+    const monday = new Date(
+      Date.UTC(
+        userMonday.getUTCFullYear(),
+        userMonday.getUTCMonth(),
+        userMonday.getUTCDate() - mondayDayOfWeek + 1
+      )
+    );
 
     const isWhitelisted = await checkEmailAccess(user.email);
 
@@ -301,7 +553,7 @@ async function handleSubmit(req, res) {
       const userDoc = await User.findOne({ uid: user.uid });
       if (userDoc && userDoc.createdAt) {
         daysSinceJoin = Math.floor(
-          (now - userDoc.createdAt) / (1000 * 60 * 60 * 24)
+          (currentTime - userDoc.createdAt) / (1000 * 60 * 60 * 24)
         );
       }
     }
@@ -314,7 +566,7 @@ async function handleSubmit(req, res) {
       // 매일 리셋
       if (userToken.lastRefreshed < today) {
         userToken.tokens_300 = TOKEN.DAILY_LIMIT_300;
-        userToken.lastRefreshed = now;
+        userToken.lastRefreshed = currentTime;
         console.log(
           `[토큰 지급] 화이트리스트 유저에게 300자 토큰 지급 (일일 리셋)`
         );
@@ -324,7 +576,7 @@ async function handleSubmit(req, res) {
             type: "DAILY_RESET",
             amount: TOKEN.DAILY_LIMIT_300,
             mode: "mode_300",
-            timestamp: now,
+            timestamp: currentTime,
           },
           {
             session,
@@ -339,7 +591,7 @@ async function handleSubmit(req, res) {
       // 비참여자, 가입 후 7일 이내: 매일 지급
       if (userToken.lastRefreshed < today) {
         userToken.tokens_300 = TOKEN.DAILY_LIMIT_300;
-        userToken.lastRefreshed = now;
+        userToken.lastRefreshed = currentTime;
         console.log(
           `[토큰 지급] 신규 비참여자(가입 7일 이내)에게 300자 토큰 지급 (일일 리셋)`
         );
@@ -349,7 +601,7 @@ async function handleSubmit(req, res) {
             type: "DAILY_RESET",
             amount: TOKEN.DAILY_LIMIT_300,
             mode: "mode_300",
-            timestamp: now,
+            timestamp: currentTime,
           },
           {
             session,
@@ -365,7 +617,7 @@ async function handleSubmit(req, res) {
       console.log("[디버그] 주간 지급 분기 진입:", {
         lastWeeklyRefreshed: userToken.lastWeeklyRefreshed,
         monday,
-        now,
+        currentTime,
         지급조건: userToken.lastWeeklyRefreshed < monday,
       });
       if (userToken.lastWeeklyRefreshed < monday) {
@@ -379,7 +631,7 @@ async function handleSubmit(req, res) {
             type: "WEEKLY_RESET",
             amount: TOKEN.WEEKLY_LIMIT_300,
             mode: "mode_300",
-            timestamp: now,
+            timestamp: currentTime,
           },
           {
             session,
@@ -412,12 +664,66 @@ async function handleSubmit(req, res) {
           {
             lastWeeklyRefreshed: userToken.lastWeeklyRefreshed,
             monday,
-            now,
+            currentTime,
             지급조건: userToken.lastWeeklyRefreshed < monday,
           }
         );
       }
     }
+
+    // 1000자 토큰 지급 로직 (화이트리스트 유저와 신규 유저용)
+    if (isWhitelisted) {
+      // 화이트리스트 유저: 주간 지급 (사용자 시간대 기준으로 이미 계산된 monday 사용)
+      if (userToken.lastWeeklyRefreshed < monday) {
+        userToken.tokens_1000 = TOKEN.WEEKLY_LIMIT_1000;
+        userToken.lastWeeklyRefreshed = monday;
+        console.log(
+          `[토큰 지급] 화이트리스트 유저에게 1000자 토큰 지급 (주간 리셋)`
+        );
+        await handleTokenChange(
+          user.uid,
+          {
+            type: "WEEKLY_RESET",
+            amount: TOKEN.WEEKLY_LIMIT_1000,
+            mode: "mode_1000",
+            timestamp: currentTime,
+          },
+          {
+            session,
+            user: {
+              email: user.email,
+              displayName: user.displayName || user.email.split("@")[0],
+            },
+          }
+        );
+      }
+    } else if (daysSinceJoin < 7) {
+      // 비참여자, 가입 후 7일 이내: 주간 지급 (사용자 시간대 기준으로 이미 계산된 monday 사용)
+      if (userToken.lastWeeklyRefreshed < monday) {
+        userToken.tokens_1000 = TOKEN.WEEKLY_LIMIT_1000;
+        userToken.lastWeeklyRefreshed = monday;
+        console.log(
+          `[토큰 지급] 신규 비참여자(가입 7일 이내)에게 1000자 토큰 지급 (주간 리셋)`
+        );
+        await handleTokenChange(
+          user.uid,
+          {
+            type: "WEEKLY_RESET",
+            amount: TOKEN.WEEKLY_LIMIT_1000,
+            mode: "mode_1000",
+            timestamp: now,
+          },
+          {
+            session,
+            user: {
+              email: user.email,
+              displayName: user.displayName || user.email.split("@")[0],
+            },
+          }
+        );
+      }
+    }
+    // 비참여자, 가입 7일 이후는 위에서 이미 처리됨
 
     // 토큰 체크
     const tokenField = mode === "mode_1000" ? "tokens_1000" : "tokens_300";
@@ -430,13 +736,57 @@ async function handleSubmit(req, res) {
       });
     }
 
-    // AI 평가 실행
-    const { score, feedback } = await evaluateSubmission(
-      text,
-      title,
-      mode,
-      topic
-    );
+    // AI 평가 실행 (개인화 지원)
+    let score, feedback;
+    try {
+      const evaluationResult = await evaluateSubmission(
+        text,
+        title,
+        mode,
+        topic,
+        user.uid
+      );
+      score = evaluationResult.score;
+      feedback = evaluationResult.feedback;
+    } catch (evaluationError) {
+      logger.error("❌ AI 평가 실행 실패:", {
+        error: evaluationError.message,
+        text: text.substring(0, 100) + "...",
+        title,
+        mode,
+        topic,
+        userId: user.uid,
+      });
+
+      // AI 평가 실패 시 기본값으로 처리
+      score = 50;
+      feedback = JSON.stringify({
+        overall_score: 50,
+        criteria_scores: {
+          content: {
+            score: 50,
+            feedback: "AI 평가 시스템에 일시적인 문제가 발생했습니다.",
+          },
+          expression: {
+            score: 50,
+            feedback: "AI 평가 시스템에 일시적인 문제가 발생했습니다.",
+          },
+          structure: {
+            score: 50,
+            feedback: "AI 평가 시스템에 일시적인 문제가 발생했습니다.",
+          },
+          technical: {
+            score: 50,
+            feedback: "AI 평가 시스템에 일시적인 문제가 발생했습니다.",
+          },
+        },
+        strengths: ["AI 평가 시스템 점검 중입니다."],
+        improvements: ["잠시 후 다시 시도해주세요."],
+        writing_tips:
+          "AI 평가 시스템에 일시적인 문제가 발생했습니다. 잠시 후 다시 시도해주세요.",
+        improved_version: { title: title, content: text },
+      });
+    }
 
     // 제출물 저장
     const submission = new Submission({
@@ -447,7 +797,7 @@ async function handleSubmit(req, res) {
       mode,
       sessionCount: 1, // 임시로 1로 설정
       duration,
-      submissionDate: now.toISOString().slice(0, 10),
+      submissionDate: currentTime.toISOString().slice(0, 10),
       score,
       aiFeedback: feedback, // JSON 문자열로 저장
     });
@@ -470,7 +820,7 @@ async function handleSubmit(req, res) {
         type: "WRITING_USE",
         amount: -1,
         mode,
-        timestamp: now,
+        timestamp: currentTime,
       },
       {
         session,
@@ -485,7 +835,9 @@ async function handleSubmit(req, res) {
     console.log(
       `[토큰차감] ${user.userName || user.displayName || user.email} (${
         user.uid
-      }) | ${now.toISOString()} | ${mode} | 남은 토큰: ${userToken[tokenField]}`
+      }) | ${currentTime.toISOString()} | ${mode} | 남은 토큰: ${
+        userToken[tokenField]
+      }`
     );
 
     // 1000자 모드 글 작성 시 황금열쇠만 지급
@@ -504,7 +856,7 @@ async function handleSubmit(req, res) {
             type: "GOLDEN_KEY",
             amount: TOKEN.GOLDEN_KEY,
             mode: "mode_1000",
-            timestamp: now,
+            timestamp: currentTime,
           },
           {
             session,
@@ -520,13 +872,13 @@ async function handleSubmit(req, res) {
           previousGoldenKeys: userToken.goldenKeys - TOKEN.GOLDEN_KEY,
           currentGoldenKeys: userToken.goldenKeys,
           givenAmount: TOKEN.GOLDEN_KEY,
-          timestamp: now,
+          timestamp: currentTime,
         });
       } catch (error) {
         console.error("[황금열쇠 지급 실패]", {
           userId: user.uid,
           error: error.message,
-          timestamp: now,
+          timestamp: currentTime,
         });
         throw error;
       }
@@ -583,7 +935,7 @@ async function handleSubmit(req, res) {
                 type: "GOLDEN_KEY",
                 amount: TOKEN.GOLDEN_KEY,
                 mode: "streak_completion",
-                timestamp: now,
+                timestamp: currentTime,
               },
               {
                 session,
@@ -596,19 +948,19 @@ async function handleSubmit(req, res) {
 
             // 스트릭 완료 기록
             streak.celebrationShown = true;
-            streak.lastStreakCompletion = now;
+            streak.lastStreakCompletion = currentTime;
 
             // 이번 주 완료를 히스토리에 추가
             streak.streakHistory.push({
               weekStartDate: streak.currentWeekStartDate,
               completed: true,
-              completionDate: now,
+              completionDate: currentTime,
             });
 
             console.log("스트릭 완료 기록:", {
               uid: user.uid,
               weekStartDate: streak.currentWeekStartDate,
-              completionDate: now,
+              completionDate: currentTime,
             });
           }
 
@@ -622,6 +974,24 @@ async function handleSubmit(req, res) {
 
     await userToken.save({ session });
     await session.commitTransaction();
+
+    // 사용자 프로필 업데이트 (세션 외부에서 실행)
+    try {
+      const aiFeedbackData = JSON.parse(feedback);
+      await userProfileService.updateUserProfile(
+        user.uid,
+        submission,
+        aiFeedbackData
+      );
+      console.log("✅ 사용자 프로필 업데이트 완료:", {
+        userId: user.uid,
+        mode: mode,
+        score: score,
+      });
+    } catch (profileError) {
+      console.error("❌ 사용자 프로필 업데이트 실패:", profileError);
+      // 프로필 업데이트 실패는 전체 제출을 실패시키지 않음
+    }
 
     // 응답 수정 - streak 상태를 더 명확하게 전달
     return res.status(200).json({

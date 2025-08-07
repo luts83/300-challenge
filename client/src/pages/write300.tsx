@@ -7,6 +7,9 @@ import { useNavigate } from 'react-router-dom';
 import { logger } from '../utils/logger';
 import Layout from '../components/Layout';
 import ScrollToTop from '../components/ScrollToTop';
+// 향후 고도화 예정 기능들
+// import SmartWritingGuide from '../components/SmartWritingGuide';
+// import EndingTemplateGuide from '../components/EndingTemplateGuide';
 
 const Write300 = () => {
   const { user, loading } = useUser();
@@ -168,6 +171,10 @@ const Write300 = () => {
     }, 1200); // 1.2초 뒤 평가로 전환
 
     try {
+      // 사용자의 시간대 정보 가져오기
+      const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const userOffset = new Date().getTimezoneOffset();
+
       const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/submit`, {
         title,
         text: currentText, // 저장된 텍스트 사용
@@ -177,6 +184,8 @@ const Write300 = () => {
         forceSubmit: forceSubmit,
         isMinLengthMet: isMinLengthMet,
         charCount: charCount,
+        timezone: userTimezone,
+        offset: userOffset,
         user: {
           uid: user.uid,
           email: user.email,
@@ -233,8 +242,12 @@ const Write300 = () => {
 
     const fetchTokens = async () => {
       try {
+        // 사용자의 시간대 정보 가져오기
+        const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        const userOffset = new Date().getTimezoneOffset();
+
         const res = await axios.get(
-          `${import.meta.env.VITE_API_URL}/api/tokens/${user.uid}?mode=mode_300`
+          `${import.meta.env.VITE_API_URL}/api/tokens/${user.uid}?mode=mode_300&timezone=${encodeURIComponent(userTimezone)}&offset=${userOffset}`
         );
         setTokens(res.data.tokens_300);
         setIsWhitelisted(res.data.isWhitelisted ?? null);
@@ -320,6 +333,28 @@ const Write300 = () => {
             </div>
           </div>
         </div>
+
+        {/* 스마트 글쓰기 가이드 (비활성화 - 향후 고도화 예정) */}
+        {/* 
+        <SmartWritingGuide 
+          text={text}
+          maxLength={CONFIG.SUBMISSION.MODE_300.MAX_LENGTH}
+          mode="mode_300"
+        />
+
+        <EndingTemplateGuide
+          text={text}
+          maxLength={CONFIG.SUBMISSION.MODE_300.MAX_LENGTH}
+          onInsertTemplate={template => {
+            const newText = text + ' ' + template;
+            if (newText.length <= CONFIG.SUBMISSION.MODE_300.MAX_LENGTH) {
+              setText(newText);
+            } else {
+              alert('글자수 제한을 초과합니다. 더 짧은 템플릿을 선택해주세요.');
+            }
+          }}
+        />
+        */}
 
         {/* 글쓰기 영역 */}
         <div className="bg-white dark:bg-gray-800 text-black dark:text-gray-300 rounded-lg shadow-md p-4">

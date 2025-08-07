@@ -471,23 +471,33 @@ const AiFeedbackSection: React.FC<AiFeedbackSectionProps> = ({ show }) => {
                                 >
                                   <div className="flex justify-between items-center mb-2">
                                     <h3 className="font-semibold text-gray-700 dark:text-gray-300">
-                                      {criterion === 'content'
-                                        ? '내용'
-                                        : criterion === 'originality'
-                                          ? '독창성'
-                                          : criterion === 'consistency'
-                                            ? '일관성'
-                                            : criterion === 'insight'
-                                              ? '통찰력'
-                                              : criterion === 'development'
-                                                ? '전개'
-                                                : criterion === 'expression'
-                                                  ? '표현'
-                                                  : criterion === 'structure'
-                                                    ? '구조'
-                                                    : criterion === 'technical'
-                                                      ? '기술'
-                                                      : criterion}
+                                      {currentFeedback.mode === 'mode_300'
+                                        ? criterion === 'content'
+                                          ? '내용'
+                                          : criterion === 'expression'
+                                            ? '표현'
+                                            : criterion === 'structure'
+                                              ? '구조'
+                                              : criterion === 'impact'
+                                                ? '임팩트'
+                                                : criterion
+                                        : criterion === 'content'
+                                          ? '내용'
+                                          : criterion === 'originality'
+                                            ? '독창성'
+                                            : criterion === 'consistency'
+                                              ? '일관성'
+                                              : criterion === 'insight'
+                                                ? '통찰력'
+                                                : criterion === 'development'
+                                                  ? '전개'
+                                                  : criterion === 'expression'
+                                                    ? '표현'
+                                                    : criterion === 'structure'
+                                                      ? '구조'
+                                                      : criterion === 'technical'
+                                                        ? '기술'
+                                                        : criterion}
                                     </h3>
                                     <span className="text-blue-600 dark:text-blue-300 font-bold">
                                       {data.score}점

@@ -77,18 +77,29 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
     }
   }, []);
 
-  // 사용자 정보 새로고침 함수
+  // 사용자 정보 새로고침 함수 (간소화)
   const refreshUser = useCallback(async () => {
     try {
       if (!state.user) return;
+
+      // 네트워크 상태 확인
+      if (!navigator.onLine) {
+        return;
+      }
+
       setState(prev => ({ ...prev, loading: true }));
-      await state.user.reload();
+
+      // 간단한 검증만 수행 (무한 루프 방지)
       const currentUser = auth.currentUser;
-      setState(prev => ({
-        ...prev,
-        user: currentUser,
-        loading: false,
-      }));
+      if (currentUser) {
+        setState(prev => ({
+          ...prev,
+          user: currentUser,
+          loading: false,
+        }));
+      } else {
+        setState(prev => ({ ...prev, loading: false }));
+      }
     } catch (error) {
       console.error('사용자 정보 새로고침 실패:', error);
       setState(prev => ({ ...prev, loading: false }));
@@ -106,6 +117,7 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
       if (!user) {
         setState(prev => ({ ...prev, loading: false, initialized: true }));
       }
+      // 토큰 변경 시 사용자 정보 검증 비활성화 (무한 루프 방지)
     });
 
     return () => {

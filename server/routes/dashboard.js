@@ -3,35 +3,106 @@ const express = require("express");
 const router = express.Router();
 const Submission = require("../models/Submission");
 const Feedback = require("../models/Feedback");
+const UserProfile = require("../models/UserProfile");
 const { startOfDay } = require("date-fns");
+const {
+  userListCache,
+  userStatsCache,
+  overallStatsCache,
+} = require("../utils/cache");
 
-// 모든 사용자 목록 조회
+// 모든 사용자 목록 조회 (페이지네이션 지원)
 router.get("/stats/users", async (req, res) => {
   try {
-    const users = await Submission.aggregate([
-      {
-        $group: {
-          _id: "$user.uid",
-          displayName: { $first: "$user.displayName" },
-          email: { $first: "$user.email" },
-          submissionCount: { $sum: 1 },
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 100; // 기본 100명씩 (성능 향상)
+    const search = req.query.search || "";
+
+    const skip = (page - 1) * limit;
+
+    // 캐시에서 먼저 확인
+    const cachedData = userListCache.get(page, limit, search);
+    if (cachedData) {
+      console.log(
+        `📦 캐시에서 사용자 목록 반환 (페이지: ${page}, 검색: "${search}")`
+      );
+      return res.json(cachedData);
+    }
+
+    // 검색 조건
+    const matchCondition = search
+      ? {
+          $or: [
+            { "user.email": { $regex: search, $options: "i" } },
+            { "user.displayName": { $regex: search, $options: "i" } },
+          ],
+        }
+      : {};
+
+    const [users, totalCount] = await Promise.all([
+      Submission.aggregate([
+        { $match: matchCondition },
+        {
+          $group: {
+            _id: "$user.uid",
+            displayName: { $first: "$user.displayName" },
+            email: { $first: "$user.email" },
+            submissionCount: { $sum: 1 },
+            lastSubmission: { $max: "$createdAt" },
+          },
         },
-      },
-      {
-        $project: {
-          uid: "$_id",
-          displayName: 1,
-          email: 1,
-          submissionCount: 1,
-          _id: 0,
+        {
+          $project: {
+            uid: "$_id",
+            displayName: 1,
+            email: 1,
+            submissionCount: 1,
+            lastSubmission: 1,
+            _id: 0,
+          },
         },
-      },
-      {
-        $sort: { submissionCount: -1 },
-      },
+        {
+          $sort: { submissionCount: -1, lastSubmission: -1 },
+        },
+        { $skip: skip },
+        { $limit: limit },
+      ]),
+      Submission.aggregate([
+        { $match: matchCondition },
+        {
+          $group: {
+            _id: "$user.uid",
+          },
+        },
+        {
+          $count: "total",
+        },
+      ]),
     ]);
 
-    res.json(users);
+    const total = totalCount.length > 0 ? totalCount[0].total : 0;
+    const totalPages = Math.ceil(total / limit);
+
+    const result = {
+      users,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+        hasNext: page < totalPages,
+        hasPrev: page > 1,
+      },
+    };
+
+    // 결과를 캐시에 저장 (순수 객체로 변환)
+    const cacheData = JSON.parse(JSON.stringify(result));
+    userListCache.set(page, limit, search, cacheData);
+    console.log(
+      `💾 사용자 목록 캐시 저장 (페이지: ${page}, 검색: "${search}")`
+    );
+
+    res.json(result);
   } catch (error) {
     console.error("Error listing users:", error);
     res.status(500).json({ error: "사용자 목록을 불러오는데 실패했습니다." });
@@ -40,35 +111,59 @@ router.get("/stats/users", async (req, res) => {
 
 // 사용자의 통계 정보 조회
 router.get("/stats/:uid", async (req, res) => {
-  const { uid } = req.params;
-
   try {
+    const { uid } = req.params;
+
+    // 캐시에서 먼저 확인
+    const cachedStats = userStatsCache.get(uid);
+    if (cachedStats) {
+      console.log(`📦 캐시에서 사용자 통계 반환 (UID: ${uid})`);
+      return res.json(cachedStats);
+    }
+
     const today = startOfDay(new Date());
 
-    const [submissions, feedbacks, todaySubmissions] = await Promise.all([
-      Submission.find({ "user.uid": uid }),
-      Feedback.find({ fromUid: uid }),
-      Submission.find({
-        "user.uid": uid,
-        createdAt: { $gte: today },
-      }),
-    ]);
+    const [submissions, feedbacks, todaySubmissions, userProfile] =
+      await Promise.all([
+        Submission.find({ "user.uid": uid }),
+        Feedback.find({ fromUid: uid }),
+        Submission.find({
+          "user.uid": uid,
+          createdAt: { $gte: today },
+        }),
+        UserProfile.findOne({ userId: uid }),
+      ]);
 
-    const totalScore = submissions.reduce(
-      (sum, sub) => sum + (sub.score || 0),
-      0
-    );
+    const totalSubmissions = submissions.length;
     const averageScore =
-      submissions.length > 0 ? totalScore / submissions.length : 0;
+      totalSubmissions > 0
+        ? submissions.reduce((sum, sub) => sum + (sub.score || 0), 0) /
+          totalSubmissions
+        : 0;
 
-    res.json({
-      totalSubmissions: submissions.length,
-      averageScore,
+    const result = {
+      totalSubmissions,
+      averageScore: Math.round(averageScore * 10) / 10,
       totalFeedbacks: feedbacks.length,
       submissionsToday: todaySubmissions.length,
-    });
+      userProfile: userProfile
+        ? {
+            email: userProfile.user?.email,
+            displayName: userProfile.user?.displayName,
+            writingStats: userProfile.writingStats,
+          }
+        : null,
+    };
+
+    // 결과를 캐시에 저장 (순수 객체로 변환)
+    const cacheData = JSON.parse(JSON.stringify(result));
+    userStatsCache.set(uid, cacheData);
+    console.log(`💾 사용자 통계 캐시 저장 (UID: ${uid})`);
+
+    res.json(result);
   } catch (error) {
-    res.status(500).json({ error: "통계 정보를 불러오는데 실패했습니다." });
+    console.error("Error fetching user stats:", error);
+    res.status(500).json({ error: "사용자 통계를 불러오는데 실패했습니다." });
   }
 });
 
@@ -408,56 +503,103 @@ router.get("/weekly", async (req, res) => {
   }
 });
 
-// 주제별 랭킹 조회
+// 주제별 랭킹 조회 (페이지네이션 지원)
 router.get("/rankings/topics", async (req, res) => {
   try {
-    const { start, end } = req.query;
+    const {
+      start,
+      end,
+      page = 1,
+      limit = 50,
+      search = "",
+      mode = "",
+    } = req.query;
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const skip = (pageNum - 1) * limitNum;
 
-    const dateFilter = {};
+    let matchCondition = {};
+
     if (start && end) {
-      dateFilter.createdAt = {
+      matchCondition.createdAt = {
         $gte: new Date(`${start}T00:00:00.000Z`),
         $lte: new Date(`${end}T23:59:59.999Z`),
       };
     }
 
-    const submissions = await Submission.find(dateFilter).sort({
-      createdAt: 1,
+    // 검색 조건 추가
+    if (search) {
+      matchCondition.topic = { $regex: search, $options: "i" };
+    }
+
+    // 모드 필터 추가
+    if (mode && mode !== "all") {
+      matchCondition.mode = mode;
+    }
+
+    // 전체 개수 조회 (모드별 구분)
+    const totalCount = await Submission.aggregate([
+      { $match: matchCondition },
+      {
+        $group: {
+          _id: {
+            topic: "$topic",
+            mode: "$mode",
+          },
+        },
+      },
+      {
+        $count: "total",
+      },
+    ]);
+
+    const total = totalCount.length > 0 ? totalCount[0].total : 0;
+    const totalPages = Math.ceil(total / limitNum);
+
+    // 주제별 랭킹 조회 (페이지네이션 적용)
+    const topicRanking = await Submission.aggregate([
+      { $match: matchCondition },
+      {
+        $group: {
+          _id: {
+            topic: "$topic",
+            mode: "$mode",
+          },
+          submissionCount: { $sum: 1 },
+          averageScore: { $avg: "$score" },
+          uniqueUsers: { $addToSet: "$user.uid" },
+          lastSubmission: { $max: "$createdAt" },
+        },
+      },
+      {
+        $project: {
+          topic: "$_id.topic",
+          mode: "$_id.mode",
+          submissionCount: 1,
+          averageScore: {
+            $round: [{ $ifNull: ["$averageScore", 0] }, 1],
+          },
+          uniqueUsers: { $size: "$uniqueUsers" },
+          lastSubmission: 1,
+          _id: 0,
+        },
+      },
+      { $sort: { submissionCount: -1, averageScore: -1 } },
+      { $skip: skip },
+      { $limit: limitNum },
+    ]);
+
+    res.json({
+      topicRanking,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        totalPages,
+        hasNext: pageNum < totalPages,
+        hasPrev: pageNum > 1,
+      },
     });
-
-    const topicStats = {};
-
-    submissions.forEach((sub) => {
-      if (!sub.topic) return;
-
-      if (!topicStats[sub.topic]) {
-        topicStats[sub.topic] = {
-          topic: sub.topic,
-          count: 0,
-          totalScore: 0,
-          mode: sub.mode,
-          dates: new Set(),
-        };
-      }
-
-      topicStats[sub.topic].count += 1;
-      topicStats[sub.topic].totalScore += sub.score || 0;
-      topicStats[sub.topic].dates.add(
-        sub.createdAt.toISOString().split("T")[0]
-      );
-    });
-
-    const topicRanking = Object.values(topicStats)
-      .map((topic) => ({
-        topic: topic.topic,
-        count: topic.count,
-        averageScore: Math.round(topic.totalScore / topic.count),
-        mode: topic.mode,
-        dates: Array.from(topic.dates).sort(),
-      }))
-      .sort((a, b) => b.count - a.count);
-
-    res.json({ topicRanking });
   } catch (error) {
     console.error("Error fetching topic rankings:", error);
     res.status(500).json({ error: "주제 랭킹을 불러오는데 실패했습니다." });

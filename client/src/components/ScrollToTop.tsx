@@ -23,7 +23,6 @@ const ScrollToTop = () => {
 
   // 클릭 시 페이지 최상단으로 스크롤
   const scrollToTop = () => {
-    console.log('ScrollToTop 버튼 클릭됨!');
     window.scrollTo({
       top: 0,
       behavior: 'smooth', // 부드러운 스크롤 효과

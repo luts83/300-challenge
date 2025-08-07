@@ -7,6 +7,9 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { logger } from '../utils/logger';
 import Layout from '../components/Layout';
 import ScrollToTop from '../components/ScrollToTop';
+// 향후 고도화 예정 기능들
+// import SmartWritingGuide from '../components/SmartWritingGuide';
+// import EndingTemplateGuide from '../components/EndingTemplateGuide';
 
 const AUTOSAVE_INTERVAL = 60_000; // 10초
 const INACTIVITY_THRESHOLD = 600_000; // 10분 (600초)
@@ -435,11 +438,17 @@ const Write1000 = () => {
       // 최종 시간 상태 업데이트
       setTotalDuration(finalDuration);
 
+      // 사용자의 시간대 정보 가져오기
+      const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const userOffset = new Date().getTimezoneOffset();
+
       const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/submit`, {
         title,
         text,
         topic: dailyTopic || null,
         mode: 'mode_1000',
+        timezone: userTimezone,
+        offset: userOffset,
         user: {
           uid: user.uid,
           email: user.email,
@@ -515,8 +524,12 @@ const Write1000 = () => {
   const fetchTokens = async () => {
     if (!user) return;
     try {
+      // 사용자의 시간대 정보 가져오기
+      const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const userOffset = new Date().getTimezoneOffset();
+
       const res = await axios.get(
-        `${import.meta.env.VITE_API_URL}/api/tokens/${user.uid}?mode=mode_1000`
+        `${import.meta.env.VITE_API_URL}/api/tokens/${user.uid}?mode=mode_1000&timezone=${encodeURIComponent(userTimezone)}&offset=${userOffset}`
       );
       const tokenValue = res.data.tokens_1000;
 
@@ -722,6 +735,28 @@ const Write1000 = () => {
             </div>
           </div>
         </div>
+
+        {/* 스마트 글쓰기 가이드 (비활성화 - 향후 고도화 예정) */}
+        {/* 
+        <SmartWritingGuide 
+          text={text}
+          maxLength={CONFIG.SUBMISSION.MODE_1000.MAX_LENGTH}
+          mode="mode_1000"
+        />
+
+        <EndingTemplateGuide
+          text={text}
+          maxLength={CONFIG.SUBMISSION.MODE_1000.MAX_LENGTH}
+          onInsertTemplate={template => {
+            const newText = text + ' ' + template;
+            if (newText.length <= CONFIG.SUBMISSION.MODE_1000.MAX_LENGTH) {
+              setText(newText);
+            } else {
+              alert('글자수 제한을 초과합니다. 더 짧은 템플릿을 선택해주세요.');
+            }
+          }}
+        />
+        */}
 
         {/* 글쓰기 영역 */}
         <div className="bg-white dark:bg-gray-800 text-black dark:text-white rounded-lg shadow-md p-4">

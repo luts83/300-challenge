@@ -24,6 +24,7 @@ const userTokenHistorySchema = new mongoose.Schema({
             "GOLDEN_KEY",
             "WRITING_USE",
             "FEEDBACK_UNLOCK",
+            "DILATING_UNLOCK",
           ],
         },
         amount: { type: Number },

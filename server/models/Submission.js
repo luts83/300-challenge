@@ -50,6 +50,10 @@ const submissionSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    dilatingVersionUnlocked: {
+      type: Boolean,
+      default: false,
+    },
     feedbackGivenForUnlock: [
       { type: mongoose.Schema.Types.ObjectId, ref: "Feedback" },
     ],

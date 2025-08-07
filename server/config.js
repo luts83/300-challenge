@@ -1,6 +1,5 @@
 // server/config.js
 const { topics300, topics1000 } = require("./data/manualTopics");
-const PROMPT_TEMPLATE = require("./prompts/evaluationPrompts");
 
 module.exports = {
   ACCESS_CONTROL: {
@@ -72,25 +71,51 @@ module.exports = {
 
     // 평가 기준 세분화
     EVALUATION_CRITERIA: {
-      // 지정 주제일 경우
-      ASSIGNED: {
-        CONTENT: { weight: 0.3 },
-        EXPRESSION: { weight: 0.3 },
-        STRUCTURE: { weight: 0.2 },
-        TECHNICAL: { weight: 0.2 },
+      // 300자 모드 - 4개 항목
+      MODE_300: {
+        // 지정 주제일 경우
+        ASSIGNED: {
+          CONTENT: { weight: 0.35 },
+          EXPRESSION: { weight: 0.3 },
+          STRUCTURE: { weight: 0.25 },
+          IMPACT: { weight: 0.1 },
+        },
+        // 자유 주제일 경우
+        FREE: {
+          CONTENT: { weight: 0.35 },
+          EXPRESSION: { weight: 0.3 },
+          STRUCTURE: { weight: 0.25 },
+          IMPACT: { weight: 0.1 },
+        },
       },
-      // 자유 주제일 경우
-      FREE: {
-        ORIGINALITY: { weight: 0.25 },
-        CONSISTENCY: { weight: 0.25 },
-        EXPRESSION: { weight: 0.2 },
-        STRUCTURE: { weight: 0.2 },
-        TECHNICAL: { weight: 0.1 },
+      // 1000자 모드 - 8개 항목
+      MODE_1000: {
+        // 지정 주제일 경우
+        ASSIGNED: {
+          CONTENT: { weight: 0.25 },
+          ORIGINALITY: { weight: 0.15 },
+          CONSISTENCY: { weight: 0.1 },
+          EXPRESSION: { weight: 0.15 },
+          STRUCTURE: { weight: 0.15 },
+          INSIGHT: { weight: 0.1 },
+          DEVELOPMENT: { weight: 0.05 },
+          TECHNICAL: { weight: 0.05 },
+        },
+        // 자유 주제일 경우
+        FREE: {
+          ORIGINALITY: { weight: 0.2 },
+          CONTENT: { weight: 0.2 },
+          INSIGHT: { weight: 0.15 },
+          DEVELOPMENT: { weight: 0.15 },
+          EXPRESSION: { weight: 0.1 },
+          STRUCTURE: { weight: 0.1 },
+          CONSISTENCY: { weight: 0.05 },
+          TECHNICAL: { weight: 0.05 },
+        },
       },
     },
 
-    // 프롬프트 템플릿을 별도 파일에서 가져옴
-    PROMPT_TEMPLATE,
+    // 프롬프트는 personalizedEvaluationPrompts.js에서 처리됨
 
     // 피드백 품질 관리
     QUALITY_CHECK: {

@@ -731,4 +731,75 @@ router.get("/all-dates/:uid", async (req, res) => {
   res.json({ dates: Array.from(new Set(dates)) });
 });
 
+// 황금열쇠로 딜라이팅AI 버전 언락하기
+router.post("/unlock-dilating", async (req, res) => {
+  const { uid, submissionId } = req.body;
+  const requiredTokens = 1; // 딜라이팅AI 버전은 황금열쇠 1개
+
+  try {
+    // Token 모델에서 황금열쇠 확인
+    const userToken = await Token.findOne({ uid });
+    if (!userToken || userToken.goldenKeys < requiredTokens) {
+      return res.status(403).json({
+        message: `황금열쇠가 부족합니다. (필요: ${requiredTokens}개, 보유: ${
+          userToken?.goldenKeys || 0
+        }개)`,
+      });
+    }
+
+    // 제출글 확인
+    const submission = await Submission.findOne({
+      _id: submissionId,
+      "user.uid": uid,
+    });
+    if (!submission) {
+      return res.status(404).json({
+        message: "해당 글을 찾을 수 없습니다.",
+      });
+    }
+
+    // 이미 AI 피드백이 있는지 확인
+    if (!submission.aiFeedback) {
+      return res.status(400).json({
+        message: "AI 피드백이 없는 글입니다.",
+      });
+    }
+
+    // 딜라이팅AI 버전 언락 상태 저장
+    submission.dilatingVersionUnlocked = true;
+    await submission.save();
+
+    // 황금열쇠 차감
+    userToken.goldenKeys -= requiredTokens;
+    await userToken.save();
+
+    // 콘솔 로그 추가
+    console.log(
+      `[딜라이팅AI 버전 구매] ${
+        userToken.uid
+      } | ${new Date().toISOString()} | 사용량: ${requiredTokens} | 남은 황금열쇠: ${
+        userToken.goldenKeys
+      }`
+    );
+
+    // 토큰 히스토리 기록
+    await handleTokenChange(uid, {
+      type: "DILATING_UNLOCK",
+      amount: -requiredTokens,
+      mode: "dilating_unlock",
+      timestamp: new Date(),
+    });
+
+    res.json({
+      message: "딜라이팅AI 버전이 성공적으로 구매되었습니다.",
+      remainingGoldenKeys: userToken.goldenKeys,
+    });
+  } catch (error) {
+    console.error("[딜라이팅AI 버전 구매 에러]", error);
+    res.status(500).json({
+      message: "딜라이팅AI 버전 구매 중 오류가 발생했습니다.",
+    });
+  }
+});
+
 module.exports = router;

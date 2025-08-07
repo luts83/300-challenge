@@ -11,11 +11,40 @@ import Layout from '../components/Layout';
 import ScrollToTop from '../components/ScrollToTop';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
+import VirtualizedUserList from '../components/VirtualizedUserList';
+import VirtualizedTopicRanking from '../components/VirtualizedTopicRanking';
+import ErrorBoundary from '../components/ErrorBoundary';
+import { toast } from 'react-hot-toast';
 
 interface User {
   uid: string;
   displayName: string;
   email: string;
+}
+
+interface UserProfile {
+  email: string;
+  displayName: string;
+  writingStats: {
+    mode_300: {
+      averageScore: number;
+      scoreTrend: string;
+      strengthAreas: string[];
+      weaknessAreas: string[];
+      writingFrequency: number;
+      preferredTopics: string[];
+      commonMistakes: string[];
+    };
+    mode_1000: {
+      averageScore: number;
+      scoreTrend: string;
+      strengthAreas: string[];
+      weaknessAreas: string[];
+      writingFrequency: number;
+      preferredTopics: string[];
+      commonMistakes: string[];
+    };
+  };
 }
 
 interface Feedback {
@@ -327,14 +356,39 @@ const Dashboard = () => {
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [endDate, setEndDate] = useState<Date | null>(null);
   const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
+  const [currentDateTopic, setCurrentDateTopic] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [users, setUsers] = useState<Array<{ uid: string; displayName: string; email: string }>>(
-    []
-  );
+  const [users, setUsers] = useState<
+    Array<{ uid: string; displayName: string; email: string; submissionCount?: number }>
+  >([]);
+  const [filteredUsers, setFilteredUsers] = useState<
+    Array<{
+      uid: string;
+      displayName: string;
+      email: string;
+      submissionCount?: number;
+      lastSubmission?: string;
+    }>
+  >([]);
+  const [userPagination, setUserPagination] = useState({
+    page: 1,
+    total: 0,
+    totalPages: 0,
+    hasNext: false,
+    hasPrev: false,
+  });
+  const [userSearchTerm, setUserSearchTerm] = useState('');
+  const [userLoading, setUserLoading] = useState(false);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [selectedUser, setSelectedUser] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
-  const [stats, setStats] = useState<any>(null);
+  const [stats, setStats] = useState<{
+    totalSubmissions: number;
+    averageScore: number;
+    totalFeedbacks: number;
+    submissionsToday: number;
+    userProfile?: UserProfile;
+  } | null>(null);
   const [isAdminView, setIsAdminView] = useState(false);
   const [adminSubmissions, setAdminSubmissions] = useState([]);
   const [likeReceivedRanking, setLikeReceivedRanking] = useState<
@@ -344,11 +398,22 @@ const Dashboard = () => {
     {
       topic: string;
       mode: 'mode_300' | 'mode_1000';
-      count: number;
+      submissionCount: number;
       averageScore: number;
-      firstDate?: string;
+      uniqueUsers: number;
+      lastSubmission: string;
     }[]
   >([]);
+  const [topicPagination, setTopicPagination] = useState({
+    page: 1,
+    total: 0,
+    totalPages: 0,
+    hasNext: false,
+    hasPrev: false,
+  });
+  const [topicSearchTerm, setTopicSearchTerm] = useState('');
+  const [topicModeFilter, setTopicModeFilter] = useState<'all' | 'mode_300' | 'mode_1000'>('all');
+  const [topicLoading, setTopicLoading] = useState(false);
   const [rankings, setRankings] = useState<RankingStats>({
     scoreRanking: {
       mode300: [],
@@ -371,30 +436,18 @@ const Dashboard = () => {
         const start = startDate || new Date(1970, 0, 1);
         const end = endDate || new Date();
 
-        const [chartRes, topicRes] = await Promise.all([
-          axios.get(
-            `${import.meta.env.VITE_API_URL}/api/dashboard/weekly?start=${format(start, 'yyyy-MM-dd')}&end=${format(end, 'yyyy-MM-dd')}`
-          ),
-          axios.get(
-            `${import.meta.env.VITE_API_URL}/api/dashboard/rankings/topics?start=${format(start, 'yyyy-MM-dd')}&end=${format(end, 'yyyy-MM-dd')}`
-          ),
-        ]);
+        const chartRes = await axios.get(
+          `${import.meta.env.VITE_API_URL}/api/dashboard/weekly?start=${format(start, 'yyyy-MM-dd')}&end=${format(end, 'yyyy-MM-dd')}`
+        );
 
         setSubmissions(chartRes.data);
-        setTopicRanking(topicRes.data.topicRanking);
 
-        if (start.getTime() === end.getTime()) {
-          const filtered = topicRes.data.topicRanking.filter(
-            (t: any) => t.mode === 'mode_300' || t.mode === 'mode_1000'
-          );
-
-          const mostFrequent = filtered.sort((a: any, b: any) => b.count - a.count)[0];
-          setSelectedTopic(mostFrequent?.topic || '주제 없음');
-        } else {
-          setSelectedTopic(null);
-        }
+        // 주제 랭킹은 비동기로 호출 (로딩 블로킹 방지)
+        fetchTopicRanking(1, '').catch(error => {
+          console.error('주제 랭킹 로딩 실패:', error);
+        });
       } catch (error) {
-        console.error('주제 랭킹 불러오기 실패:', error);
+        console.error('데이터 불러오기 실패:', error);
         setError('데이터를 불러오는 데 실패했습니다.');
       } finally {
         setLoading(false);
@@ -434,6 +487,9 @@ const Dashboard = () => {
       setSubmissions(submissionsRes.data);
       setStats(statsRes.data);
       setRankings(rankingsRes.data);
+
+      // 주제 랭킹도 함께 업데이트
+      await fetchTopicRanking(1, topicSearchTerm, topicModeFilter);
     } catch (e) {
       console.error(e);
       setError('데이터 불러오기 실패');
@@ -502,24 +558,40 @@ const Dashboard = () => {
     fetchAllData();
   };
 
-  const fetchTopicRanking = async () => {
+  const fetchTopicRanking = async (page = 1, search = '', mode = topicModeFilter) => {
     try {
-      const params: any = {};
+      setTopicLoading(true);
+      const params: any = {
+        page: page.toString(),
+        limit: '50',
+      };
+
+      // 날짜 필터 적용
       if (startDate) params.start = format(startDate, 'yyyy-MM-dd');
       if (endDate) params.end = format(endDate, 'yyyy-MM-dd');
+      if (search) params.search = search;
+      if (mode && mode !== 'all') params.mode = mode;
 
       const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/dashboard/rankings/topics`, {
         params,
       });
 
       if (res.data && res.data.topicRanking) {
-        setTopicRanking(res.data.topicRanking);
+        if (page === 1) {
+          setTopicRanking(res.data.topicRanking);
+        } else {
+          setTopicRanking(prev => [...prev, ...res.data.topicRanking]);
+        }
+        setTopicPagination(res.data.pagination);
       } else {
         setTopicRanking([]);
       }
     } catch (e) {
       console.error('주제 랭킹 불러오기 실패:', e);
       setTopicRanking([]);
+      toast.error('주제 랭킹을 불러오는데 실패했습니다.');
+    } finally {
+      setTopicLoading(false);
     }
   };
 
@@ -566,13 +638,37 @@ const Dashboard = () => {
     fetchAllData(null, null);
   };
 
-  // 사용자 목록을 가져오는 함수 추가
-  const fetchUsers = async () => {
+  // 사용자 목록을 가져오는 함수 추가 (페이지네이션 지원)
+  const fetchUsers = async (page = 1, search = '') => {
     try {
-      const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/dashboard/stats/users`);
-      setUsers(response.data);
+      setUserLoading(true);
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: '100',
+      });
+
+      if (search) {
+        params.append('search', search);
+      }
+
+      const response = await axios.get(
+        `${import.meta.env.VITE_API_URL}/api/dashboard/stats/users?${params}`
+      );
+
+      if (page === 1) {
+        setUsers(response.data.users);
+        setFilteredUsers(response.data.users);
+      } else {
+        setUsers(prev => [...prev, ...response.data.users]);
+        setFilteredUsers(prev => [...prev, ...response.data.users]);
+      }
+
+      setUserPagination(response.data.pagination);
     } catch (error) {
       console.error('사용자 목록을 불러오는데 실패했습니다:', error);
+      toast.error('사용자 목록을 불러오는데 실패했습니다.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -596,11 +692,42 @@ const Dashboard = () => {
     }
   };
 
+  // 특정 날짜의 주제 가져오기
+  const fetchDateTopic = async (date: Date) => {
+    try {
+      const dateStr = format(date, 'yyyy-MM-dd');
+      const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/dashboard/topic/${dateStr}`);
+
+      return res.data.topic;
+    } catch (error) {
+      console.error('날짜 주제를 불러오는데 실패했습니다:', error);
+      return null;
+    }
+  };
+
+  // 현재 날짜의 주제 가져오기
+  const fetchCurrentDateTopic = async () => {
+    try {
+      const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const userOffset = new Date().getTimezoneOffset();
+
+      const res = await axios.get(
+        `${import.meta.env.VITE_API_URL}/api/topic/today?mode=mode_300&timezone=${encodeURIComponent(userTimezone)}&offset=${userOffset}`
+      );
+
+      setCurrentDateTopic(res.data.topic);
+    } catch (error) {
+      console.error('현재 날짜 주제를 불러오는데 실패했습니다:', error);
+      setCurrentDateTopic(null);
+    }
+  };
+
   // useEffect 수정
   useEffect(() => {
     fetchUsers();
     fetchAllData();
     fetchSubmissionDates();
+    fetchCurrentDateTopic();
   }, []);
 
   // 스타일 적용
@@ -627,11 +754,19 @@ const Dashboard = () => {
             <div className="flex items-center gap-2">
               <DatePicker
                 selected={startDate}
-                onChange={date => {
+                onChange={async date => {
                   if (date) {
                     setStartDate(date);
                     setEndDate(date);
                     fetchAllData(date, date);
+                    // 주제 랭킹도 함께 업데이트
+                    fetchTopicRanking(1, topicSearchTerm, topicModeFilter);
+
+                    // 선택된 날짜의 주제 가져오기
+                    const dateTopic = await fetchDateTopic(date);
+                    if (dateTopic) {
+                      setCurrentDateTopic(dateTopic);
+                    }
                   }
                 }}
                 dateFormat="yyyy-MM-dd"
@@ -647,28 +782,58 @@ const Dashboard = () => {
                   return isHighlighted ? 'highlighted' : undefined;
                 }}
               />
-              <button onClick={fetchAllData} className="btn-filter">
+              <button
+                onClick={() => {
+                  fetchAllData();
+                  fetchTopicRanking(1, topicSearchTerm, topicModeFilter);
+                }}
+                className="btn-filter"
+              >
                 조회
               </button>
             </div>
             <div className="flex gap-2 flex-wrap">
-              <button onClick={handleThisWeek} className="btn-filter">
+              <button
+                onClick={() => {
+                  handleThisWeek();
+                  fetchTopicRanking(1, topicSearchTerm, topicModeFilter);
+                }}
+                className="btn-filter"
+              >
                 이번 주
               </button>
-              <button onClick={handleThisMonth} className="btn-filter">
+              <button
+                onClick={() => {
+                  handleThisMonth();
+                  fetchTopicRanking(1, topicSearchTerm, topicModeFilter);
+                }}
+                className="btn-filter"
+              >
                 이번 달
               </button>
-              <button onClick={handleClear} className="btn-filter">
+              <button
+                onClick={() => {
+                  handleClear();
+                  fetchTopicRanking(1, topicSearchTerm, topicModeFilter);
+                }}
+                className="btn-filter"
+              >
                 전체 보기
               </button>
             </div>
           </div>
 
-          {selectedTopic && (
+          {currentDateTopic && (
             <div className="mt-4 p-4 bg-yellow-100 border border-yellow-400 rounded dark:bg-yellow-900 dark:border-yellow-700">
               <p className="text-gray-500 dark:text-gray-300">
-                📅 <strong>{format(startDate, 'yyyy년 MM월 dd일')}</strong>의 대표 주제는
-                <span className="mx-1 font-semibold">{selectedTopic}</span>입니다.
+                📅{' '}
+                <strong>
+                  {startDate
+                    ? format(startDate, 'yyyy년 MM월 dd일')
+                    : format(new Date(), 'yyyy년 MM월 dd일')}
+                </strong>
+                의 대표 주제는
+                <span className="mx-1 font-semibold">{currentDateTopic}</span>입니다.
               </p>
             </div>
           )}
@@ -767,63 +932,494 @@ const Dashboard = () => {
           <>
             <RankingSection rankings={rankings} likeReceivedRanking={likeReceivedRanking} />
 
-            {topicRanking.length > 0 && (
-              <div className="bg-white dark:bg-gray-800 p-4 rounded shadow mb-6">
-                <h3 className="text-lg font-bold mb-4">🔥 주제별 랭킹</h3>
+            {/* 🔥 주제별 랭킹 섹션 */}
+            <div className="bg-white dark:bg-gray-800 p-4 rounded shadow mb-6">
+              <div className="mb-4">
+                <h3 className="text-lg font-bold mb-3">🔥 주제별 랭킹</h3>
 
-                {['mode_300', 'mode_1000'].map(mode => (
-                  <div key={mode} className="mb-4">
-                    <h4 className="text-md font-semibold mb-2">
-                      {mode === 'mode_300' ? '🟢 300자 모드' : '🔵 1000자 모드'}
-                    </h4>
-                    <div className="space-y-1">
-                      {topicRanking
-                        .filter(item => item.mode === mode)
-                        .sort((a, b) => b.count - a.count)
-                        .map((item, index) => (
-                          <div
-                            key={`${mode}-${item.topic}`}
-                            className="flex flex-col text-sm border-b pb-2"
-                          >
-                            <div className="flex justify-between">
-                              <div>
-                                <span className="font-semibold">{index + 1}위</span>. {item.topic}
+                {/* 검색 및 필터 기능 - 모바일 친화적 레이아웃 */}
+                <div className="space-y-3">
+                  {/* 검색 기능 */}
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <input
+                      type="text"
+                      placeholder="주제 검색..."
+                      className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded text-sm dark:bg-gray-700 dark:text-white"
+                      value={topicSearchTerm}
+                      onChange={e => {
+                        const searchTerm = e.target.value;
+                        setTopicSearchTerm(searchTerm);
+                      }}
+                    />
+                    <button
+                      onClick={() => fetchTopicRanking(1, topicSearchTerm)}
+                      className="px-4 py-2 bg-blue-500 text-white rounded text-sm hover:bg-blue-600 transition-colors whitespace-nowrap"
+                    >
+                      검색
+                    </button>
+                  </div>
+
+                  {/* 모드별 필터 버튼 - 모바일에서 세로 배치 */}
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <button
+                      onClick={() => {
+                        setTopicModeFilter('all');
+                        fetchTopicRanking(1, topicSearchTerm, 'all');
+                      }}
+                      className={`flex-1 sm:flex-none px-4 py-2 rounded text-sm transition-colors ${
+                        topicModeFilter === 'all'
+                          ? 'bg-gray-800 text-white dark:bg-gray-200 dark:text-gray-800'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
+                      }`}
+                    >
+                      전체
+                    </button>
+                    <button
+                      onClick={() => {
+                        setTopicModeFilter('mode_300');
+                        fetchTopicRanking(1, topicSearchTerm, 'mode_300');
+                      }}
+                      className={`flex-1 sm:flex-none px-4 py-2 rounded text-sm transition-colors ${
+                        topicModeFilter === 'mode_300'
+                          ? 'bg-green-600 text-white'
+                          : 'bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-900 dark:text-green-300 dark:hover:bg-green-800'
+                      }`}
+                    >
+                      🟢 300자
+                    </button>
+                    <button
+                      onClick={() => {
+                        setTopicModeFilter('mode_1000');
+                        fetchTopicRanking(1, topicSearchTerm, 'mode_1000');
+                      }}
+                      className={`flex-1 sm:flex-none px-4 py-2 rounded text-sm transition-colors ${
+                        topicModeFilter === 'mode_1000'
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-900 dark:text-blue-300 dark:hover:bg-blue-800'
+                      }`}
+                    >
+                      🔵 1000자
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* 주제 랭킹 리스트 (모드별 구분 및 무한 스크롤) */}
+              <div className="max-h-96 overflow-y-auto border border-gray-200 dark:border-gray-600 rounded-lg">
+                {topicRanking.length > 0 ? (
+                  <div className="space-y-2 p-2">
+                    {topicRanking.map((topic, index) => {
+                      const averageScore =
+                        typeof topic.averageScore === 'number' && !isNaN(topic.averageScore)
+                          ? topic.averageScore
+                          : 0;
+                      const scoreColor =
+                        averageScore >= 80
+                          ? 'text-green-600'
+                          : averageScore >= 60
+                            ? 'text-yellow-600'
+                            : 'text-red-600';
+
+                      return (
+                        <div
+                          key={`${topic.topic}-${index}`}
+                          className={`p-3 border-2 rounded-lg cursor-pointer transition-all hover:shadow-md ${
+                            selectedTopic === topic.topic
+                              ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                              : 'border-gray-200 dark:border-gray-600 hover:border-gray-300'
+                          }`}
+                          onClick={() => setSelectedTopic(topic.topic)}
+                        >
+                          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-2 gap-2">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex flex-wrap items-center gap-2 mb-1">
+                                <span className="text-xs px-2 py-1 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 whitespace-nowrap">
+                                  {topic.mode === 'mode_300' ? '🟢 300자' : '🔵 1000자'}
+                                </span>
+                                <span className="text-xs px-2 py-1 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300 whitespace-nowrap">
+                                  #{index + 1}
+                                </span>
                               </div>
-                              <div className="text-gray-500">
-                                {item.count}회 / 평균 {item.averageScore.toFixed(1)}점
+                              <div className="font-medium text-gray-900 dark:text-white truncate text-sm">
+                                {topic.topic}
                               </div>
                             </div>
-                            <div className="text-gray-400 mt-1 text-xs">
-                              🗓️ {Array.from(new Set(item.dates)).join(', ')}
+                            <div className="flex items-center gap-2 sm:ml-2">
+                              <span className={`text-lg font-bold ${scoreColor}`}>
+                                {averageScore.toFixed(1)}
+                              </span>
+                              <span className="text-xs text-gray-500">점</span>
                             </div>
                           </div>
-                        ))}
-                    </div>
+
+                          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center text-xs text-gray-500 dark:text-gray-400 gap-2">
+                            <div className="flex flex-wrap items-center gap-3">
+                              <span className="whitespace-nowrap">
+                                📝 {topic.submissionCount || 0}개 글
+                              </span>
+                              <span className="whitespace-nowrap">
+                                👥 {topic.uniqueUsers || 0}명 참여
+                              </span>
+                            </div>
+                            <div className="text-xs whitespace-nowrap">
+                              {topic.lastSubmission
+                                ? new Date(topic.lastSubmission).toLocaleDateString('ko-KR')
+                                : '날짜 없음'}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {/* 더 보기 버튼 */}
+                    {topicPagination.hasNext && (
+                      <div className="text-center py-4">
+                        <button
+                          onClick={() =>
+                            fetchTopicRanking(
+                              topicPagination.page + 1,
+                              topicSearchTerm,
+                              topicModeFilter
+                            )
+                          }
+                          disabled={topicLoading}
+                          className="w-full sm:w-auto px-4 py-3 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed text-sm transition-colors"
+                        >
+                          {topicLoading ? (
+                            <div className="flex items-center justify-center gap-2">
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                              로딩 중...
+                            </div>
+                          ) : (
+                            `더 보기 (+${topicPagination.limit}개)`
+                          )}
+                        </button>
+                      </div>
+                    )}
                   </div>
-                ))}
+                ) : (
+                  <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                    {topicLoading ? '주제 랭킹을 불러오는 중...' : '주제 랭킹이 없습니다.'}
+                  </div>
+                )}
+              </div>
+
+              {/* 주제 통계 정보 */}
+              {topicPagination.total > 0 && (
+                <div className="mt-4 text-sm text-gray-500 dark:text-gray-400">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-1">
+                    <span>
+                      {topicModeFilter === 'all'
+                        ? '전체'
+                        : topicModeFilter === 'mode_300'
+                          ? '🟢 300자'
+                          : '🔵 1000자'}{' '}
+                      모드: 총 {topicPagination.total}개의 주제 중 {topicRanking.length}개 표시
+                    </span>
+                    {topicPagination.hasNext && (
+                      <span className="text-blue-500 sm:ml-2">(더 보기 버튼으로 추가 로드)</span>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* 통계 정보 */}
+            {stats && (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+                <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
+                  <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">총 제출</h3>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                    {stats.totalSubmissions}
+                  </p>
+                </div>
+                <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
+                  <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                    평균 점수
+                  </h3>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                    {stats.averageScore.toFixed(1)}
+                  </p>
+                </div>
+                <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
+                  <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                    피드백 수
+                  </h3>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                    {stats.totalFeedbacks}
+                  </p>
+                </div>
+                <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
+                  <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                    오늘 제출
+                  </h3>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                    {stats.submissionsToday}
+                  </p>
+                </div>
               </div>
             )}
 
-            {/* 사용자 선택 드롭다운 반응형 수정 */}
-            <div className="mb-4 sm:mb-6">
-              <select
-                className="w-full p-2 dark:border-gray-700 rounded text-sm sm:text-base dark:bg-gray-800 text-black dark:text-gray-300"
-                value={selectedUser}
-                onChange={e => handleUserChange(e.target.value)}
-              >
-                <option value="">모든 사용자</option>
-                {users && users.length > 0 ? (
-                  users.map(user => (
-                    <option key={user.uid} value={user.uid}>
-                      {user.displayName || '익명'} ({user.email})
-                    </option>
-                  ))
-                ) : (
-                  <option value="" disabled>
-                    사용자 목록을 불러오는 중...
-                  </option>
+            {/* 유저 프로필 정보 */}
+            {stats?.userProfile && (
+              <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow mb-6">
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+                    👤 {stats.userProfile.displayName}의 프로필
+                  </h3>
+                  <div className="text-sm text-gray-500 dark:text-gray-400">
+                    {stats.userProfile.email}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  {/* 300자 모드 통계 카드 */}
+                  <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 p-4 rounded-lg border border-green-200 dark:border-green-700">
+                    <div className="flex items-center mb-3">
+                      <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center text-white text-sm font-bold mr-3">
+                        300
+                      </div>
+                      <h4 className="text-lg font-semibold text-gray-900 dark:text-white">
+                        300자 모드
+                      </h4>
+                    </div>
+
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-gray-600 dark:text-gray-400">평균 점수</span>
+                        <span className="text-xl font-bold text-green-600 dark:text-green-400">
+                          {stats.userProfile.writingStats.mode_300.averageScore.toFixed(1)}점
+                        </span>
+                      </div>
+
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-gray-600 dark:text-gray-400">트렌드</span>
+                        <span
+                          className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            stats.userProfile.writingStats.mode_300.scoreTrend === 'improving'
+                              ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                              : stats.userProfile.writingStats.mode_300.scoreTrend === 'declining'
+                                ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                                : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
+                          }`}
+                        >
+                          {stats.userProfile.writingStats.mode_300.scoreTrend === 'improving'
+                            ? '📈 상승'
+                            : stats.userProfile.writingStats.mode_300.scoreTrend === 'declining'
+                              ? '📉 하락'
+                              : '➡️ 안정'}
+                        </span>
+                      </div>
+
+                      {stats.userProfile.writingStats.mode_300.strengthAreas.length > 0 && (
+                        <div>
+                          <span className="text-sm text-gray-600 dark:text-gray-400">
+                            강점 영역
+                          </span>
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {stats.userProfile.writingStats.mode_300.strengthAreas.map(
+                              (area, index) => (
+                                <span
+                                  key={index}
+                                  className="px-2 py-1 bg-green-200 dark:bg-green-800 text-green-800 dark:text-green-200 text-xs rounded-full"
+                                >
+                                  {area}
+                                </span>
+                              )
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* 1000자 모드 통계 카드 */}
+                  <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 p-4 rounded-lg border border-blue-200 dark:border-blue-700">
+                    <div className="flex items-center mb-3">
+                      <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-bold mr-3">
+                        1K
+                      </div>
+                      <h4 className="text-lg font-semibold text-gray-900 dark:text-white">
+                        1000자 모드
+                      </h4>
+                    </div>
+
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-gray-600 dark:text-gray-400">평균 점수</span>
+                        <span className="text-xl font-bold text-blue-600 dark:text-blue-400">
+                          {stats.userProfile.writingStats.mode_1000.averageScore.toFixed(1)}점
+                        </span>
+                      </div>
+
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-gray-600 dark:text-gray-400">트렌드</span>
+                        <span
+                          className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            stats.userProfile.writingStats.mode_1000.scoreTrend === 'improving'
+                              ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                              : stats.userProfile.writingStats.mode_1000.scoreTrend === 'declining'
+                                ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                                : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
+                          }`}
+                        >
+                          {stats.userProfile.writingStats.mode_1000.scoreTrend === 'improving'
+                            ? '📈 상승'
+                            : stats.userProfile.writingStats.mode_1000.scoreTrend === 'declining'
+                              ? '📉 하락'
+                              : '➡️ 안정'}
+                        </span>
+                      </div>
+
+                      {stats.userProfile.writingStats.mode_1000.strengthAreas.length > 0 && (
+                        <div>
+                          <span className="text-sm text-gray-600 dark:text-gray-400">
+                            강점 영역
+                          </span>
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {stats.userProfile.writingStats.mode_1000.strengthAreas.map(
+                              (area, index) => (
+                                <span
+                                  key={index}
+                                  className="px-2 py-1 bg-blue-200 dark:bg-blue-800 text-blue-800 dark:text-blue-200 text-xs rounded-full"
+                                >
+                                  {area}
+                                </span>
+                              )
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* 개선 영역 및 선호 주제 */}
+                  <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 p-4 rounded-lg border border-purple-200 dark:border-purple-700">
+                    <div className="flex items-center mb-3">
+                      <div className="w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center text-white text-sm font-bold mr-3">
+                        📊
+                      </div>
+                      <h4 className="text-lg font-semibold text-gray-900 dark:text-white">
+                        분석 정보
+                      </h4>
+                    </div>
+
+                    <div className="space-y-3">
+                      {stats.userProfile.writingStats.mode_300.weaknessAreas.length > 0 && (
+                        <div>
+                          <span className="text-sm text-gray-600 dark:text-gray-400">
+                            개선 영역
+                          </span>
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {stats.userProfile.writingStats.mode_300.weaknessAreas
+                              .slice(0, 3)
+                              .map((area, index) => (
+                                <span
+                                  key={index}
+                                  className="px-2 py-1 bg-orange-200 dark:bg-orange-800 text-orange-800 dark:text-orange-200 text-xs rounded-full"
+                                >
+                                  {area}
+                                </span>
+                              ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {stats.userProfile.writingStats.mode_300.preferredTopics.length > 0 && (
+                        <div>
+                          <span className="text-sm text-gray-600 dark:text-gray-400">
+                            선호 주제
+                          </span>
+                          <div className="text-xs text-gray-700 dark:text-gray-300 mt-1">
+                            {stats.userProfile.writingStats.mode_300.preferredTopics
+                              .slice(0, 2)
+                              .map((topic, index) => (
+                                <div key={index} className="truncate mb-1" title={topic}>
+                                  • {topic}
+                                </div>
+                              ))}
+                            {stats.userProfile.writingStats.mode_300.preferredTopics.length > 2 && (
+                              <div className="text-purple-600 dark:text-purple-400">
+                                +
+                                {stats.userProfile.writingStats.mode_300.preferredTopics.length - 2}
+                                개 더
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* 사용자 선택 섹션 */}
+            <div className="mb-6 bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
+              <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">
+                사용자 선택
+              </h3>
+
+              {/* 검색 기능 */}
+              <div className="mb-4">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="이메일 또는 사용자명으로 검색..."
+                    className="flex-1 p-2 border border-gray-300 dark:border-gray-600 rounded text-sm dark:bg-gray-700 dark:text-white"
+                    value={userSearchTerm}
+                    onChange={e => {
+                      const searchTerm = e.target.value;
+                      setUserSearchTerm(searchTerm);
+
+                      // 검색어가 변경되면 서버에서 검색
+                      if (searchTerm.length >= 2 || searchTerm.length === 0) {
+                        fetchUsers(1, searchTerm);
+                      }
+                    }}
+                  />
+                  <button
+                    onClick={() => fetchUsers(1, userSearchTerm)}
+                    className="px-4 py-2 bg-blue-500 text-white rounded text-sm hover:bg-blue-600 transition-colors"
+                  >
+                    검색
+                  </button>
+                </div>
+              </div>
+
+              {/* 전체 통계 카드 */}
+              <div className="mb-4">
+                <div
+                  className={`p-3 border-2 rounded-lg cursor-pointer transition-all ${
+                    selectedUser === ''
+                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                      : 'border-gray-200 dark:border-gray-600 hover:border-gray-300'
+                  }`}
+                  onClick={() => handleUserChange('')}
+                >
+                  <div className="font-medium text-gray-900 dark:text-white">📊 전체 통계</div>
+                  <div className="text-sm text-gray-500 dark:text-gray-400">모든 사용자</div>
+                </div>
+              </div>
+
+              {/* 가상화된 사용자 목록 */}
+              <VirtualizedUserList
+                users={filteredUsers}
+                selectedUser={selectedUser}
+                onUserSelect={handleUserChange}
+                searchTerm={userSearchTerm}
+                onLoadMore={() => fetchUsers(userPagination.page + 1, userSearchTerm)}
+                hasMore={userPagination.hasNext}
+                loading={userLoading}
+              />
+
+              {/* 사용자 통계 정보 */}
+              <div className="mt-4 text-sm text-gray-500 dark:text-gray-400">
+                총 {userPagination.total}명의 사용자 중 {filteredUsers.length}명 표시
+                {userPagination.hasNext && (
+                  <span className="ml-2 text-blue-500">(스크롤하여 더 보기)</span>
                 )}
-              </select>
+              </div>
             </div>
 
             {/* 제출물 목록 수정 */}

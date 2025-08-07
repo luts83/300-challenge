@@ -201,6 +201,55 @@
   }
 
   /* ────────────────────────────── */
+  /* 🔷 Dashboard: 대시보드 사용자 카드 스타일 */
+  /* ────────────────────────────── */
+  .user-card-container {
+    @apply relative w-full;
+  }
+
+  .user-card-container > div {
+    @apply w-full box-border;
+  }
+
+  /* 가상화 리스트 스타일 개선 */
+  .react-window-list {
+    @apply overflow-x-hidden;
+  }
+
+  /* 사용자 카드 호버 효과 개선 */
+  .user-card-container:hover > div {
+    @apply shadow-md transform scale-[1.02] transition-all duration-200;
+  }
+
+  /* 선택된 사용자 카드 스타일 */
+  .user-card-container.selected > div {
+    @apply shadow-lg border-blue-500 bg-blue-50 dark:bg-blue-900/20;
+  }
+
+  /* 사용자 카드 내부 컨텐츠 오버플로우 방지 */
+  .user-card-container .flex-1 {
+    @apply min-w-0 overflow-hidden;
+  }
+
+  .user-card-container .truncate {
+    @apply overflow-hidden text-ellipsis whitespace-nowrap;
+  }
+
+  /* 사용자 카드 가로 배치 스타일 */
+  .user-card-container > div {
+    @apply flex;
+  }
+
+  /* 글 개수 배지 스타일 */
+  .user-card-container .bg-gray-100 {
+    @apply transition-colors;
+  }
+
+  .user-card-container:hover .bg-gray-100 {
+    @apply bg-gray-200 dark:bg-gray-600;
+  }
+
+  /* ────────────────────────────── */
   /* 🔷 Home 전용 스타일 추가 */
   /* ────────────────────────────── */
   .home-message {
