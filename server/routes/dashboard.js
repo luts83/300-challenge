@@ -23,9 +23,11 @@ router.get("/stats/users", async (req, res) => {
     // 캐시에서 먼저 확인
     const cachedData = userListCache.get(page, limit, search);
     if (cachedData) {
-      console.log(
-        `📦 캐시에서 사용자 목록 반환 (페이지: ${page}, 검색: "${search}")`
-      );
+      if (process.env.NODE_ENV === "development") {
+        console.log(
+          `📦 캐시에서 사용자 목록 반환 (페이지: ${page}, 검색: "${search}")`
+        );
+      }
       return res.json(cachedData);
     }
 
@@ -98,9 +100,11 @@ router.get("/stats/users", async (req, res) => {
     // 결과를 캐시에 저장 (순수 객체로 변환)
     const cacheData = JSON.parse(JSON.stringify(result));
     userListCache.set(page, limit, search, cacheData);
-    console.log(
-      `💾 사용자 목록 캐시 저장 (페이지: ${page}, 검색: "${search}")`
-    );
+    if (process.env.NODE_ENV === "development") {
+      console.log(
+        `💾 사용자 목록 캐시 저장 (페이지: ${page}, 검색: "${search}")`
+      );
+    }
 
     res.json(result);
   } catch (error) {
@@ -117,7 +121,9 @@ router.get("/stats/:uid", async (req, res) => {
     // 캐시에서 먼저 확인
     const cachedStats = userStatsCache.get(uid);
     if (cachedStats) {
-      console.log(`📦 캐시에서 사용자 통계 반환 (UID: ${uid})`);
+      if (process.env.NODE_ENV === "development") {
+        console.log(`📦 캐시에서 사용자 통계 반환 (UID: ${uid})`);
+      }
       return res.json(cachedStats);
     }
 
@@ -158,7 +164,9 @@ router.get("/stats/:uid", async (req, res) => {
     // 결과를 캐시에 저장 (순수 객체로 변환)
     const cacheData = JSON.parse(JSON.stringify(result));
     userStatsCache.set(uid, cacheData);
-    console.log(`💾 사용자 통계 캐시 저장 (UID: ${uid})`);
+    if (process.env.NODE_ENV === "development") {
+      console.log(`💾 사용자 통계 캐시 저장 (UID: ${uid})`);
+    }
 
     res.json(result);
   } catch (error) {
