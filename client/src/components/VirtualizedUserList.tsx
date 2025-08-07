@@ -33,8 +33,8 @@ const VirtualizedUserList: React.FC<VirtualizedUserListProps> = ({
 }) => {
   const [listHeight, setListHeight] = useState(400);
 
-  // 모바일에서 AutoSizer 문제 방지
-  const isMobile = window.innerWidth < 768;
+  // 모든 모바일 기기에서 안전하게 일반 리스트 사용
+  const isMobile = window.innerWidth < 1024; // 태블릿까지 포함
 
   // 사용자 카드 렌더링 함수
   const UserCard = useCallback(

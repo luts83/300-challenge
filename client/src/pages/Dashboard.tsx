@@ -862,98 +862,102 @@ const Dashboard = () => {
 
         {isAdminView ? (
           // 관리자 뷰
-          <div className="space-y-4 sm:space-y-6">
-            {adminSubmissions.map(submission => (
-              <div
-                key={submission._id}
-                className="bg-white dark:bg-gray-800 text-black dark:text-white rounded-lg shadow p-3 sm:p-4 mb-4 sm:mb-6"
-              >
-                {/* 제출물 헤더 */}
-                <div className="mb-3 sm:mb-4">
-                  <div className="flex flex-col sm:flex-row justify-between items-start gap-2 sm:gap-4">
-                    <div className="w-full sm:w-auto">
-                      <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                        <h2 className="text-lg sm:text-xl font-semibold">{submission.title}</h2>
-                        {submission.topic && (
-                          <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
-                            {submission.topic}
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-sm text-gray-400">작성자: {submission.user.displayName}</p>
-                      <p className="text-sm text-gray-400 hidden sm:block">
-                        ({submission.user.email})
-                      </p>
-                      <p className="text-sm text-gray-400">
-                        작성 시간: {formatDateTime(submission.createdAt)}
-                        {submission.userTimezone && (
-                          <span className="ml-2 text-gray-500">
-                            {formatLocation(submission.userTimezone)}
-                          </span>
-                        )}
-                      </p>
-                    </div>
-                    <div className="flex flex-row sm:flex-col items-center sm:items-end gap-2">
-                      <span
-                        className={`px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-semibold ${
-                          submission.mode === 'mode_300'
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-blue-100 text-blue-800'
-                        }`}
-                      >
-                        {submission.mode === 'mode_300' ? '300자' : '1000자'}
-                      </span>
-                      <div className="text-right">
-                        <p className="font-semibold text-base sm:text-lg">
-                          {submission.score !== undefined ? `${submission.score}점` : '미평가'}
+          <ErrorBoundary>
+            <div className="space-y-4 sm:space-y-6">
+              {adminSubmissions.map(submission => (
+                <div
+                  key={submission._id}
+                  className="bg-white dark:bg-gray-800 text-black dark:text-white rounded-lg shadow p-3 sm:p-4 mb-4 sm:mb-6"
+                >
+                  {/* 제출물 헤더 */}
+                  <div className="mb-3 sm:mb-4">
+                    <div className="flex flex-col sm:flex-row justify-between items-start gap-2 sm:gap-4">
+                      <div className="w-full sm:w-auto">
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                          <h2 className="text-lg sm:text-xl font-semibold">{submission.title}</h2>
+                          {submission.topic && (
+                            <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+                              {submission.topic}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm text-gray-400">
+                          작성자: {submission.user.displayName}
+                        </p>
+                        <p className="text-sm text-gray-400 hidden sm:block">
+                          ({submission.user.email})
+                        </p>
+                        <p className="text-sm text-gray-400">
+                          작성 시간: {formatDateTime(submission.createdAt)}
+                          {submission.userTimezone && (
+                            <span className="ml-2 text-gray-500">
+                              {formatLocation(submission.userTimezone)}
+                            </span>
+                          )}
                         </p>
                       </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 글 내용 */}
-                <div className="mb-3 sm:mb-4">
-                  <h3 className="text-base sm:text-lg font-semibold mb-2">내용</h3>
-                  <p className="whitespace-pre-wrap bg-gray-50 p-2 sm:p-4 rounded text-sm sm:text-base">
-                    {submission.text}
-                  </p>
-                </div>
-
-                {/* 피드백 섹션 */}
-                <div className="mt-3 sm:mt-4 border-t pt-3 sm:pt-4">
-                  <h3 className="text-base sm:text-lg font-semibold mb-2 sm:mb-4">
-                    받은 피드백 ({submission.feedbackCount || 0})
-                  </h3>
-                  <div className="space-y-2 sm:space-y-3">
-                    {submission.feedbacks?.map(feedback => (
-                      <div
-                        key={feedback._id}
-                        className="bg-gray-50 p-2 sm:p-4 rounded-lg shadow-sm"
-                      >
-                        <div className="flex flex-col sm:flex-row justify-between items-start gap-1 sm:gap-2 mb-2">
-                          <div>
-                            <p className="font-medium text-sm sm:text-base">
-                              {feedback.fromUser.displayName}
-                            </p>
-                            <p className="text-xs sm:text-sm text-gray-400">
-                              {feedback.fromUser.email}
-                            </p>
-                          </div>
-                          <p className="text-xs sm:text-sm text-gray-500">
-                            {new Date(feedback.createdAt).toLocaleString()}
+                      <div className="flex flex-row sm:flex-col items-center sm:items-end gap-2">
+                        <span
+                          className={`px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-semibold ${
+                            submission.mode === 'mode_300'
+                              ? 'bg-green-100 text-green-800'
+                              : 'bg-blue-100 text-blue-800'
+                          }`}
+                        >
+                          {submission.mode === 'mode_300' ? '300자' : '1000자'}
+                        </span>
+                        <div className="text-right">
+                          <p className="font-semibold text-base sm:text-lg">
+                            {submission.score !== undefined ? `${submission.score}점` : '미평가'}
                           </p>
                         </div>
-                        <p className="mt-2 text-sm sm:text-base text-gray-700 whitespace-pre-wrap">
-                          {feedback.content}
-                        </p>
                       </div>
-                    ))}
+                    </div>
+                  </div>
+
+                  {/* 글 내용 */}
+                  <div className="mb-3 sm:mb-4">
+                    <h3 className="text-base sm:text-lg font-semibold mb-2">내용</h3>
+                    <p className="whitespace-pre-wrap bg-gray-50 p-2 sm:p-4 rounded text-sm sm:text-base">
+                      {submission.text}
+                    </p>
+                  </div>
+
+                  {/* 피드백 섹션 */}
+                  <div className="mt-3 sm:mt-4 border-t pt-3 sm:pt-4">
+                    <h3 className="text-base sm:text-lg font-semibold mb-2 sm:mb-4">
+                      받은 피드백 ({submission.feedbackCount || 0})
+                    </h3>
+                    <div className="space-y-2 sm:space-y-3">
+                      {submission.feedbacks?.map(feedback => (
+                        <div
+                          key={feedback._id}
+                          className="bg-gray-50 p-2 sm:p-4 rounded-lg shadow-sm"
+                        >
+                          <div className="flex flex-col sm:flex-row justify-between items-start gap-1 sm:gap-2 mb-2">
+                            <div>
+                              <p className="font-medium text-sm sm:text-base">
+                                {feedback.fromUser.displayName}
+                              </p>
+                              <p className="text-xs sm:text-sm text-gray-400">
+                                {feedback.fromUser.email}
+                              </p>
+                            </div>
+                            <p className="text-xs sm:text-sm text-gray-500">
+                              {new Date(feedback.createdAt).toLocaleString()}
+                            </p>
+                          </div>
+                          <p className="mt-2 text-sm sm:text-base text-gray-700 whitespace-pre-wrap">
+                            {feedback.content}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          </ErrorBoundary>
         ) : (
           <>
             <RankingSection rankings={rankings} likeReceivedRanking={likeReceivedRanking} />
