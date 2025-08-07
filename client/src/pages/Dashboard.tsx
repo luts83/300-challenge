@@ -1,6 +1,6 @@
 // 관리자 대시보드 컴포넌트 (React + Tailwind + TypeScript)
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useUser } from '../context/UserContext';
 import axios from 'axios';
 import { format } from 'date-fns';
@@ -428,8 +428,32 @@ const Dashboard = () => {
     likeRanking: [],
   });
   const [submissionDates, setSubmissionDates] = useState<Date[]>([]);
-  const [displayCount, setDisplayCount] = useState(20); // 표시할 글 개수 상태 추가
-  const ITEMS_PER_PAGE = 20; // 한 번에 표시할 글 개수
+  const [displayCount, setDisplayCount] = useState(5); // 모바일에서는 5개만 표시
+  const ITEMS_PER_PAGE = 5; // 모바일 최적화
+
+  // 디버그 패널 상태
+  const [debugLogs, setDebugLogs] = useState<string[]>([]);
+  const [showDebugPanel, setShowDebugPanel] = useState(false);
+
+  // 디버그 로그 추가 함수
+  const addDebugLog = useCallback((message: string) => {
+    const timestamp = new Date().toLocaleTimeString();
+    const logMessage = `[${timestamp}] ${message}`;
+    setDebugLogs(prev => [...prev.slice(-9), logMessage]); // 최근 10개만 유지
+  }, []);
+
+  // 기존 console.log 오버라이드
+  useEffect(() => {
+    const originalLog = console.log;
+    console.log = function (...args) {
+      originalLog.apply(console, args);
+      addDebugLog(args.join(' '));
+    };
+
+    return () => {
+      console.log = originalLog;
+    };
+  }, [addDebugLog]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -497,6 +521,7 @@ const Dashboard = () => {
         `${import.meta.env.VITE_API_URL}/api/dashboard/all-submissions/${targetUid}`,
         {
           params,
+          timeout: 10000, // 10초 타임아웃
         }
       );
       console.log('✅ all-submissions 응답:', submissionsRes.data?.length || 0, '개 항목');
@@ -504,14 +529,20 @@ const Dashboard = () => {
       console.log('📡 API 호출 2/3: stats');
       const statsRes = await axios.get(
         `${import.meta.env.VITE_API_URL}/api/dashboard/stats/${targetUid}`,
-        { params }
+        {
+          params,
+          timeout: 10000, // 10초 타임아웃
+        }
       );
       console.log('✅ stats 응답:', statsRes.data);
 
       console.log('📡 API 호출 3/3: rankings');
       const rankingsRes = await axios.get(
         `${import.meta.env.VITE_API_URL}/api/dashboard/rankings`,
-        { params }
+        {
+          params,
+          timeout: 10000, // 10초 타임아웃
+        }
       );
       console.log('✅ rankings 응답:', rankingsRes.data);
 
@@ -811,6 +842,39 @@ const Dashboard = () => {
 
   return (
     <Layout>
+      {/* 디버그 패널 */}
+      {showDebugPanel && (
+        <div className="fixed top-0 left-0 right-0 bg-black bg-opacity-90 text-white p-4 z-50 max-h-64 overflow-y-auto text-xs">
+          <div className="flex justify-between items-center mb-2">
+            <h3 className="font-bold">🐛 디버그 로그</h3>
+            <button
+              onClick={() => setShowDebugPanel(false)}
+              className="text-white hover:text-gray-300"
+            >
+              ✕
+            </button>
+          </div>
+          {debugLogs.map((log, index) => (
+            <div key={index} className="mb-1 text-green-400 font-mono">
+              {log}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* 디버그 패널 토글 버튼 */}
+      <button
+        onClick={() => setShowDebugPanel(!showDebugPanel)}
+        className="fixed top-4 right-4 bg-red-500 text-white px-3 py-1 rounded text-sm z-40"
+      >
+        🐛 Debug
+      </button>
+
+      {/* 간단한 상태 표시 */}
+      <div className="fixed top-4 left-4 bg-blue-500 text-white px-2 py-1 rounded text-xs z-40">
+        📊 {adminSubmissions.length}개 | 📱 {window.innerWidth}x{window.innerHeight}
+      </div>
+
       <div className="overflow-x-hidden max-w-7xl mx-auto px-2 sm:px-4 py-2 sm:py-4">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 sm:mb-6">
           <h1 className="text-xl sm:text-2xl font-bold mb-2 sm:mb-0">
@@ -912,7 +976,7 @@ const Dashboard = () => {
           // 관리자 뷰
           <ErrorBoundary>
             <div className="space-y-4 sm:space-y-6">
-              {adminSubmissions.map(submission => (
+              {adminSubmissions.slice(0, displayCount).map(submission => (
                 <div
                   key={submission._id}
                   className="bg-white dark:bg-gray-800 text-black dark:text-white rounded-lg shadow p-3 sm:p-4 mb-4 sm:mb-6"
