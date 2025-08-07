@@ -431,30 +431,6 @@ const Dashboard = () => {
   const [displayCount, setDisplayCount] = useState(5); // 모바일에서는 5개만 표시
   const ITEMS_PER_PAGE = 5; // 모바일 최적화
 
-  // 디버그 패널 상태
-  const [debugLogs, setDebugLogs] = useState<string[]>([]);
-  const [showDebugPanel, setShowDebugPanel] = useState(false);
-
-  // 디버그 로그 추가 함수
-  const addDebugLog = useCallback((message: string) => {
-    const timestamp = new Date().toLocaleTimeString();
-    const logMessage = `[${timestamp}] ${message}`;
-    setDebugLogs(prev => [...prev.slice(-9), logMessage]); // 최근 10개만 유지
-  }, []);
-
-  // 기존 console.log 오버라이드
-  useEffect(() => {
-    const originalLog = console.log;
-    console.log = function (...args) {
-      originalLog.apply(console, args);
-      addDebugLog(args.join(' '));
-    };
-
-    return () => {
-      console.log = originalLog;
-    };
-  }, [addDebugLog]);
-
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
@@ -491,21 +467,10 @@ const Dashboard = () => {
 
   // 모든 데이터 가져오기
   const fetchAllData = async (start?: Date | null, end?: Date | null, userId?: string) => {
-    console.log('🚀 fetchAllData 시작');
-    console.log('📅 날짜 범위:', start, '~', end);
-    console.log('👤 사용자 ID:', userId);
-    console.log('👤 현재 user:', user);
+    if (!user && !userId) return;
 
-    if (!user && !userId) {
-      console.log('❌ user와 userId 모두 없음 - 함수 종료');
-      return;
-    }
-
-    console.log('✅ loading 상태 true로 설정');
     setLoading(true);
-
     try {
-      console.log('📡 API 호출 시작');
       const params: any = {};
       if (start) params.start = format(start, 'yyyy-MM-dd');
       if (end) params.end = format(end, 'yyyy-MM-dd');
@@ -513,57 +478,24 @@ const Dashboard = () => {
       // API 호출 시 선택된 사용자의 UID 사용
       const targetUid = userId || user?.uid;
 
-      console.log('🎯 targetUid:', targetUid);
-      console.log('📋 params:', params);
-
-      console.log('📡 API 호출 1/3: all-submissions');
-      const submissionsRes = await axios.get(
-        `${import.meta.env.VITE_API_URL}/api/dashboard/all-submissions/${targetUid}`,
-        {
+      const [submissionsRes, statsRes, rankingsRes] = await Promise.all([
+        axios.get(`${import.meta.env.VITE_API_URL}/api/dashboard/all-submissions/${targetUid}`, {
           params,
-          timeout: 10000, // 10초 타임아웃
-        }
-      );
-      console.log('✅ all-submissions 응답:', submissionsRes.data?.length || 0, '개 항목');
+        }),
+        axios.get(`${import.meta.env.VITE_API_URL}/api/dashboard/stats/${targetUid}`, { params }),
+        axios.get(`${import.meta.env.VITE_API_URL}/api/dashboard/rankings`, { params }),
+      ]);
 
-      console.log('📡 API 호출 2/3: stats');
-      const statsRes = await axios.get(
-        `${import.meta.env.VITE_API_URL}/api/dashboard/stats/${targetUid}`,
-        {
-          params,
-          timeout: 10000, // 10초 타임아웃
-        }
-      );
-      console.log('✅ stats 응답:', statsRes.data);
-
-      console.log('📡 API 호출 3/3: rankings');
-      const rankingsRes = await axios.get(
-        `${import.meta.env.VITE_API_URL}/api/dashboard/rankings`,
-        {
-          params,
-          timeout: 10000, // 10초 타임아웃
-        }
-      );
-      console.log('✅ rankings 응답:', rankingsRes.data);
-
-      console.log('💾 상태 업데이트 시작');
       setSubmissions(submissionsRes.data);
       setStats(statsRes.data);
       setRankings(rankingsRes.data);
-      console.log('✅ 상태 업데이트 완료');
 
       // 주제 랭킹도 함께 업데이트
       await fetchTopicRanking(1, topicSearchTerm, topicModeFilter);
-    } catch (e: any) {
-      console.error('❌ fetchAllData 에러 발생:', e);
-      console.error('❌ 에러 상세:', {
-        message: e?.message,
-        stack: e?.stack,
-        response: e?.response?.data,
-      });
+    } catch (e) {
+      console.error(e);
       setError('데이터 불러오기 실패');
     } finally {
-      console.log('🏁 fetchAllData 완료 - loading false로 설정');
       setLoading(false);
     }
   };
@@ -643,19 +575,8 @@ const Dashboard = () => {
 
   // 관리자 뷰 토글 함수
   const toggleAdminView = () => {
-    console.log('🔄 관리자 뷰 토글 시작');
-    console.log('📱 현재 화면 크기:', window.innerWidth, 'x', window.innerHeight);
-    console.log('📱 User Agent:', navigator.userAgent);
-
     setIsAdminView(!isAdminView);
-    console.log('✅ isAdminView 상태 변경:', !isAdminView);
-
-    try {
-      fetchAllData();
-      console.log('✅ fetchAllData 호출 완료');
-    } catch (error) {
-      console.error('❌ fetchAllData 에러:', error);
-    }
+    fetchAllData();
   };
 
   const fetchTopicRanking = async (page = 1, search = '', mode = topicModeFilter) => {
@@ -842,39 +763,6 @@ const Dashboard = () => {
 
   return (
     <Layout>
-      {/* 디버그 패널 */}
-      {showDebugPanel && (
-        <div className="fixed top-0 left-0 right-0 bg-black bg-opacity-90 text-white p-4 z-50 max-h-64 overflow-y-auto text-xs">
-          <div className="flex justify-between items-center mb-2">
-            <h3 className="font-bold">🐛 디버그 로그</h3>
-            <button
-              onClick={() => setShowDebugPanel(false)}
-              className="text-white hover:text-gray-300"
-            >
-              ✕
-            </button>
-          </div>
-          {debugLogs.map((log, index) => (
-            <div key={index} className="mb-1 text-green-400 font-mono">
-              {log}
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* 디버그 패널 토글 버튼 */}
-      <button
-        onClick={() => setShowDebugPanel(!showDebugPanel)}
-        className="fixed top-4 right-4 bg-red-500 text-white px-3 py-1 rounded text-sm z-40"
-      >
-        🐛 Debug
-      </button>
-
-      {/* 간단한 상태 표시 */}
-      <div className="fixed top-4 left-4 bg-blue-500 text-white px-2 py-1 rounded text-xs z-40">
-        📊 {adminSubmissions.length}개 | 📱 {window.innerWidth}x{window.innerHeight}
-      </div>
-
       <div className="overflow-x-hidden max-w-7xl mx-auto px-2 sm:px-4 py-2 sm:py-4">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 sm:mb-6">
           <h1 className="text-xl sm:text-2xl font-bold mb-2 sm:mb-0">

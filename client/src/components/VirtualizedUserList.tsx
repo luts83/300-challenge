@@ -29,10 +29,6 @@ const VirtualizedUserList: React.FC<VirtualizedUserListProps> = ({
   hasMore,
   loading,
 }) => {
-  console.log('👥 VirtualizedUserList 렌더링');
-  console.log('📊 users 개수:', users.length);
-  console.log('🔍 searchTerm:', searchTerm);
-  console.log('📱 화면 크기:', window.innerWidth, 'x', window.innerHeight);
   // 모든 기기에서 안전한 일반 리스트 사용
   const handleLoadMore = useCallback(() => {
     if (hasMore && !loading) {
