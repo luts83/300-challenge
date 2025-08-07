@@ -78,6 +78,8 @@ interface Submission {
   feedbackUnlocked: boolean;
   feedbackCount: number;
   feedbacks: Feedback[];
+  userTimezone?: string;
+  userTimezoneOffset?: number;
 }
 
 interface RankingItem {
@@ -542,6 +544,25 @@ const Dashboard = () => {
     return format(new Date(dateString), 'PPP a h시 mm분', { locale: ko });
   };
 
+  // 작성 위치 정보 포맷팅 함수
+  const formatLocation = (userTimezone?: string) => {
+    if (!userTimezone) return '';
+
+    const timezoneMap: { [key: string]: string } = {
+      'Asia/Seoul': '🇰🇷 한국',
+      'Asia/Tokyo': '🇯🇵 일본',
+      'America/New_York': '🇺🇸 뉴욕',
+      'America/Los_Angeles': '🇺🇸 로스앤젤레스',
+      'Europe/London': '🇬🇧 런던',
+      'Europe/Paris': '🇫🇷 파리',
+      'Australia/Sydney': '🇦🇺 시드니',
+      'Asia/Shanghai': '🇨🇳 상하이',
+      'Asia/Singapore': '🇸🇬 싱가포르',
+    };
+
+    return timezoneMap[userTimezone] || userTimezone;
+  };
+
   // 소요 시간 포맷팅 함수 추가
   const formatDuration = (duration: number | string) => {
     const durationNum = Number(duration);
@@ -865,6 +886,11 @@ const Dashboard = () => {
                       </p>
                       <p className="text-sm text-gray-400">
                         작성 시간: {formatDateTime(submission.createdAt)}
+                        {submission.userTimezone && (
+                          <span className="ml-2 text-gray-500">
+                            {formatLocation(submission.userTimezone)}
+                          </span>
+                        )}
                       </p>
                     </div>
                     <div className="flex flex-row sm:flex-col items-center sm:items-end gap-2">
@@ -1450,6 +1476,11 @@ const Dashboard = () => {
                           </p>
                           <p className="text-sm text-gray-400">
                             작성 시간: {formatDateTime(submission.createdAt)}
+                            {submission.userTimezone && (
+                              <span className="ml-2 text-gray-500">
+                                {formatLocation(submission.userTimezone)}
+                              </span>
+                            )}
                           </p>
                         </div>
                         <div className="flex flex-row sm:flex-col items-center sm:items-end gap-2">

@@ -101,7 +101,6 @@ cache/
 # 추가 보안 및 민감한 파일들
 # Firebase 관련 파일들
 firebase-service-account.json
-firebaseAdmin.js
 *.firebase.json
 
 # 데이터베이스 관련 파일들

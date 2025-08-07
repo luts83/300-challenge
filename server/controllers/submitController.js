@@ -800,6 +800,8 @@ async function handleSubmit(req, res) {
       submissionDate: currentTime.toISOString().slice(0, 10),
       score,
       aiFeedback: feedback, // JSON 문자열로 저장
+      userTimezone: timezone || "Asia/Seoul",
+      userTimezoneOffset: parseInt(offset) || -540,
     });
     await submission.save({ session });
 
