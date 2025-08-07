@@ -467,10 +467,21 @@ const Dashboard = () => {
 
   // 모든 데이터 가져오기
   const fetchAllData = async (start?: Date | null, end?: Date | null, userId?: string) => {
-    if (!user && !userId) return; // 로그인하지 않은 상태에서 userId도 없는 경우
+    console.log('🚀 fetchAllData 시작');
+    console.log('📅 날짜 범위:', start, '~', end);
+    console.log('👤 사용자 ID:', userId);
+    console.log('👤 현재 user:', user);
 
+    if (!user && !userId) {
+      console.log('❌ user와 userId 모두 없음 - 함수 종료');
+      return;
+    }
+
+    console.log('✅ loading 상태 true로 설정');
     setLoading(true);
+
     try {
+      console.log('📡 API 호출 시작');
       const params: any = {};
       if (start) params.start = format(start, 'yyyy-MM-dd');
       if (end) params.end = format(end, 'yyyy-MM-dd');
@@ -478,24 +489,50 @@ const Dashboard = () => {
       // API 호출 시 선택된 사용자의 UID 사용
       const targetUid = userId || user?.uid;
 
-      const [submissionsRes, statsRes, rankingsRes] = await Promise.all([
-        axios.get(`${import.meta.env.VITE_API_URL}/api/dashboard/all-submissions/${targetUid}`, {
-          params,
-        }),
-        axios.get(`${import.meta.env.VITE_API_URL}/api/dashboard/stats/${targetUid}`, { params }),
-        axios.get(`${import.meta.env.VITE_API_URL}/api/dashboard/rankings`, { params }),
-      ]);
+      console.log('🎯 targetUid:', targetUid);
+      console.log('📋 params:', params);
 
+      console.log('📡 API 호출 1/3: all-submissions');
+      const submissionsRes = await axios.get(
+        `${import.meta.env.VITE_API_URL}/api/dashboard/all-submissions/${targetUid}`,
+        {
+          params,
+        }
+      );
+      console.log('✅ all-submissions 응답:', submissionsRes.data?.length || 0, '개 항목');
+
+      console.log('📡 API 호출 2/3: stats');
+      const statsRes = await axios.get(
+        `${import.meta.env.VITE_API_URL}/api/dashboard/stats/${targetUid}`,
+        { params }
+      );
+      console.log('✅ stats 응답:', statsRes.data);
+
+      console.log('📡 API 호출 3/3: rankings');
+      const rankingsRes = await axios.get(
+        `${import.meta.env.VITE_API_URL}/api/dashboard/rankings`,
+        { params }
+      );
+      console.log('✅ rankings 응답:', rankingsRes.data);
+
+      console.log('💾 상태 업데이트 시작');
       setSubmissions(submissionsRes.data);
       setStats(statsRes.data);
       setRankings(rankingsRes.data);
+      console.log('✅ 상태 업데이트 완료');
 
       // 주제 랭킹도 함께 업데이트
       await fetchTopicRanking(1, topicSearchTerm, topicModeFilter);
-    } catch (e) {
-      console.error(e);
+    } catch (e: any) {
+      console.error('❌ fetchAllData 에러 발생:', e);
+      console.error('❌ 에러 상세:', {
+        message: e?.message,
+        stack: e?.stack,
+        response: e?.response?.data,
+      });
       setError('데이터 불러오기 실패');
     } finally {
+      console.log('🏁 fetchAllData 완료 - loading false로 설정');
       setLoading(false);
     }
   };
@@ -575,8 +612,19 @@ const Dashboard = () => {
 
   // 관리자 뷰 토글 함수
   const toggleAdminView = () => {
+    console.log('🔄 관리자 뷰 토글 시작');
+    console.log('📱 현재 화면 크기:', window.innerWidth, 'x', window.innerHeight);
+    console.log('📱 User Agent:', navigator.userAgent);
+
     setIsAdminView(!isAdminView);
-    fetchAllData();
+    console.log('✅ isAdminView 상태 변경:', !isAdminView);
+
+    try {
+      fetchAllData();
+      console.log('✅ fetchAllData 호출 완료');
+    } catch (error) {
+      console.error('❌ fetchAllData 에러:', error);
+    }
   };
 
   const fetchTopicRanking = async (page = 1, search = '', mode = topicModeFilter) => {

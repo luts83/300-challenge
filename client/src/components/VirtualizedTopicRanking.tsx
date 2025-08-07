@@ -27,6 +27,10 @@ const VirtualizedTopicRanking: React.FC<VirtualizedTopicRankingProps> = ({
   onLoadMore,
   hasMore = false,
 }) => {
+  console.log('🔥 VirtualizedTopicRanking 렌더링');
+  console.log('📊 topics 개수:', topics.length);
+  console.log('🎯 selectedTopic:', selectedTopic);
+  console.log('📱 화면 크기:', window.innerWidth, 'x', window.innerHeight);
   // 모든 기기에서 안전한 일반 리스트 사용
   const handleLoadMore = useCallback(() => {
     if (hasMore && !loading && onLoadMore) {
