@@ -19,7 +19,7 @@ router.get("/:uid", async (req, res) => {
 
   // 사용자 시간대 정보 파싱
   const timezone = req.query.timezone || "Asia/Seoul";
-  const offset = parseInt(req.query.offset) || -540; // 기본값: 한국 시간
+  const offset = parseInt(req.query.offset) || -540; // 기본값: 한국 시간 (getTimezoneOffset 값)
 
   try {
     // Firebase에서 사용자 정보 조회
@@ -57,7 +57,8 @@ router.get("/:uid", async (req, res) => {
     const now = new Date();
 
     // 사용자 시간대 기준으로 오늘 날짜 계산 (수정된 로직)
-    const userTime = new Date(now.getTime() + offset * 60 * 1000);
+    // getTimezoneOffset() 값은 음수이므로 부호를 반전시켜야 함
+    const userTime = new Date(now.getTime() - offset * 60 * 1000);
     const today = new Date(
       Date.UTC(
         userTime.getUTCFullYear(),
@@ -65,6 +66,15 @@ router.get("/:uid", async (req, res) => {
         userTime.getUTCDate()
       )
     );
+
+    // 추가 디버깅: 시간대 변환 과정 확인
+    console.log(`[시간대 디버그] ${userRecord.email}:`);
+    console.log(`  - UTC 시간: ${now.toISOString()}`);
+    console.log(`  - 사용자 offset: ${offset}분 (getTimezoneOffset 값)`);
+    console.log(`  - 사용자 시간: ${userTime.toISOString()}`);
+    console.log(`  - 계산된 today: ${today.toISOString()}`);
+    console.log(`  - 예상 today (8월 8일): 2025-08-08T00:00:00.000Z`);
+    console.log(`  - 계산 과정: UTC + (${-offset}분) = 사용자 시간`);
 
     // 디버깅을 위한 시간 정보 (finalTokenEntry 정의 후로 이동)
 

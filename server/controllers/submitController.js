@@ -429,7 +429,7 @@ async function handleSubmit(req, res) {
 
     // 사용자 시간대 정보 파싱
     const userTimezone = timezone || "Asia/Seoul";
-    const userOffset = parseInt(offset) || -540; // 기본값: 한국 시간
+    const userOffset = parseInt(offset) || -540; // 기본값: 한국 시간 (getTimezoneOffset 값)
 
     if (!text || !title || !user || !user.uid || !user.email || !mode) {
       return res.status(400).json({
@@ -482,7 +482,7 @@ async function handleSubmit(req, res) {
     }
 
     // 사용자 시간대 기준으로 오늘 날짜 계산
-    const userTime = new Date(currentTime.getTime() + userOffset * 60 * 1000);
+    const userTime = new Date(currentTime.getTime() - userOffset * 60 * 1000);
     const today = new Date(
       Date.UTC(
         userTime.getUTCFullYear(),

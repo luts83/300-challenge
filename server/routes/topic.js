@@ -14,11 +14,11 @@ router.get("/today", async (req, res) => {
 
     // 사용자 시간대 정보 파싱
     const timezone = req.query.timezone || "Asia/Seoul";
-    const offset = parseInt(req.query.offset) || -540; // 기본값: 한국 시간
+    const offset = parseInt(req.query.offset) || -540; // 기본값: 한국 시간 (getTimezoneOffset 값)
 
     // 사용자 시간대 기준으로 현재 날짜 계산
     const now = new Date();
-    const userTime = new Date(now.getTime() + offset * 60 * 1000);
+    const userTime = new Date(now.getTime() - offset * 60 * 1000);
     const today = userTime;
     const dayOfWeek = today.getDay();
 

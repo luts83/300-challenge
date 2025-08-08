@@ -72,7 +72,7 @@ const submissionSchema = new mongoose.Schema(
     feedbackCount: { type: Number, default: 0 },
     // 사용자 시간대 정보 추가
     userTimezone: { type: String, default: "Asia/Seoul" },
-    userTimezoneOffset: { type: Number, default: -540 }, // 분 단위
+    userTimezoneOffset: { type: Number, default: -540 }, // 분 단위 (getTimezoneOffset 값)
   },
 
   {
