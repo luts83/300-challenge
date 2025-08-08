@@ -281,16 +281,8 @@ const evaluateSubmission = async (
       },
     };
 
-    // criteria_scores 처리 - AI 응답 구조에 맞게 정규화
-    console.log(
-      "🔍 AI 응답 criteria_scores 원본:",
-      JSON.stringify(parsed.criteria_scores, null, 2)
-    );
-
     if (parsed.criteria_scores && typeof parsed.criteria_scores === "object") {
       Object.entries(parsed.criteria_scores).forEach(([key, value]) => {
-        console.log(`🔍 처리 중: ${key} =`, value, typeof value);
-
         if (typeof value === "object" && value !== null) {
           // { score: number, feedback: string } 구조
           validatedFeedback.criteria_scores[key] = {
@@ -312,11 +304,6 @@ const evaluateSubmission = async (
         }
       });
     }
-
-    console.log(
-      "🔍 처리된 criteria_scores:",
-      JSON.stringify(validatedFeedback.criteria_scores, null, 2)
-    );
 
     // 빈 피드백 체크
     if (isEmptyFeedback(validatedFeedback) && retryCount > 0) {
@@ -457,16 +444,6 @@ async function handleSubmit(req, res) {
     const userTimezone = timezone || "Asia/Seoul";
     const userOffset = parseInt(offset) || -540; // 기본값: 한국 시간
 
-    // 제출 시점 로깅 추가
-    console.log("\n📝 새로운 글 제출:", {
-      작성자: user.displayName,
-      이메일: user.email,
-      제목: title,
-      모드: mode,
-      글자수: text.length,
-      시간: new Date().toLocaleString("ko-KR", { timeZone: "Asia/Seoul" }),
-    });
-
     if (!text || !title || !user || !user.uid || !user.email || !mode) {
       return res.status(400).json({
         message: "유효하지 않은 요청입니다.",
@@ -557,9 +534,6 @@ async function handleSubmit(req, res) {
         );
       }
     }
-    console.log(
-      `[토큰 지급] 유저: ${user.email} (${user.uid}) / 화이트리스트: ${isWhitelisted} / 가입 후 ${daysSinceJoin}일 경과`
-    );
 
     // 300자 토큰 지급
     if (isWhitelisted) {
@@ -567,9 +541,7 @@ async function handleSubmit(req, res) {
       if (userToken.lastRefreshed < today) {
         userToken.tokens_300 = TOKEN.DAILY_LIMIT_300;
         userToken.lastRefreshed = currentTime;
-        console.log(
-          `[토큰 지급] 화이트리스트 유저에게 300자 토큰 지급 (일일 리셋)`
-        );
+
         await handleTokenChange(
           user.uid,
           {
@@ -592,9 +564,7 @@ async function handleSubmit(req, res) {
       if (userToken.lastRefreshed < today) {
         userToken.tokens_300 = TOKEN.DAILY_LIMIT_300;
         userToken.lastRefreshed = currentTime;
-        console.log(
-          `[토큰 지급] 신규 비참여자(가입 7일 이내)에게 300자 토큰 지급 (일일 리셋)`
-        );
+
         await handleTokenChange(
           user.uid,
           {
@@ -614,12 +584,6 @@ async function handleSubmit(req, res) {
       }
     } else {
       // 비참여자, 가입 7일 이후: 주간 지급
-      console.log("[디버그] 주간 지급 분기 진입:", {
-        lastWeeklyRefreshed: userToken.lastWeeklyRefreshed,
-        monday,
-        currentTime,
-        지급조건: userToken.lastWeeklyRefreshed < monday,
-      });
       if (userToken.lastWeeklyRefreshed < monday) {
         userToken.tokens_300 = TOKEN.WEEKLY_LIMIT_300;
         userToken.tokens_1000 = TOKEN.WEEKLY_LIMIT_1000;
@@ -659,15 +623,6 @@ async function handleSubmit(req, res) {
           }
         );
       } else {
-        console.log(
-          `[토큰 지급] 비화이트리스트 유저(가입 7일 초과), 주간 리셋 아님 → 토큰 지급 없음`,
-          {
-            lastWeeklyRefreshed: userToken.lastWeeklyRefreshed,
-            monday,
-            currentTime,
-            지급조건: userToken.lastWeeklyRefreshed < monday,
-          }
-        );
       }
     }
 
@@ -677,9 +632,7 @@ async function handleSubmit(req, res) {
       if (userToken.lastWeeklyRefreshed < monday) {
         userToken.tokens_1000 = TOKEN.WEEKLY_LIMIT_1000;
         userToken.lastWeeklyRefreshed = monday;
-        console.log(
-          `[토큰 지급] 화이트리스트 유저에게 1000자 토큰 지급 (주간 리셋)`
-        );
+
         await handleTokenChange(
           user.uid,
           {
@@ -702,9 +655,7 @@ async function handleSubmit(req, res) {
       if (userToken.lastWeeklyRefreshed < monday) {
         userToken.tokens_1000 = TOKEN.WEEKLY_LIMIT_1000;
         userToken.lastWeeklyRefreshed = monday;
-        console.log(
-          `[토큰 지급] 신규 비참여자(가입 7일 이내)에게 1000자 토큰 지급 (주간 리셋)`
-        );
+
         await handleTokenChange(
           user.uid,
           {
@@ -805,15 +756,6 @@ async function handleSubmit(req, res) {
     });
     await submission.save({ session });
 
-    // 저장 성공 로깅
-    console.log("✅ 글 저장 완료:", {
-      작성자: user.displayName,
-      제목: title,
-      모드: mode,
-      글자수: text.length,
-      시간: new Date().toLocaleString("ko-KR", { timeZone: "Asia/Seoul" }),
-    });
-
     // 토큰 차감 (공통 로직)
     userToken[tokenField] -= 1;
     await handleTokenChange(
@@ -833,20 +775,8 @@ async function handleSubmit(req, res) {
       }
     );
 
-    // 콘솔 로그 추가
-    console.log(
-      `[토큰차감] ${user.userName || user.displayName || user.email} (${
-        user.uid
-      }) | ${currentTime.toISOString()} | ${mode} | 남은 토큰: ${
-        userToken[tokenField]
-      }`
-    );
-
     // 1000자 모드 글 작성 시 황금열쇠만 지급
     if (mode === "mode_1000") {
-      console.log(`[황금열쇠 지급 시작] 유저: ${user.uid}`);
-      console.log("현재 황금열쇠 개수:", userToken.goldenKeys);
-
       try {
         // 황금열쇠 지급
         userToken.goldenKeys += TOKEN.GOLDEN_KEY;
@@ -868,14 +798,6 @@ async function handleSubmit(req, res) {
             },
           }
         );
-
-        console.log("[황금열쇠 지급 완료]", {
-          userId: user.uid,
-          previousGoldenKeys: userToken.goldenKeys - TOKEN.GOLDEN_KEY,
-          currentGoldenKeys: userToken.goldenKeys,
-          givenAmount: TOKEN.GOLDEN_KEY,
-          timestamp: currentTime,
-        });
       } catch (error) {
         console.error("[황금열쇠 지급 실패]", {
           userId: user.uid,
@@ -958,12 +880,6 @@ async function handleSubmit(req, res) {
               completed: true,
               completionDate: currentTime,
             });
-
-            console.log("스트릭 완료 기록:", {
-              uid: user.uid,
-              weekStartDate: streak.currentWeekStartDate,
-              completionDate: currentTime,
-            });
           }
 
           await streak.save({ session });
@@ -985,11 +901,6 @@ async function handleSubmit(req, res) {
         submission,
         aiFeedbackData
       );
-      console.log("✅ 사용자 프로필 업데이트 완료:", {
-        userId: user.uid,
-        mode: mode,
-        score: score,
-      });
     } catch (profileError) {
       console.error("❌ 사용자 프로필 업데이트 실패:", profileError);
       // 프로필 업데이트 실패는 전체 제출을 실패시키지 않음
