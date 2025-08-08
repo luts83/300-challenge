@@ -62,12 +62,6 @@ class ImprovedEvaluationSystem {
     // 신규 사용자 최대 점수 제한 (85점)
     const finalScore = Math.min(adjustedScore, 85);
 
-    console.log(
-      `🆕 신규 사용자 평가: ${absoluteScore} → ${finalScore} (${
-        writingCount + 1
-      }번째 글)`
-    );
-
     return Math.round(finalScore);
   }
 
@@ -115,35 +109,7 @@ class ImprovedEvaluationSystem {
 
     const finalScore = Math.round(adjustedScore);
 
-    console.log(
-      `👤 경험 사용자 평가: ${absoluteScore} → ${finalScore} (평균: ${personalAvg}, 최근: ${lastScore})`
-    );
-
     return finalScore;
-  }
-
-  /**
-   * 평가 결과 로깅
-   * @param {string} userId - 사용자 ID
-   * @param {number} originalScore - 원본 점수
-   * @param {number} finalScore - 최종 점수
-   * @param {string} mode - 모드
-   * @param {number} writingCount - 글쓰기 횟수
-   */
-  static logEvaluationResult(
-    userId,
-    originalScore,
-    finalScore,
-    mode,
-    writingCount
-  ) {
-    const userType = writingCount < 5 ? "신규" : "경험";
-    const scoreChange = finalScore - originalScore;
-    const changeSymbol = scoreChange > 0 ? "+" : "";
-
-    console.log(
-      `📊 평가 결과: ${userType} 사용자 | ${originalScore} → ${finalScore} (${changeSymbol}${scoreChange}) | ${mode} | ${writingCount}회`
-    );
   }
 
   /**

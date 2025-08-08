@@ -400,19 +400,6 @@ async function validateScoreConsistency(userId, feedback, mode) {
     // 점수 업데이트
     feedback.overall_score = finalScore;
 
-    // 평가 결과 로깅
-    const profile = await userProfileService.getUserProfile(userId);
-    const modeKey = mode === "mode_300" ? "mode_300" : "mode_1000";
-    const writingCount = profile.writingHistory[modeKey].length;
-
-    ImprovedEvaluationSystem.logEvaluationResult(
-      userId,
-      originalScore,
-      finalScore,
-      mode,
-      writingCount
-    );
-
     return feedback;
   } catch (error) {
     console.error("❌ 개선된 점수 일관성 검증 실패:", error);
