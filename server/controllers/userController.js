@@ -11,13 +11,21 @@ const CACHE_DURATION = 5 * 60 * 1000; // 5분 캐시
 // 비화이트리스트 유저 활동 로깅 함수
 function logNonWhitelistedUserActivity(activity, userInfo) {
   const timestamp = new Date().toISOString();
-  console.log(`🚨 [비화이트리스트 유저 활동 감지] ${timestamp}`);
-  console.log(`📧 이메일: ${userInfo.email}`);
-  console.log(`👤 사용자명: ${userInfo.displayName || "N/A"}`);
-  console.log(`🆔 UID: ${userInfo.uid}`);
-  console.log(`🎯 활동: ${activity}`);
-  console.log(`⏰ 시간: ${timestamp}`);
-  console.log("─".repeat(80));
+
+  // 토큰 조회는 과도한 로깅 방지를 위해 간소화
+  if (activity === "토큰 조회") {
+    console.log(
+      `🚨 [비화이트리스트 토큰 조회] ${userInfo.email} (${userInfo.uid})`
+    );
+  } else {
+    console.log(`🚨 [비화이트리스트 유저 활동 감지] ${timestamp}`);
+    console.log(`📧 이메일: ${userInfo.email}`);
+    console.log(`👤 사용자명: ${userInfo.displayName || "N/A"}`);
+    console.log(`🆔 UID: ${userInfo.uid}`);
+    console.log(`🎯 활동: ${activity}`);
+    console.log(`⏰ 시간: ${timestamp}`);
+    console.log("─".repeat(80));
+  }
 }
 
 async function checkEmailAccess(email) {

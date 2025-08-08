@@ -10,6 +10,8 @@ const {
   userStatsCache,
   overallStatsCache,
 } = require("../utils/cache");
+const getManualTopicByDate = require("../utils/getManualTopicByDate");
+const getTodayAIBasedTopic = require("../utils/getTodayAIBasedTopic");
 
 // 모든 사용자 목록 조회 (페이지네이션 지원)
 router.get("/stats/users", async (req, res) => {
@@ -217,7 +219,7 @@ router.get("/all-submissions/:uid", async (req, res) => {
 
     const submissions = await Submission.find(dateFilter)
       .select(
-        "_id title text user mode sessionCount duration createdAt topic score ai_feedback"
+        "_id title text user mode sessionCount duration createdAt topic score ai_feedback userTimezone userTimezoneOffset"
       )
       .sort({ createdAt: -1 });
 

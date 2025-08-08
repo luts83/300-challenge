@@ -56,7 +56,7 @@ router.get("/:uid", async (req, res) => {
 
     const now = new Date();
 
-    // 사용자 시간대 기준으로 오늘 날짜 계산
+    // 사용자 시간대 기준으로 오늘 날짜 계산 (수정된 로직)
     const userTime = new Date(now.getTime() + offset * 60 * 1000);
     const today = new Date(
       Date.UTC(
@@ -65,6 +65,8 @@ router.get("/:uid", async (req, res) => {
         userTime.getUTCDate()
       )
     );
+
+    // 디버깅을 위한 시간 정보 (finalTokenEntry 정의 후로 이동)
 
     // 사용자 시간대 기준으로 월요일 계산
     const userMonday = new Date(userTime);
@@ -117,6 +119,19 @@ router.get("/:uid", async (req, res) => {
       };
     }
 
+    // 디버깅을 위한 시간 정보 (finalTokenEntry 정의 후)
+    console.log(`[토큰 디버그] ${userRecord.email}:`);
+    console.log(`  - offset: ${offset}분`);
+    console.log(`  - now: ${now.toISOString()}`);
+    console.log(`  - userTime: ${userTime.toISOString()}`);
+    console.log(`  - today: ${today.toISOString()}`);
+    console.log(
+      `  - lastRefreshed: ${
+        finalTokenEntry?.lastRefreshed?.toISOString() || "N/A"
+      }`
+    );
+    console.log(`  - 비교 결과: ${finalTokenEntry?.lastRefreshed < today}`);
+
     // 화이트리스트 체크
     const isWhitelisted = await checkEmailAccess(userRecord.email);
 
@@ -163,13 +178,32 @@ router.get("/:uid", async (req, res) => {
 
     // 300자 토큰 지급 (submitController.js와 동일한 분기 및 디버깅)
     if (isWhitelisted) {
-      // 매일 리셋
-      if (finalTokenEntry.lastRefreshed < today) {
+      // 매일 리셋 - 더 명확한 조건
+      const lastRefreshedDate = new Date(finalTokenEntry.lastRefreshed);
+      const lastRefreshedDay = new Date(
+        Date.UTC(
+          lastRefreshedDate.getUTCFullYear(),
+          lastRefreshedDate.getUTCMonth(),
+          lastRefreshedDate.getUTCDate()
+        )
+      );
+
+      console.log(`[토큰 리프레시 체크] ${userRecord.email}:`);
+      console.log(`  - lastRefreshedDay: ${lastRefreshedDay.toISOString()}`);
+      console.log(`  - today: ${today.toISOString()}`);
+      console.log(`  - 리프레시 필요: ${lastRefreshedDay < today}`);
+
+      if (lastRefreshedDay < today) {
         finalTokenEntry.tokens_300 = TOKEN.DAILY_LIMIT_300;
         finalTokenEntry.lastRefreshed = now;
         console.log(
           `[토큰 지급][토큰조회] 화이트리스트 유저에게 300자 토큰 지급 (일일 리셋)`
         );
+      } else {
+        console.log(
+          `[토큰 리프레시 스킵] ${userRecord.email}: 아직 리프레시 시간이 아님`
+        );
+        console.log(`  - 현재 토큰: ${finalTokenEntry.tokens_300}개`);
       }
     } else if (daysSinceJoin < 7) {
       // 비참여자, 가입 후 7일 이내: 매일 지급

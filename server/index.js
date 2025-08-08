@@ -1,6 +1,7 @@
 require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
+const rateLimit = require("express-rate-limit");
 const app = express();
 const PORT = process.env.PORT || 8080;
 const submitRoute = require("./routes/submit");
@@ -25,6 +26,39 @@ const Submission = require("./models/Submission");
 const userRoutes = require("./routes/user");
 
 app.use(cookieParser());
+
+// Rate Limiting 설정
+const tokenLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1분
+  max: 50, // 1분당 최대 50회 요청 (더 관대하게)
+  standardHeaders: true,
+  legacyHeaders: false,
+  // 사용자 친화적인 설정 추가
+  skipSuccessfulRequests: true, // 성공한 요청은 카운트하지 않음
+  skipFailedRequests: false, // 실패한 요청은 카운트
+  handler: (req, res) => {
+    res.status(429).json({
+      error: "잠시 후 다시 시도해주세요.",
+      retryAfter: Math.ceil(60 / 1000), // 60초 후 재시도 가능
+    });
+  },
+});
+
+const generalLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1분
+  max: 200, // 1분당 최대 200회 요청 (2배 증가)
+  standardHeaders: true,
+  legacyHeaders: false,
+  // 사용자 친화적인 설정 추가
+  skipSuccessfulRequests: true, // 성공한 요청은 카운트하지 않음
+  skipFailedRequests: false, // 실패한 요청은 카운트
+  handler: (req, res) => {
+    res.status(429).json({
+      error: "잠시 후 다시 시도해주세요.",
+      retryAfter: Math.ceil(60 / 1000), // 60초 후 재시도 가능
+    });
+  },
+});
 
 const allowedOrigins = [
   "https://dwriting.ai",
@@ -75,6 +109,13 @@ app.use(
 );
 
 app.use(express.json());
+
+// Rate Limiting 적용 (Dashboard는 제외)
+app.use("/api/tokens", tokenLimiter); // 토큰 API에 제한
+app.use("/api/submit", generalLimiter); // 제출 API에 제한
+app.use("/api/feedback", generalLimiter); // 피드백 API에 제한
+// Dashboard API는 Rate Limiting 제외 (사용자 경험 우선)
+
 app.use("/api/topic", topicRoute);
 app.use("/api/tokens", tokenRoute);
 // app.use("/api/evaluate", require("./routes/evaluate"));

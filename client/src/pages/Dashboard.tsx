@@ -5,6 +5,7 @@ import { useUser } from '../context/UserContext';
 import axios from 'axios';
 import { format } from 'date-fns';
 import { ko } from 'date-fns/locale';
+import { toZonedTime, format as formatTz } from 'date-fns-tz';
 import { isAdmin } from '../utils/admin';
 import { useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
@@ -382,6 +383,7 @@ const Dashboard = () => {
   const [userSearchTerm, setUserSearchTerm] = useState('');
   const [userLoading, setUserLoading] = useState(false);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
+  const [stableSubmissions, setStableSubmissions] = useState<Submission[]>([]);
   const [selectedUser, setSelectedUser] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [stats, setStats] = useState<{
@@ -489,6 +491,13 @@ const Dashboard = () => {
       setStats(statsRes.data);
       setRankings(rankingsRes.data);
 
+      // userTimezone 정보가 있는 submission들을 안정화
+      const submissionsWithStableTimezone = submissionsRes.data.map((sub: Submission) => ({
+        ...sub,
+        userTimezone: sub.userTimezone || 'Asia/Seoul',
+      }));
+      setStableSubmissions(submissionsWithStableTimezone);
+
       // 주제 랭킹도 함께 업데이트
       await fetchTopicRanking(1, topicSearchTerm, topicModeFilter);
     } catch (e) {
@@ -538,8 +547,26 @@ const Dashboard = () => {
   };
 
   // 날짜/시간 포맷팅 함수
-  const formatDateTime = (dateString: string) => {
-    return format(new Date(dateString), 'PPP a h시 mm분', { locale: ko });
+  const formatDateTime = (dateString: string, userTimezone?: string) => {
+    try {
+      const date = new Date(dateString);
+
+      // 사용자 시간대가 있으면 해당 시간대로 변환
+      if (userTimezone && userTimezone !== 'Asia/Seoul') {
+        // UTC 시간을 사용자 시간대로 변환
+        const userTime = toZonedTime(date, userTimezone);
+        return formatTz(userTime, 'PPP a h시 mm분', {
+          timeZone: userTimezone,
+          locale: ko,
+        });
+      }
+
+      // 기본: 한국 시간으로 표시
+      return format(date, 'PPP a h시 mm분', { locale: ko });
+    } catch (error) {
+      // 에러 발생 시 기본 포맷 사용
+      return format(new Date(dateString), 'PPP a h시 mm분', { locale: ko });
+    }
   };
 
   // 작성 위치 정보 포맷팅 함수
@@ -620,8 +647,8 @@ const Dashboard = () => {
 
   // 필터링된 제출물을 계산하는 부분 수정
   const filteredSubmissions = selectedUser
-    ? submissions.filter(sub => sub.user.uid === selectedUser)
-    : submissions;
+    ? stableSubmissions.filter(sub => sub.user.uid === selectedUser)
+    : stableSubmissions;
 
   // 표시할 제출물만 선택
   const displayedSubmissions = filteredSubmissions.slice(0, displayCount);
@@ -882,8 +909,8 @@ const Dashboard = () => {
                           ({submission.user.email})
                         </p>
                         <p className="text-sm text-gray-400">
-                          작성 시간: {formatDateTime(submission.createdAt)}
-                          {submission.userTimezone && (
+                          작성 시간: {formatDateTime(submission.createdAt, submission.userTimezone)}
+                          {submission.userTimezone && submission.userTimezone !== '' && (
                             <span className="ml-2 text-gray-500">
                               {formatLocation(submission.userTimezone)}
                             </span>
@@ -1479,8 +1506,9 @@ const Dashboard = () => {
                             ({submission.user.email})
                           </p>
                           <p className="text-sm text-gray-400">
-                            작성 시간: {formatDateTime(submission.createdAt)}
-                            {submission.userTimezone && (
+                            작성 시간:{' '}
+                            {formatDateTime(submission.createdAt, submission.userTimezone)}
+                            {submission.userTimezone && submission.userTimezone !== '' && (
                               <span className="ml-2 text-gray-500">
                                 {formatLocation(submission.userTimezone)}
                               </span>
