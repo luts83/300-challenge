@@ -446,10 +446,9 @@ const Dashboard = () => {
 
         // 주제 랭킹은 비동기로 호출 (로딩 블로킹 방지)
         fetchTopicRanking(1, '').catch(error => {
-          console.error('주제 랭킹 로딩 실패:', error);
+          // 주제 랭킹 로딩 실패는 무시
         });
       } catch (error) {
-        console.error('데이터 불러오기 실패:', error);
         setError('데이터를 불러오는 데 실패했습니다.');
       } finally {
         setLoading(false);
@@ -493,7 +492,6 @@ const Dashboard = () => {
       // 주제 랭킹도 함께 업데이트
       await fetchTopicRanking(1, topicSearchTerm, topicModeFilter);
     } catch (e) {
-      console.error(e);
       setError('데이터 불러오기 실패');
     } finally {
       setLoading(false);
@@ -519,7 +517,7 @@ const Dashboard = () => {
         );
         setLikeReceivedRanking(res.data.likeReceivedRanking);
       } catch (err) {
-        console.error('좋아요 받은 랭킹 가져오기 실패:', err);
+        // 좋아요 받은 랭킹 로딩 실패는 무시
       }
     };
 
@@ -608,7 +606,6 @@ const Dashboard = () => {
         setTopicRanking([]);
       }
     } catch (e) {
-      console.error('주제 랭킹 불러오기 실패:', e);
       setTopicRanking([]);
       toast.error('주제 랭킹을 불러오는데 실패했습니다.');
     } finally {
@@ -686,7 +683,6 @@ const Dashboard = () => {
 
       setUserPagination(response.data.pagination);
     } catch (error) {
-      console.error('사용자 목록을 불러오는데 실패했습니다:', error);
       toast.error('사용자 목록을 불러오는데 실패했습니다.');
     } finally {
       setLoading(false);
@@ -709,7 +705,7 @@ const Dashboard = () => {
 
       setSubmissionDates(dates);
     } catch (error) {
-      console.error('작성 날짜 목록을 불러오는데 실패했습니다:', error);
+      // 작성 날짜 목록 로딩 실패는 무시
     }
   };
 
@@ -721,7 +717,6 @@ const Dashboard = () => {
 
       return res.data.topic;
     } catch (error) {
-      console.error('날짜 주제를 불러오는데 실패했습니다:', error);
       return null;
     }
   };
@@ -738,7 +733,6 @@ const Dashboard = () => {
 
       setCurrentDateTopic(res.data.topic);
     } catch (error) {
-      console.error('현재 날짜 주제를 불러오는데 실패했습니다:', error);
       setCurrentDateTopic(null);
     }
   };
