@@ -119,18 +119,24 @@ router.get("/:uid", async (req, res) => {
       };
     }
 
-    // 디버깅을 위한 시간 정보 (finalTokenEntry 정의 후)
-    console.log(`[토큰 디버그] ${userRecord.email}:`);
-    console.log(`  - offset: ${offset}분`);
-    console.log(`  - now: ${now.toISOString()}`);
-    console.log(`  - userTime: ${userTime.toISOString()}`);
-    console.log(`  - today: ${today.toISOString()}`);
-    console.log(
-      `  - lastRefreshed: ${
-        finalTokenEntry?.lastRefreshed?.toISOString() || "N/A"
-      }`
-    );
-    console.log(`  - 비교 결과: ${finalTokenEntry?.lastRefreshed < today}`);
+    // 디버깅을 위한 시간 정보 (변화가 있을 때만 출력)
+    const timeDebugKey = `${uid}_timedebug_${
+      today.toISOString().split("T")[0]
+    }`;
+    if (!debugLogCache.has(timeDebugKey)) {
+      console.log(`[토큰 디버그] ${userRecord.email}:`);
+      console.log(`  - offset: ${offset}분`);
+      console.log(`  - now: ${now.toISOString()}`);
+      console.log(`  - userTime: ${userTime.toISOString()}`);
+      console.log(`  - today: ${today.toISOString()}`);
+      console.log(
+        `  - lastRefreshed: ${
+          finalTokenEntry?.lastRefreshed?.toISOString() || "N/A"
+        }`
+      );
+      console.log(`  - 비교 결과: ${finalTokenEntry?.lastRefreshed < today}`);
+      debugLogCache.add(timeDebugKey);
+    }
 
     // 화이트리스트 체크
     const isWhitelisted = await checkEmailAccess(userRecord.email);
@@ -188,10 +194,16 @@ router.get("/:uid", async (req, res) => {
         )
       );
 
-      console.log(`[토큰 리프레시 체크] ${userRecord.email}:`);
-      console.log(`  - lastRefreshedDay: ${lastRefreshedDay.toISOString()}`);
-      console.log(`  - today: ${today.toISOString()}`);
-      console.log(`  - 리프레시 필요: ${lastRefreshedDay < today}`);
+      const refreshDebugKey = `${uid}_refresh_${
+        today.toISOString().split("T")[0]
+      }`;
+      if (!debugLogCache.has(refreshDebugKey)) {
+        console.log(`[토큰 리프레시 체크] ${userRecord.email}:`);
+        console.log(`  - lastRefreshedDay: ${lastRefreshedDay.toISOString()}`);
+        console.log(`  - today: ${today.toISOString()}`);
+        console.log(`  - 리프레시 필요: ${lastRefreshedDay < today}`);
+        debugLogCache.add(refreshDebugKey);
+      }
 
       if (lastRefreshedDay < today) {
         finalTokenEntry.tokens_300 = TOKEN.DAILY_LIMIT_300;
@@ -200,10 +212,12 @@ router.get("/:uid", async (req, res) => {
           `[토큰 지급][토큰조회] 화이트리스트 유저에게 300자 토큰 지급 (일일 리셋)`
         );
       } else {
-        console.log(
-          `[토큰 리프레시 스킵] ${userRecord.email}: 아직 리프레시 시간이 아님`
-        );
-        console.log(`  - 현재 토큰: ${finalTokenEntry.tokens_300}개`);
+        // 스킵 로그는 토큰이 0개일 때만 출력
+        if (finalTokenEntry.tokens_300 === 0) {
+          console.log(
+            `[토큰 리프레시 스킵] ${userRecord.email}: 아직 리프레시 시간이 아님 (토큰: 0개)`
+          );
+        }
       }
     } else if (daysSinceJoin < 7) {
       // 비참여자, 가입 후 7일 이내: 매일 지급

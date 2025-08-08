@@ -4,6 +4,9 @@ const cors = require("cors");
 const rateLimit = require("express-rate-limit");
 const app = express();
 const PORT = process.env.PORT || 8080;
+
+// 프록시 환경에서 rate limiting이 제대로 작동하도록 설정
+app.set("trust proxy", 1);
 const submitRoute = require("./routes/submit");
 const topicRoute = require("./routes/topic");
 const mongoose = require("mongoose");
