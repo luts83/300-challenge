@@ -238,6 +238,11 @@ const Write1000 = () => {
         resetCount,
         lastInputTime: now,
         lastSavedAt: now,
+        user: {
+          uid: user.uid,
+          email: user.email,
+          displayName: user.displayName || '익명',
+        },
       });
 
       if (showMessage) {

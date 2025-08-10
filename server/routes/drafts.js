@@ -14,6 +14,7 @@ router.post("/save", async (req, res) => {
     lastInputTime,
     lastSavedAt,
     resetCount,
+    user, // user 정보 추가
   } = req.body;
 
   if (!uid) {
@@ -31,6 +32,22 @@ router.post("/save", async (req, res) => {
     draft.lastSavedAt = lastSavedAt;
     draft.updatedAt = new Date();
     draft.status = "active";
+
+    // user 정보 설정 (필수 필드)
+    if (user) {
+      draft.user = {
+        uid: user.uid || uid,
+        email: user.email || "",
+        displayName: user.displayName || "익명",
+      };
+    } else {
+      // user 정보가 없으면 기본값 설정
+      draft.user = {
+        uid: uid,
+        email: "",
+        displayName: "익명",
+      };
+    }
 
     await draft.save();
 
