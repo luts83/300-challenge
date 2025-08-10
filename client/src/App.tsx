@@ -16,8 +16,10 @@ import TermsOfService from './pages/TermsOfService';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import CookiePolicy from './pages/CookiePolicy';
 import FAQ from './pages/FAQ';
+import Profile from './pages/Profile';
 import { initTheme, toggleDarkMode } from './utils/theme';
 import { ThemeProvider } from './context/ThemeContext';
+import TimezoneDebug from './components/TimezoneDebug';
 
 // 배경 이미지 래퍼 컴포넌트
 const BackgroundWrapper = ({ children }: { children: React.ReactNode }) => {
@@ -68,11 +70,13 @@ function App() {
               <Route path="/my" element={<MySubmissions />} />
               <Route path="/feedback-camp" element={<FeedbackCamp />} />
               <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/profile" element={<Profile />} />
               <Route path="/terms-of-service" element={<TermsOfService />} />
               <Route path="/privacy-policy" element={<PrivacyPolicy />} />
               <Route path="/cookie-policy" element={<CookiePolicy />} />
               <Route path="/faq" element={<FAQ />} />
             </Routes>
+            <TimezoneDebug />
           </BackgroundWrapper>
         </Router>
       </ThemeProvider>

@@ -22,7 +22,7 @@ const FEEDBACK_GUIDES = [
   },
   {
     id: 'examples',
-    text: '이 부분에 구체적인 예시가 더해지면 좋겠어요',
+    text: '(특정 부분을 언급)이 부분에 구체적인 예시가 더해지면 좋겠어요',
     description: '추상적인 내용을 구체적으로',
   },
   {

@@ -475,11 +475,9 @@ router.post("/unlock-feedback", async (req, res) => {
 
     // 콘솔 로그 추가
     console.log(
-      `[황금열쇠 사용] ${
-        userToken.uid
-      } | ${new Date().toISOString()} | 사용량: ${requiredTokens} | 남은 황금열쇠: ${
-        userToken.goldenKeys
-      }`
+      `[황금열쇠 사용] ${userToken.user.email}: 피드백 언락 (${
+        unlockType === "single" ? "단일" : "기간"
+      }) (-${requiredTokens})`
     );
 
     // 토큰 히스토리 기록 (새로운 방식)
@@ -775,11 +773,7 @@ router.post("/unlock-dilating", async (req, res) => {
 
     // 콘솔 로그 추가
     console.log(
-      `[딜라이팅AI 버전 구매] ${
-        userToken.uid
-      } | ${new Date().toISOString()} | 사용량: ${requiredTokens} | 남은 황금열쇠: ${
-        userToken.goldenKeys
-      }`
+      `[황금열쇠 사용] ${userToken.user.email}: 딜라이팅AI 버전 구매 (-${requiredTokens})`
     );
 
     // 토큰 히스토리 기록

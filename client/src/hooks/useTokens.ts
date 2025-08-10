@@ -11,14 +11,28 @@ interface TokenData {
   lastWeeklyRefreshed?: string;
 }
 
+// 전역 토큰 캐시 (메모리 누수 방지를 위한 WeakMap 사용)
+const tokenCache = new Map<string, { data: TokenData; timestamp: number }>();
+const CACHE_DURATION = 5 * 60 * 1000; // 5분 캐시
+
 export const useTokens = () => {
   const { user } = useUser();
   const [tokens, setTokens] = useState<TokenData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchTokens = async () => {
+  const fetchTokens = async (forceRefresh = false) => {
     if (!user) return;
+
+    // 캐시된 데이터가 있고 강제 새로고침이 아닌 경우 캐시 사용
+    const cacheKey = user.uid;
+    const cached = tokenCache.get(cacheKey);
+    const now = Date.now();
+
+    if (!forceRefresh && cached && now - cached.timestamp < CACHE_DURATION) {
+      setTokens(cached.data);
+      return;
+    }
 
     setIsLoading(true);
     try {
@@ -30,13 +44,18 @@ export const useTokens = () => {
         `${import.meta.env.VITE_API_URL}/api/tokens/${user.uid}?timezone=${encodeURIComponent(userTimezone)}&offset=${userOffset}`
       );
 
-      setTokens({
+      const tokenData = {
         tokens_300: Number(response.data.tokens_300) || 0,
         tokens_1000: Number(response.data.tokens_1000) || 0,
         goldenKeys: Number(response.data.goldenKeys) || 0,
         lastRefreshed: response.data.lastRefreshed,
         lastWeeklyRefreshed: response.data.lastWeeklyRefreshed,
-      });
+      };
+
+      // 캐시에 저장
+      tokenCache.set(cacheKey, { data: tokenData, timestamp: now });
+
+      setTokens(tokenData);
       setError(null);
     } catch (err) {
       logger.error('토큰 정보 조회 실패:', err);
@@ -54,6 +73,6 @@ export const useTokens = () => {
     tokens,
     isLoading,
     error,
-    refetchTokens: fetchTokens,
+    refetchTokens: () => fetchTokens(true), // 강제 새로고침
   };
 };

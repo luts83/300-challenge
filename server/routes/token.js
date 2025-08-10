@@ -13,6 +13,52 @@ const {
 // 디버그 로그 캐시 (유저별로 한 번만 출력)
 const debugLogCache = new Set();
 
+/**
+ * UTC 오프셋을 기반으로 대략적인 위치 정보를 반환
+ * @param {number} offsetHours - UTC 기준 시간 차이 (시간 단위)
+ * @returns {string} 위치 정보
+ */
+const getLocationByOffset = (offsetHours) => {
+  const locationMap = {
+    "-12": "🇺🇸 하와이",
+    "-11": "🇺🇸 알래스카",
+    "-10": "🇺🇸 하와이",
+    "-9": "🇺🇸 알래스카",
+    "-8": "🇺🇸 로스앤젤레스",
+    "-7": "🇺🇸 덴버",
+    "-6": "🇺🇸 시카고",
+    "-5": "🇺🇸 뉴욕",
+    "-4": "🇺🇸 뉴욕 (서머타임)",
+    "-3": "🇧🇷 상파울루",
+    "-2": "🇧🇷 상파울루 (서머타임)",
+    "-1": "🇵🇹 아조레스",
+    0: "🇬🇧 런던",
+    1: "🇬🇧 런던 (서머타임) / 🇫🇷 파리 / 🇩🇪 베를린",
+    2: "🇺🇦 키예프 / 🇹🇷 이스탄불",
+    3: "🇷🇺 모스크바",
+    4: "🇷🇺 모스크바 (서머타임)",
+    5: "🇮🇳 뭄바이",
+    5.5: "🇮🇳 뭄바이",
+    6: "🇰🇿 알마티",
+    7: "🇹🇭 방콕",
+    8: "🇨🇳 베이징 / 🇭🇰 홍콩",
+    9: "🇰🇷 서울 / 🇯🇵 도쿄",
+    10: "🇦🇺 시드니",
+    11: "🇦🇺 시드니 (서머타임)",
+    12: "🇳🇿 오클랜드",
+    13: "🇳🇿 오클랜드 (서머타임)",
+  };
+
+  // 가장 가까운 오프셋 찾기
+  const closestOffset = Object.keys(locationMap).reduce((prev, curr) => {
+    return Math.abs(curr - offsetHours) < Math.abs(prev - offsetHours)
+      ? curr
+      : prev;
+  });
+
+  return locationMap[closestOffset] || `알 수 없는 지역`;
+};
+
 // ✍ UID로 해당 유저의 토큰 조회 (mode별)
 router.get("/:uid", async (req, res) => {
   const { uid } = req.params;
@@ -67,44 +113,88 @@ router.get("/:uid", async (req, res) => {
       )
     );
 
-    // 추가 디버깅: 시간대 변환 과정 확인
-    console.log(`[시간대 디버그] ${userRecord.email}:`);
-    console.log(`  - UTC 시간: ${now.toISOString()}`);
-    console.log(`  - 사용자 offset: ${offset}분 (getTimezoneOffset 값)`);
-    console.log(`  - 사용자 시간: ${userTime.toISOString()}`);
-    console.log(`  - 계산된 today: ${today.toISOString()}`);
-    console.log(`  - 예상 today (8월 8일): 2025-08-08T00:00:00.000Z`);
-    console.log(`  - 계산 과정: UTC + (${-offset}분) = 사용자 시간`);
-
-    // 디버깅을 위한 시간 정보 (finalTokenEntry 정의 후로 이동)
-
-    // 사용자 시간대 기준으로 월요일 계산
-    const userMonday = new Date(userTime);
-    const dayOfWeek = userMonday.getUTCDay(); // 0=일요일, 1=월요일, ...
-    const monday = new Date(
-      Date.UTC(
-        userMonday.getUTCFullYear(),
-        userMonday.getUTCMonth(),
-        userMonday.getUTCDate() - dayOfWeek + 1
-      )
-    );
-
-    // 디버깅: 시간 정보는 개발 환경에서만 출력 (유저별)
-    const debugKey = `${uid}_${today.toISOString().split("T")[0]}`;
+    // 간략화된 시간대 디버깅 (유저별 하루 한 번만)
+    const timezoneDebugKey = `${uid}_timezone_${
+      today.toISOString().split("T")[0]
+    }`;
     if (
       process.env.NODE_ENV === "development" &&
-      !debugLogCache.has(debugKey)
+      !debugLogCache.has(timezoneDebugKey)
     ) {
-      console.log(`[토큰 지급 디버그] ${userRecord.email} (${uid})`);
-      console.log("now:", now.toISOString());
-      console.log("today (0시):", today.toISOString());
-      console.log("monday (이번주 월요일 0시):", monday.toISOString());
-      debugLogCache.add(debugKey);
+      const offsetHours = -offset / 60;
+      const locationInfo = getLocationByOffset(offsetHours);
+      console.log(
+        `[시간대] ${userRecord.email}: UTC${
+          offsetHours >= 0 ? "+" : ""
+        }${offsetHours} (${locationInfo})`
+      );
+      debugLogCache.add(timezoneDebugKey);
+    }
 
-      // 캐시 크기 제한 (메모리 누수 방지)
-      if (debugLogCache.size > 1000) {
-        debugLogCache.clear();
+    // 사용자 시간대 기준으로 현재 주 월요일 계산 (수정된 로직)
+    const userMonday = new Date(userTime);
+    const dayOfWeek = userMonday.getDay(); // 0=일요일, 1=월요일, ... (로컬 시간 기준)
+
+    // 현재 주의 월요일 계산 (일요일이면 이전 주 월요일, 월요일~토요일이면 이번 주 월요일)
+    let monday;
+    if (dayOfWeek === 0) {
+      // 일요일인 경우: 이전 주 월요일 (7일 전)
+      monday = new Date(
+        Date.UTC(
+          userMonday.getUTCFullYear(),
+          userMonday.getUTCMonth(),
+          userMonday.getUTCDate() - 6
+        )
+      );
+    } else {
+      // 월요일~토요일인 경우: 이번 주 월요일
+      monday = new Date(
+        Date.UTC(
+          userMonday.getUTCFullYear(),
+          userMonday.getUTCMonth(),
+          userMonday.getUTCDate() - dayOfWeek + 1
+        )
+      );
+    }
+
+    // 주간 리셋 디버깅 로그 추가
+    if (process.env.NODE_ENV === "development") {
+      const weekdays = ["일", "월", "화", "수", "목", "금", "토"];
+      console.log(`[주간리셋 디버그] ${userRecord.email}:`);
+      console.log(`  - 서버시간: ${now.toISOString()}`);
+      console.log(`  - 사용자시간: ${userTime.toISOString()}`);
+      console.log(`  - 사용자요일: ${weekdays[dayOfWeek]} (${dayOfWeek})`);
+      console.log(`  - 계산된월요일: ${monday.toISOString()}`);
+      console.log(
+        `  - 월요일계산방식: ${
+          dayOfWeek === 0 ? "일요일→이전주월요일" : "월~토→이번주월요일"
+        }`
+      );
+      if (finalTokenEntry?.lastWeeklyRefreshed) {
+        console.log(
+          `  - 마지막주간리셋: ${finalTokenEntry.lastWeeklyRefreshed.toISOString()}`
+        );
+        console.log(
+          `  - 리셋필요: ${finalTokenEntry.lastWeeklyRefreshed < monday}`
+        );
       }
+    }
+
+    // 간략화된 토큰 디버깅 (유저별 하루 한 번만)
+    const tokenDebugKey = `${uid}_token_${today.toISOString().split("T")[0]}`;
+    if (
+      process.env.NODE_ENV === "development" &&
+      !debugLogCache.has(tokenDebugKey)
+    ) {
+      console.log(
+        `[토큰] ${userRecord.email}: ${today.toISOString().split("T")[0]} 기준`
+      );
+      debugLogCache.add(tokenDebugKey);
+    }
+
+    // 캐시 크기 제한 (메모리 누수 방지)
+    if (debugLogCache.size > 1000) {
+      debugLogCache.clear();
     }
 
     let finalTokenEntry = tokenEntry;
@@ -129,23 +219,24 @@ router.get("/:uid", async (req, res) => {
       };
     }
 
-    // 디버깅을 위한 시간 정보 (변화가 있을 때만 출력)
-    const timeDebugKey = `${uid}_timedebug_${
+    // 간략화된 토큰 상태 디버깅 (유저별 하루 한 번만)
+    const tokenStatusDebugKey = `${uid}_status_${
       today.toISOString().split("T")[0]
     }`;
-    if (!debugLogCache.has(timeDebugKey)) {
-      console.log(`[토큰 디버그] ${userRecord.email}:`);
-      console.log(`  - offset: ${offset}분`);
-      console.log(`  - now: ${now.toISOString()}`);
-      console.log(`  - userTime: ${userTime.toISOString()}`);
-      console.log(`  - today: ${today.toISOString()}`);
+    if (
+      process.env.NODE_ENV === "development" &&
+      !debugLogCache.has(tokenStatusDebugKey)
+    ) {
+      const lastRefreshed =
+        finalTokenEntry?.lastRefreshed?.toISOString().split("T")[0] || "N/A";
       console.log(
-        `  - lastRefreshed: ${
-          finalTokenEntry?.lastRefreshed?.toISOString() || "N/A"
+        `[토큰상태] ${
+          userRecord.email
+        }: 마지막리프레시=${lastRefreshed}, 리프레시필요=${
+          finalTokenEntry?.lastRefreshed < today
         }`
       );
-      console.log(`  - 비교 결과: ${finalTokenEntry?.lastRefreshed < today}`);
-      debugLogCache.add(timeDebugKey);
+      debugLogCache.add(tokenStatusDebugKey);
     }
 
     // 화이트리스트 체크
@@ -170,26 +261,23 @@ router.get("/:uid", async (req, res) => {
       }
     }
 
-    // 유저 정보 로그는 한 번만 출력
+    // 간략화된 유저 정보 로그 (유저별 하루 한 번만)
+    const userInfoDebugKey = `${uid}_userinfo_${
+      today.toISOString().split("T")[0]
+    }`;
     if (
-      !debugLogCache.has(`${uid}_userinfo_${today.toISOString().split("T")[0]}`)
+      process.env.NODE_ENV === "development" &&
+      !debugLogCache.has(userInfoDebugKey)
     ) {
+      const lastRefreshed =
+        finalTokenEntry?.lastRefreshed?.toISOString().split("T")[0] || "N/A";
+      const lastWeeklyRefreshed =
+        finalTokenEntry?.lastWeeklyRefreshed?.toISOString().split("T")[0] ||
+        "N/A";
       console.log(
-        `[토큰 지급][토큰조회] 유저: ${userRecord.email} (${uid}) / 화이트리스트: ${isWhitelisted} / 가입 후 ${daysSinceJoin}일 경과`
+        `[유저] ${userRecord.email}: 화이트리스트=${isWhitelisted}, 가입후=${daysSinceJoin}일, 마지막리프레시=${lastRefreshed}, 주간리프레시=${lastWeeklyRefreshed}`
       );
-      if (finalTokenEntry) {
-        console.log(
-          "lastRefreshed:",
-          finalTokenEntry.lastRefreshed?.toISOString?.() ||
-            finalTokenEntry.lastRefreshed
-        );
-        console.log(
-          "lastWeeklyRefreshed:",
-          finalTokenEntry.lastWeeklyRefreshed?.toISOString?.() ||
-            finalTokenEntry.lastWeeklyRefreshed
-        );
-      }
-      debugLogCache.add(`${uid}_userinfo_${today.toISOString().split("T")[0]}`);
+      debugLogCache.add(userInfoDebugKey);
     }
 
     // 300자 토큰 지급 (submitController.js와 동일한 분기 및 디버깅)
@@ -207,26 +295,44 @@ router.get("/:uid", async (req, res) => {
       const refreshDebugKey = `${uid}_refresh_${
         today.toISOString().split("T")[0]
       }`;
-      if (!debugLogCache.has(refreshDebugKey)) {
-        console.log(`[토큰 리프레시 체크] ${userRecord.email}:`);
-        console.log(`  - lastRefreshedDay: ${lastRefreshedDay.toISOString()}`);
-        console.log(`  - today: ${today.toISOString()}`);
-        console.log(`  - 리프레시 필요: ${lastRefreshedDay < today}`);
+      if (
+        process.env.NODE_ENV === "development" &&
+        !debugLogCache.has(refreshDebugKey)
+      ) {
+        const lastRefreshedDayStr = lastRefreshedDay
+          .toISOString()
+          .split("T")[0];
+        const todayStr = today.toISOString().split("T")[0];
+        console.log(
+          `[리프레시] ${
+            userRecord.email
+          }: ${lastRefreshedDayStr} → ${todayStr} (필요: ${
+            lastRefreshedDay < today
+          })`
+        );
         debugLogCache.add(refreshDebugKey);
       }
 
       if (lastRefreshedDay < today) {
         finalTokenEntry.tokens_300 = TOKEN.DAILY_LIMIT_300;
         finalTokenEntry.lastRefreshed = now;
-        console.log(
-          `[토큰 지급][토큰조회] 화이트리스트 유저에게 300자 토큰 지급 (일일 리셋)`
-        );
+        console.log(`[토큰지급] ${userRecord.email}: 300자 일일리셋`);
       } else {
-        // 스킵 로그는 토큰이 0개일 때만 출력
+        // 스킵 로그는 토큰이 0개일 때만 출력하고, 중복 방지
         if (finalTokenEntry.tokens_300 === 0) {
-          console.log(
-            `[토큰 리프레시 스킵] ${userRecord.email}: 아직 리프레시 시간이 아님 (토큰: 0개)`
-          );
+          const logKey = `token_skip_${userRecord.uid}_${today}`;
+          if (!debugLogCache.has(logKey)) {
+            console.log(
+              `[토큰스킵] ${userRecord.email}: 아직 리프레시 시간이 아님`
+            );
+            debugLogCache.add(logKey);
+
+            // 캐시 크기 제한 (메모리 누수 방지)
+            if (debugLogCache.size > 1000) {
+              const firstKey = debugLogCache.values().next().value;
+              debugLogCache.delete(firstKey);
+            }
+          }
         }
       }
     } else if (daysSinceJoin < 7) {
@@ -234,9 +340,7 @@ router.get("/:uid", async (req, res) => {
       if (finalTokenEntry.lastRefreshed < today) {
         finalTokenEntry.tokens_300 = TOKEN.DAILY_LIMIT_300;
         finalTokenEntry.lastRefreshed = now;
-        console.log(
-          `[토큰 지급][토큰조회] 신규 비참여자(가입 7일 이내)에게 300자 토큰 지급 (일일 리셋)`
-        );
+        console.log(`[토큰지급] ${userRecord.email}: 300자 신규유저 일일리셋`);
       }
     } else {
       // 비참여자, 가입 7일 이후: 주간 지급
@@ -247,9 +351,7 @@ router.get("/:uid", async (req, res) => {
         finalTokenEntry.tokens_300 = TOKEN.WEEKLY_LIMIT_300;
         finalTokenEntry.tokens_1000 = TOKEN.WEEKLY_LIMIT_1000;
         finalTokenEntry.lastWeeklyRefreshed = monday;
-        console.log(
-          `[토큰 지급][토큰조회] 비화이트리스트 유저(가입 7일 초과)에게 300자, 1000자 토큰 지급 (주간 리셋)`
-        );
+        console.log(`[토큰지급] ${userRecord.email}: 300자+1000자 주간리셋`);
       }
     }
 
@@ -260,9 +362,7 @@ router.get("/:uid", async (req, res) => {
       if (finalTokenEntry.lastWeeklyRefreshed < monday) {
         finalTokenEntry.tokens_1000 = TOKEN.WEEKLY_LIMIT_1000;
         finalTokenEntry.lastWeeklyRefreshed = monday;
-        console.log(
-          `[토큰 지급][토큰조회] 화이트리스트 유저에게 1000자 토큰 지급 (주간 리셋)`
-        );
+        console.log(`[토큰지급] ${userRecord.email}: 1000자 주간리셋`);
       }
     } else if (daysSinceJoin < 7) {
       // 비참여자, 가입 후 7일 이내: 주간 지급 (사용자 시간대 기준으로 이미 계산된 monday 사용)
@@ -270,9 +370,7 @@ router.get("/:uid", async (req, res) => {
       if (finalTokenEntry.lastWeeklyRefreshed < monday) {
         finalTokenEntry.tokens_1000 = TOKEN.WEEKLY_LIMIT_1000;
         finalTokenEntry.lastWeeklyRefreshed = monday;
-        console.log(
-          `[토큰 지급][토큰조회] 신규 비참여자(가입 7일 이내)에게 1000자 토큰 지급 (주간 리셋)`
-        );
+        console.log(`[토큰지급] ${userRecord.email}: 1000자 신규유저 주간리셋`);
       }
     }
     // 비참여자, 가입 7일 이후는 위에서 이미 처리됨

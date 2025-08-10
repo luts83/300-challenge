@@ -5,6 +5,16 @@ const draftSchema = new mongoose.Schema({
   uid: { type: String, required: true, unique: true },
   title: { type: String, default: "" },
   text: { type: String, default: "" },
+  topic: {
+    type: String,
+    required: false, // 자유주제일 수 있으므로
+    default: null,
+  },
+  user: {
+    uid: { type: String, required: true },
+    email: { type: String, required: true },
+    displayName: { type: String, default: "익명" },
+  },
   sessionCount: { type: Number, default: 0 },
   totalDuration: { type: Number, default: 0 }, // 초 단위
   resetCount: { type: Number, default: 0 }, // 초기화 횟수

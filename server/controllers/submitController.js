@@ -431,7 +431,71 @@ async function handleSubmit(req, res) {
     const userTimezone = timezone || "Asia/Seoul";
     const userOffset = parseInt(offset) || -540; // 기본값: 한국 시간 (getTimezoneOffset 값)
 
+    // ✅ 디버깅: 요청 데이터 로그 (에러 발생 시에만 출력)
+    const debugData = {
+      text: text ? `${text.substring(0, 50)}...` : "undefined",
+      textLength: text ? text.length : 0,
+      title: title ? title.substring(0, 30) : "undefined",
+      user: user ? { uid: user.uid, email: user.email } : "undefined",
+      mode: mode,
+      charCount: charCount,
+    };
+
     if (!text || !title || !user || !user.uid || !user.email || !mode) {
+      console.warn("❌ 유효하지 않은 요청:", {
+        ...debugData,
+        validationErrors: {
+          text: !text,
+          title: !title,
+          user: !user,
+          userUid: user ? !user.uid : "user undefined",
+          userEmail: user ? !user.email : "user undefined",
+          mode: !mode,
+        },
+      });
+
+      // ✅ 더 구체적인 오류 메시지 제공 (Config 값 사용)
+      if (
+        !title ||
+        title.trim() === "" ||
+        title.trim().length < SUBMISSION.TITLE.MIN_LENGTH
+      ) {
+        return res.status(400).json({
+          message: `제목을 ${SUBMISSION.TITLE.MIN_LENGTH}글자 이상 입력해주세요.`,
+          details: {
+            text: !text,
+            title: true,
+            user: !user,
+            mode: !mode,
+          },
+        });
+      }
+
+      if (!text || text.trim() === "") {
+        return res.status(400).json({
+          message: "내용을 입력해주세요.",
+          details: {
+            text: true,
+            title: !title,
+            user: !user,
+            mode: !mode,
+          },
+        });
+      }
+
+      // ✅ 제목 최대 길이 검증 추가
+      if (title.length > SUBMISSION.TITLE.MAX_LENGTH) {
+        return res.status(400).json({
+          message: `제목은 ${SUBMISSION.TITLE.MAX_LENGTH}자 이하로 작성해주세요.`,
+          details: {
+            text: !text,
+            title: true,
+            user: !user,
+            mode: !mode,
+          },
+        });
+      }
+
       return res.status(400).json({
         message: "유효하지 않은 요청입니다.",
         details: {
@@ -444,10 +508,19 @@ async function handleSubmit(req, res) {
     }
 
     if (!["mode_300", "mode_1000"].includes(mode)) {
+      console.warn("❌ 유효하지 않은 mode:", {
+        ...debugData,
+        invalidMode: mode,
+      });
       return res.status(400).json({ message: "유효하지 않은 mode입니다." });
     }
 
     if (title.length > SUBMISSION.TITLE.MAX_LENGTH) {
+      console.warn("❌ 제목 길이 초과:", {
+        ...debugData,
+        titleLength: title.length,
+        maxLength: SUBMISSION.TITLE.MAX_LENGTH,
+      });
       return res.status(400).json({
         message: `제목은 ${SUBMISSION.TITLE.MAX_LENGTH}자 이하로 작성해주세요.`,
       });
@@ -456,9 +529,26 @@ async function handleSubmit(req, res) {
     const MIN_LENGTH = SUBMISSION[mode.toUpperCase()].MIN_LENGTH;
     const MAX_LENGTH = SUBMISSION[mode.toUpperCase()].MAX_LENGTH;
 
+    // ✅ 서버 측에서도 글자 수 검증 강화
     if (text.length < MIN_LENGTH || text.length > MAX_LENGTH) {
+      console.warn("❌ 글자 수 범위 초과:", {
+        ...debugData,
+        textLength: text.length,
+        minLength: MIN_LENGTH,
+        maxLength: MAX_LENGTH,
+      });
       return res.status(400).json({
         message: `글자 수는 ${MIN_LENGTH}자 이상, ${MAX_LENGTH}자 이하로 작성해주세요.`,
+      });
+    }
+
+    // 🚨 클라이언트와 서버의 글자 수 불일치 검증
+    if (charCount !== undefined && charCount !== text.length) {
+      console.warn(
+        `[글자수 불일치] ${user.email}: 클라이언트 ${charCount}자, 서버 ${text.length}자`
+      );
+      return res.status(400).json({
+        message: "글자 수가 일치하지 않습니다. 다시 시도해주세요.",
       });
     }
 
@@ -785,6 +875,9 @@ async function handleSubmit(req, res) {
             },
           }
         );
+
+        // 황금열쇠 지급 성공 로그
+        console.log(`[황금열쇠 지급] ${user.email}: 1000자 글 작성 보상 (+1)`);
       } catch (error) {
         console.error("[황금열쇠 지급 실패]", {
           userId: user.uid,
@@ -855,6 +948,11 @@ async function handleSubmit(req, res) {
                   displayName: user.displayName || user.email.split("@")[0],
                 },
               }
+            );
+
+            // 황금열쇠 지급 성공 로그
+            console.log(
+              `[황금열쇠 지급] ${user.email}: 주간 스트릭 완료 보상 (+1)`
             );
 
             // 스트릭 완료 기록
@@ -951,6 +1049,9 @@ const handleStreakCompletion = async (user, streak, userToken) => {
     // 황금열쇠 지급 및 기록
     userToken.goldenKeys += TOKEN.GOLDEN_KEY;
     await userToken.save({ session });
+
+    // 황금열쇠 지급 성공 로그
+    console.log(`[황금열쇠 지급] ${user.email}: 스트릭 완료 보상 (+1)`);
 
     // 스트릭 상태 업데이트
     streak.celebrationShown = true;

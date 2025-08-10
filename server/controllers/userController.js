@@ -8,15 +8,29 @@ let allowedEmailsCache = null;
 let cacheTimestamp = null;
 const CACHE_DURATION = 5 * 60 * 1000; // 5분 캐시
 
+// 비화이트리스트 토큰 조회 로그 캐싱 (하루에 한 번만 출력)
+const tokenQueryLogCache = new Set();
+
 // 비화이트리스트 유저 활동 로깅 함수
 function logNonWhitelistedUserActivity(activity, userInfo) {
   const timestamp = new Date().toISOString();
 
-  // 토큰 조회는 과도한 로깅 방지를 위해 간소화
+  // 토큰 조회는 과도한 로깅 방지를 위해 캐싱 적용
   if (activity === "토큰 조회") {
-    console.log(
-      `🚨 [비화이트리스트 토큰 조회] ${userInfo.email} (${userInfo.uid})`
-    );
+    const today = new Date().toISOString().split("T")[0];
+    const cacheKey = `${userInfo.uid}_token_query_${today}`;
+
+    if (!tokenQueryLogCache.has(cacheKey)) {
+      console.log(
+        `🚨 [비화이트리스트 토큰 조회] ${userInfo.email} (${userInfo.uid})`
+      );
+      tokenQueryLogCache.add(cacheKey);
+
+      // 캐시 크기 제한 (메모리 누수 방지)
+      if (tokenQueryLogCache.size > 1000) {
+        tokenQueryLogCache.clear();
+      }
+    }
   } else {
     console.log(`🚨 [비화이트리스트 유저 활동 감지] ${timestamp}`);
     console.log(`📧 이메일: ${userInfo.email}`);

@@ -403,6 +403,12 @@ const Write1000 = () => {
   const submitFinal = async () => {
     if (!user) return;
 
+    // ✅ 제목 검증 추가 (Config 값 사용)
+    if (!title.trim() || title.trim().length < CONFIG.SUBMISSION.TITLE.MIN_LENGTH) {
+      alert(`제목을 ${CONFIG.SUBMISSION.TITLE.MIN_LENGTH}글자 이상 입력해주세요.`);
+      return;
+    }
+
     // 현재 세션의 시간 계산
     const now = Date.now();
     const currentSessionDuration = startTime ? Math.floor((now - startTime) / 1000) : 0;
@@ -457,8 +463,8 @@ const Write1000 = () => {
         sessionCount,
         duration: finalDuration,
         forceSubmit: false,
-        isMinLengthMet: text.length >= MIN_LENGTH,
-        charCount: text.length,
+        isMinLengthMet: text.trim().length >= MIN_LENGTH, // ✅ 실시간 검증
+        charCount: text.trim().length, // ✅ 실시간 글자 수
       });
 
       let { score, feedback } = res.data.data;

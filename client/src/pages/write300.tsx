@@ -102,34 +102,83 @@ const Write300 = () => {
 
     const finalDuration = startTime ? Math.floor((Date.now() - startTime) / 1000) : 0;
 
-    // 글자 수 검증 - 현재 text 상태를 미리 저장
-    const currentText = text; // 현재 텍스트 상태를 미리 저장
-    const charCount = getCharCount(currentText);
-    const isMinLengthMet = charCount >= CONFIG.SUBMISSION.MODE_300.MIN_LENGTH;
+    // ✅ 제출 직전 최종 검증 - 실시간 텍스트 상태 사용
+    const finalText = text.trim();
+    const finalCharCount = getCharCount(finalText);
+    const finalIsMinLengthMet = finalCharCount >= CONFIG.SUBMISSION.MODE_300.MIN_LENGTH;
 
     if (!forceSubmit) {
-      if (!currentText.trim()) {
+      if (!title.trim() || title.trim().length < CONFIG.SUBMISSION.TITLE.MIN_LENGTH) {
+        return alert(`제목을 ${CONFIG.SUBMISSION.TITLE.MIN_LENGTH}글자 이상 입력해주세요.`);
+      }
+
+      if (!finalText) {
         return alert('내용을 입력해주세요.');
       }
 
-      if (!isMinLengthMet) {
+      if (!finalIsMinLengthMet) {
         return alert(
-          `${CONFIG.SUBMISSION.MODE_300.MIN_LENGTH}자 이상 입력해주세요. (현재: ${charCount}자)`
+          `${CONFIG.SUBMISSION.MODE_300.MIN_LENGTH}자 이상 입력해주세요. (현재: ${finalCharCount}자)`
         );
       }
     } else {
       // 자동 제출 시에도 최소 글자 수 확인
-      if (!isMinLengthMet) {
-        // 클립보드에 자동 저장
-        const contentToSave = `제목: ${title}\n\n내용:\n${currentText}`;
+      if (!finalIsMinLengthMet) {
+        // ✅ 안전한 클립보드 저장 함수
+        const saveToClipboard = async (text: string) => {
+          try {
+            // 1. navigator.clipboard 시도 (navigator 존재 여부도 확인)
+            if (
+              typeof navigator !== 'undefined' &&
+              navigator &&
+              navigator.clipboard &&
+              typeof navigator.clipboard.writeText === 'function'
+            ) {
+              await navigator.clipboard.writeText(text);
+              return { success: true, method: 'clipboard' };
+            }
+          } catch (error) {
+            console.warn('navigator.clipboard 실패:', error);
+          }
 
-        try {
-          await navigator.clipboard.writeText(contentToSave);
+          try {
+            // 2. document.execCommand 대체 방법 (구형 브라우저)
+            const textArea = document.createElement('textarea');
+            textArea.value = text;
+            textArea.style.position = 'fixed';
+            textArea.style.left = '-999999px';
+            textArea.style.top = '-999999px';
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
 
+            const successful = document.execCommand('copy');
+            document.body.removeChild(textArea);
+
+            if (successful) {
+              return { success: true, method: 'execCommand' };
+            }
+          } catch (error) {
+            console.warn('execCommand 실패:', error);
+          }
+
+          // 3. 모든 방법 실패
+          return { success: false, method: 'none' };
+        };
+
+        // 클립보드에 자동 저장 시도
+        const safeTitle = title && title.trim().length > 0 ? title.trim() : '(제목 없음)';
+        const contentToSave = `제목: ${safeTitle}\n\n내용:\n${finalText}`;
+        const clipboardResult = await saveToClipboard(contentToSave);
+
+        if (clipboardResult.success) {
           const userChoice = confirm(
-            `⏰ 시간 초과로 자동 제출이 불가능합니다.\n\n` +
-              `📝 작성하신 내용이 클립보드에 자동 저장되었습니다!\n\n` +
-              `현재 글자 수: ${charCount}자 (필요: ${CONFIG.SUBMISSION.MODE_300.MIN_LENGTH}자)\n\n` +
+            `⏰ 시간 초과로 자동 제출하려고 했지만 글자수가 부족해서 자동 제출이 불가능합니다.\n\n` +
+              `✅ 클립보드에 자동 저장되었습니다!\n\n` +
+              `📝 저장된 내용:\n` +
+              `제목: ${safeTitle}\n` +
+              `내용: ${finalText.substring(0, 50)}${finalText.length > 50 ? '...' : ''}\n\n` +
+              `현재 글자 수: ${finalCharCount}자 (필요: ${CONFIG.SUBMISSION.MODE_300.MIN_LENGTH}자)\n\n` +
               `다시 작성하시겠습니까? (취소하면 메인페이지로 이동합니다)`
           );
 
@@ -143,14 +192,81 @@ const Write300 = () => {
             navigate('/');
             return;
           }
-        } catch (clipboardError) {
-          // 클립보드 접근 실패 시 기존 방식으로 처리
-          console.error('클립보드 저장 실패:', clipboardError);
-          alert(
-            '자동 제출이 불가능합니다. 최소 글자 수를 충족하지 않았습니다.\n메인페이지로 이동합니다.'
+        } else {
+          // 클립보드 저장 실패 시 대안 제공 (유저 제스처 이후 재시도 포함)
+          console.warn('클립보드 저장 실패, 대안 방법 시도');
+
+          // 로컬 백업: 혹시라도 복구가 필요할 때를 대비
+          try {
+            localStorage.setItem('write300_backup', contentToSave);
+          } catch (e) {
+            console.warn('로컬 백업 저장 실패:', e);
+          }
+
+          // 사용자에게 내용을 수동으로 복사할 수 있도록 안내
+          const manualCopyChoice = confirm(
+            `⏰ 시간 초과로 자동 제출하려고 했지만 글자수가 부족해서 자동 제출이 불가능합니다.\n\n` +
+              `❌ 클립보드 자동 저장에 실패했습니다.\n\n` +
+              `📝 작성하신 내용을 수동으로 복사해주세요:\n\n` +
+              `제목: ${safeTitle}\n` +
+              `내용: ${finalText}\n\n` +
+              `현재 글자 수: ${finalCharCount}자 (필요: ${CONFIG.SUBMISSION.MODE_300.MIN_LENGTH}자)\n\n` +
+              `확인을 누르면 자동 복사를 다시 시도합니다. 취소하면 메인페이지로 이동합니다.`
           );
-          navigate('/');
-          return;
+
+          if (manualCopyChoice) {
+            // 사용자의 확인(제스처) 직후에 다시 복사 시도
+            let copied = false;
+            try {
+              if (
+                typeof navigator !== 'undefined' &&
+                navigator &&
+                navigator.clipboard &&
+                typeof navigator.clipboard.writeText === 'function'
+              ) {
+                await navigator.clipboard.writeText(contentToSave);
+                copied = true;
+              }
+            } catch (e) {
+              // ignore
+            }
+
+            if (!copied) {
+              try {
+                const ta = document.createElement('textarea');
+                ta.value = contentToSave;
+                ta.style.position = 'fixed';
+                ta.style.left = '-999999px';
+                ta.style.top = '-999999px';
+                document.body.appendChild(ta);
+                ta.focus();
+                ta.select();
+                copied = document.execCommand('copy');
+                document.body.removeChild(ta);
+              } catch (e) {
+                console.warn('재시도 복사 실패:', e);
+              }
+            }
+
+            if (copied) {
+              alert('✅ 작성 내용이 클립보드에 복사되었습니다. 계속 작성하실 수 있어요.');
+            } else {
+              alert('❌ 자동 복사에 실패했습니다. 표시된 내용을 직접 복사해 주세요.');
+            }
+
+            // 다시 작성 선택 시 - 타이머 재시작
+            setStartTime(Date.now());
+            setIsStarted(true);
+            setRemainingTime(CONFIG.TIMER.DURATION_MINUTES * 60);
+            submissionInProgress.current = false;
+            setSubmissionState('idle');
+            setSubmissionProgress('');
+            return;
+          } else {
+            // 메인페이지로 이동
+            navigate('/');
+            return;
+          }
         }
       }
     }
@@ -175,15 +291,16 @@ const Write300 = () => {
       const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
       const userOffset = new Date().getTimezoneOffset();
 
-      const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/submit`, {
+      // ✅ 디버깅: 전송할 데이터 로그
+      const submitData = {
         title,
-        text: currentText, // 저장된 텍스트 사용
+        text: finalText, // ✅ 실시간 텍스트 사용
         topic: dailyTopic || null,
         mode: 'mode_300',
         duration: finalDuration,
         forceSubmit: forceSubmit,
-        isMinLengthMet: isMinLengthMet,
-        charCount: charCount,
+        isMinLengthMet: finalIsMinLengthMet, // ✅ 실시간 검증 결과 사용
+        charCount: finalCharCount, // ✅ 실시간 글자 수 사용
         timezone: userTimezone,
         offset: userOffset,
         user: {
@@ -191,7 +308,12 @@ const Write300 = () => {
           email: user.email,
           displayName: user.displayName || '익명',
         },
-      });
+      };
+
+      console.log('🚀 제출 데이터:', submitData);
+      console.log('👤 사용자 정보:', user);
+
+      const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/submit`, submitData);
 
       const submissionId = res.data.data.submissionId;
 
@@ -324,12 +446,28 @@ const Write300 = () => {
                 value={title}
                 onChange={e => setTitle(e.target.value)}
                 placeholder="이 글의 제목을 입력해주세요"
-                maxLength={50}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-base md:text-lg placeholder:text-base dark:bg-gray-600 dark:text-gray-300"
+                maxLength={CONFIG.SUBMISSION.TITLE.MAX_LENGTH}
+                required
+                className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-base md:text-lg placeholder:text-base dark:bg-gray-600 dark:text-gray-300 ${
+                  title.trim().length >= CONFIG.SUBMISSION.TITLE.MIN_LENGTH
+                    ? 'border-gray-300'
+                    : 'border-red-300 focus:ring-red-500'
+                }`}
               />
-              <span className="absolute right-3 bottom-3 text-xs md:text-sm text-gray-500">
-                {title.length}/50
+              <span
+                className={`absolute right-3 top-1/2 transform -translate-y-1/2 text-xs md:text-sm ${
+                  title.trim().length >= CONFIG.SUBMISSION.TITLE.MIN_LENGTH
+                    ? 'text-gray-500'
+                    : 'text-red-500'
+                }`}
+              >
+                {title.length}/{CONFIG.SUBMISSION.TITLE.MAX_LENGTH}
               </span>
+              {title.trim().length < CONFIG.SUBMISSION.TITLE.MIN_LENGTH && (
+                <p className="text-red-500 text-sm mt-1">
+                  ⚠️ 제목을 {CONFIG.SUBMISSION.TITLE.MIN_LENGTH}글자 이상 입력해주세요
+                </p>
+              )}
             </div>
           </div>
         </div>

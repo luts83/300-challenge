@@ -54,16 +54,6 @@ function calculateWeightedScore(criteriaScores, mode, isAssignedTopic) {
   const finalScore =
     totalWeight > 0 ? Math.round(totalWeightedScore / totalWeight) : 0;
 
-  console.log(`📊 가중치 적용된 점수 계산:`, {
-    mode,
-    isAssignedTopic,
-    criteriaScores,
-    weights: Object.keys(weights).map((k) => ({ [k]: weights[k].weight })),
-    totalWeightedScore,
-    totalWeight,
-    finalScore,
-  });
-
   return finalScore;
 }
 

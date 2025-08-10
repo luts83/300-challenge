@@ -547,13 +547,21 @@ const Dashboard = () => {
   };
 
   // 날짜/시간 포맷팅 함수
-  const formatDateTime = (dateString: string, userTimezone?: string) => {
+  const formatDateTime = (
+    dateString: string,
+    userTimezone?: string,
+    userTimezoneOffset?: number
+  ) => {
     try {
       const date = new Date(dateString);
 
       // 사용자 시간대가 있으면 해당 시간대로 변환
-      if (userTimezone && userTimezone !== 'Asia/Seoul') {
-        // UTC 시간을 사용자 시간대로 변환
+      if (userTimezone && userTimezoneOffset !== undefined) {
+        // getTimezoneOffset() 값을 사용하여 정확한 시간대 변환
+        const userTime = new Date(date.getTime() - userTimezoneOffset * 60 * 1000);
+        return format(userTime, 'PPP a h시 mm분', { locale: ko });
+      } else if (userTimezone && userTimezone !== 'Asia/Seoul') {
+        // fallback: date-fns-tz 사용
         const userTime = toZonedTime(date, userTimezone);
         return formatTz(userTime, 'PPP a h시 mm분', {
           timeZone: userTimezone,
@@ -583,7 +591,26 @@ const Dashboard = () => {
       'Australia/Sydney': '🇦🇺 시드니',
       'Asia/Shanghai': '🇨🇳 상하이',
       'Asia/Singapore': '🇸🇬 싱가포르',
+      // Etc/GMT 형식 처리
+      'Etc/GMT-9': '🇰🇷 한국',
+      'Etc/GMT-8': '🇨🇳 중국',
+      'Etc/GMT-5': '🇺🇸 뉴욕',
+      'Etc/GMT+0': '🇬🇧 런던',
+      'Etc/GMT+1': '🇫🇷 파리',
+      'Etc/GMT+10': '🇦🇺 시드니',
     };
+
+    // Etc/GMT 형식이 매핑에 없으면 기본 처리
+    if (userTimezone.startsWith('Etc/GMT')) {
+      const offset = userTimezone.replace('Etc/GMT', '');
+      const offsetNum = parseInt(offset);
+      if (offsetNum === -9) return '🇰🇷 한국';
+      if (offsetNum === -8) return '🇨🇳 중국';
+      if (offsetNum === -5) return '🇺🇸 뉴욕';
+      if (offsetNum === 0) return '🇬🇧 런던';
+      if (offsetNum === 1) return '🇫🇷 파리';
+      if (offsetNum === 10) return '🇦🇺 시드니';
+    }
 
     return timezoneMap[userTimezone] || userTimezone;
   };
@@ -909,12 +936,22 @@ const Dashboard = () => {
                           ({submission.user.email})
                         </p>
                         <p className="text-sm text-gray-400">
-                          작성 시간: {formatDateTime(submission.createdAt, submission.userTimezone)}
+                          작성 시간:{' '}
+                          {formatDateTime(
+                            submission.createdAt,
+                            submission.userTimezone,
+                            submission.userTimezoneOffset
+                          )}
                           {submission.userTimezone && submission.userTimezone !== '' && (
                             <span className="ml-2 text-gray-500">
                               {formatLocation(submission.userTimezone)}
                             </span>
                           )}
+                        </p>
+                        <p className="text-sm text-gray-400">
+                          글자수: {submission.text.length}자 | 작성 시간:{' '}
+                          {formatDuration(submission.duration)} | 세션 수: {submission.sessionCount}
+                          회
                         </p>
                       </div>
                       <div className="flex flex-row sm:flex-col items-center sm:items-end gap-2">
@@ -965,7 +1002,11 @@ const Dashboard = () => {
                               </p>
                             </div>
                             <p className="text-xs sm:text-sm text-gray-500">
-                              {new Date(feedback.createdAt).toLocaleString()}
+                              {formatDateTime(
+                                feedback.createdAt,
+                                submission.userTimezone,
+                                submission.userTimezoneOffset
+                              )}
                             </p>
                           </div>
                           <p className="mt-2 text-sm sm:text-base text-gray-700 whitespace-pre-wrap">
@@ -1507,12 +1548,21 @@ const Dashboard = () => {
                           </p>
                           <p className="text-sm text-gray-400">
                             작성 시간:{' '}
-                            {formatDateTime(submission.createdAt, submission.userTimezone)}
+                            {formatDateTime(
+                              submission.createdAt,
+                              submission.userTimezone,
+                              submission.userTimezoneOffset
+                            )}
                             {submission.userTimezone && submission.userTimezone !== '' && (
                               <span className="ml-2 text-gray-500">
                                 {formatLocation(submission.userTimezone)}
                               </span>
                             )}
+                          </p>
+                          <p className="text-sm text-gray-400">
+                            글자수: {submission.text.length}자 | 작성 시간:{' '}
+                            {formatDuration(submission.duration)} | 세션 수:{' '}
+                            {submission.sessionCount}회
                           </p>
                         </div>
                         <div className="flex flex-row sm:flex-col items-center sm:items-end gap-2">
@@ -1565,7 +1615,11 @@ const Dashboard = () => {
                                 </p>
                               </div>
                               <p className="text-xs sm:text-sm text-gray-500">
-                                {new Date(feedback.createdAt).toLocaleString()}
+                                {formatDateTime(
+                                  feedback.createdAt,
+                                  submission.userTimezone,
+                                  submission.userTimezoneOffset
+                                )}
                               </p>
                             </div>
                             <p className="mt-2 text-sm sm:text-base text-gray-700 whitespace-pre-wrap">
