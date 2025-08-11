@@ -102,64 +102,32 @@ router.get("/:uid", async (req, res) => {
 
     const now = new Date();
 
-    // 사용자 시간대 기준으로 오늘 날짜 계산 (수정된 로직)
-    // getTimezoneOffset() 값은 음수이므로 부호를 반전시켜야 함
-    const userTime = new Date(now.getTime() - offset * 60 * 1000);
-    const today = new Date(
-      Date.UTC(
-        userTime.getUTCFullYear(),
-        userTime.getUTCMonth(),
-        userTime.getUTCDate()
-      )
-    );
+    // 새로운 시간대 유틸리티 사용
+    const {
+      getUserTodayDateString,
+      getUserMonday,
+      logTimezoneInfo,
+    } = require("../utils/timezoneUtils");
+
+    const today = getUserTodayDateString(offset);
+    const monday = getUserMonday(offset);
 
     // 간략화된 시간대 디버깅 (유저별 하루 한 번만)
-    const timezoneDebugKey = `${uid}_timezone_${
-      today.toISOString().split("T")[0]
-    }`;
+    const timezoneDebugKey = `${uid}_timezone_${today}`;
     if (
       process.env.NODE_ENV === "development" &&
       !debugLogCache.has(timezoneDebugKey)
     ) {
-      const offsetHours = -offset / 60;
-      const locationInfo = getLocationByOffset(offsetHours);
-      console.log(
-        `[시간대] ${userRecord.email}: UTC${
-          offsetHours >= 0 ? "+" : ""
-        }${offsetHours} (${locationInfo})`
-      );
+      logTimezoneInfo(userRecord.email, timezone, offset);
       debugLogCache.add(timezoneDebugKey);
-    }
-
-    // 사용자 시간대 기준으로 현재 주 월요일 계산 (수정된 로직)
-    const userMonday = new Date(userTime);
-    const dayOfWeek = userMonday.getDay(); // 0=일요일, 1=월요일, ... (로컬 시간 기준)
-
-    // 현재 주의 월요일 계산 (일요일이면 이전 주 월요일, 월요일~토요일이면 이번 주 월요일)
-    let monday;
-    if (dayOfWeek === 0) {
-      // 일요일인 경우: 이전 주 월요일 (7일 전)
-      monday = new Date(
-        Date.UTC(
-          userMonday.getUTCFullYear(),
-          userMonday.getUTCMonth(),
-          userMonday.getUTCDate() - 6
-        )
-      );
-    } else {
-      // 월요일~토요일인 경우: 이번 주 월요일
-      monday = new Date(
-        Date.UTC(
-          userMonday.getUTCFullYear(),
-          userMonday.getUTCMonth(),
-          userMonday.getUTCDate() - dayOfWeek + 1
-        )
-      );
     }
 
     // 주간 리셋 디버깅 로그 추가
     if (process.env.NODE_ENV === "development") {
       const weekdays = ["일", "월", "화", "수", "목", "금", "토"];
+      const userTime = new Date(now.getTime() - offset * 60 * 1000);
+      const dayOfWeek = userTime.getDay();
+
       console.log(`[주간리셋 디버그] ${userRecord.email}:`);
       console.log(`  - 서버시간: ${now.toISOString()}`);
       console.log(`  - 사용자시간: ${userTime.toISOString()}`);
@@ -181,14 +149,12 @@ router.get("/:uid", async (req, res) => {
     }
 
     // 간략화된 토큰 디버깅 (유저별 하루 한 번만)
-    const tokenDebugKey = `${uid}_token_${today.toISOString().split("T")[0]}`;
+    const tokenDebugKey = `${uid}_token_${today}`;
     if (
       process.env.NODE_ENV === "development" &&
       !debugLogCache.has(tokenDebugKey)
     ) {
-      console.log(
-        `[토큰] ${userRecord.email}: ${today.toISOString().split("T")[0]} 기준`
-      );
+      console.log(`[토큰] ${userRecord.email}: ${today} 기준`);
       debugLogCache.add(tokenDebugKey);
     }
 
@@ -220,9 +186,7 @@ router.get("/:uid", async (req, res) => {
     }
 
     // 간략화된 토큰 상태 디버깅 (유저별 하루 한 번만)
-    const tokenStatusDebugKey = `${uid}_status_${
-      today.toISOString().split("T")[0]
-    }`;
+    const tokenStatusDebugKey = `${uid}_status_${today}`;
     if (
       process.env.NODE_ENV === "development" &&
       !debugLogCache.has(tokenStatusDebugKey)
@@ -233,7 +197,7 @@ router.get("/:uid", async (req, res) => {
         `[토큰상태] ${
           userRecord.email
         }: 마지막리프레시=${lastRefreshed}, 리프레시필요=${
-          finalTokenEntry?.lastRefreshed < today
+          finalTokenEntry?.lastRefreshed < new Date(today + "T00:00:00.000Z")
         }`
       );
       debugLogCache.add(tokenStatusDebugKey);
@@ -262,9 +226,7 @@ router.get("/:uid", async (req, res) => {
     }
 
     // 간략화된 유저 정보 로그 (유저별 하루 한 번만)
-    const userInfoDebugKey = `${uid}_userinfo_${
-      today.toISOString().split("T")[0]
-    }`;
+    const userInfoDebugKey = `${uid}_userinfo_${today}`;
     if (
       process.env.NODE_ENV === "development" &&
       !debugLogCache.has(userInfoDebugKey)
@@ -292,9 +254,7 @@ router.get("/:uid", async (req, res) => {
         )
       );
 
-      const refreshDebugKey = `${uid}_refresh_${
-        today.toISOString().split("T")[0]
-      }`;
+      const refreshDebugKey = `${uid}_refresh_${today}`;
       if (
         process.env.NODE_ENV === "development" &&
         !debugLogCache.has(refreshDebugKey)
@@ -302,18 +262,18 @@ router.get("/:uid", async (req, res) => {
         const lastRefreshedDayStr = lastRefreshedDay
           .toISOString()
           .split("T")[0];
-        const todayStr = today.toISOString().split("T")[0];
+        const todayStr = today;
         console.log(
           `[리프레시] ${
             userRecord.email
           }: ${lastRefreshedDayStr} → ${todayStr} (필요: ${
-            lastRefreshedDay < today
+            lastRefreshedDay < new Date(today + "T00:00:00.000Z")
           })`
         );
         debugLogCache.add(refreshDebugKey);
       }
 
-      if (lastRefreshedDay < today) {
+      if (lastRefreshedDay < new Date(today + "T00:00:00.000Z")) {
         finalTokenEntry.tokens_300 = TOKEN.DAILY_LIMIT_300;
         finalTokenEntry.lastRefreshed = now;
         console.log(`[토큰지급] ${userRecord.email}: 300자 일일리셋`);
@@ -337,7 +297,7 @@ router.get("/:uid", async (req, res) => {
       }
     } else if (daysSinceJoin < 7) {
       // 비참여자, 가입 후 7일 이내: 매일 지급
-      if (finalTokenEntry.lastRefreshed < today) {
+      if (finalTokenEntry.lastRefreshed < new Date(today + "T00:00:00.000Z")) {
         finalTokenEntry.tokens_300 = TOKEN.DAILY_LIMIT_300;
         finalTokenEntry.lastRefreshed = now;
         console.log(`[토큰지급] ${userRecord.email}: 300자 신규유저 일일리셋`);
@@ -379,8 +339,9 @@ router.get("/:uid", async (req, res) => {
     let nextRefreshDate = null;
     if (isWhitelisted || daysSinceJoin < 7) {
       // 내일 0시
-      const tomorrow = new Date(today);
-      tomorrow.setDate(today.getDate() + 1);
+      const todayDate = new Date(today + "T00:00:00.000Z");
+      const tomorrow = new Date(todayDate);
+      tomorrow.setDate(todayDate.getDate() + 1);
       nextRefreshDate = tomorrow.toISOString();
     } else {
       // 다음주 월요일 0시

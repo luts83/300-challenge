@@ -133,13 +133,17 @@ router.get("/stats/:uid", async (req, res) => {
 
     const [submissions, feedbacks, todaySubmissions, userProfile] =
       await Promise.all([
-        Submission.find({ "user.uid": uid }),
-        Feedback.find({ fromUid: uid }),
+        Submission.find({ "user.uid": uid }).select("score createdAt").lean(),
+        Feedback.find({ fromUid: uid }).select("_id").lean(),
         Submission.find({
           "user.uid": uid,
           createdAt: { $gte: today },
-        }),
-        UserProfile.findOne({ userId: uid }),
+        })
+          .select("_id")
+          .lean(),
+        UserProfile.findOne({ userId: uid })
+          .select("user.email user.displayName writingStats")
+          .lean(),
       ]);
 
     const totalSubmissions = submissions.length;
@@ -203,11 +207,12 @@ router.get("/all", async (req, res) => {
   }
 });
 
-// 모든 제출물과 피드백 조회
+// 모든 제출물과 피드백 조회 (최적화)
 router.get("/all-submissions/:uid", async (req, res) => {
   try {
-    const { start, end } = req.query;
+    const { start, end, page = 1, limit = 50 } = req.query; // 페이지네이션 추가
     const targetUid = req.params.uid;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
 
     const dateFilter = {};
     if (start && end) {
@@ -217,45 +222,94 @@ router.get("/all-submissions/:uid", async (req, res) => {
       };
     }
 
+    // 1. 제출물 조회 (페이지네이션 적용) - lean()으로 성능 향상
     const submissions = await Submission.find(dateFilter)
       .select(
         "_id title text user mode sessionCount duration createdAt topic score ai_feedback userTimezone userTimezoneOffset"
       )
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(parseInt(limit))
+      .lean(); // lean()으로 성능 향상
 
+    // 2. 피드백 조회 (배치 처리) - lean()으로 성능 향상
     const submissionIds = submissions.map((sub) => sub._id);
     const allFeedbacks = await Feedback.find({
       toSubmissionId: { $in: submissionIds },
-    });
+    })
+      .select("_id toSubmissionId content createdAt fromUid fromUser")
+      .lean();
 
+    // 3. 피드백 작성자 정보 조회 (fallback 로직 포함)
     const feedbackWriterUids = [...new Set(allFeedbacks.map((f) => f.fromUid))];
-    const feedbackWriters = await Submission.find({
-      "user.uid": { $in: feedbackWriterUids },
-    }).select("user");
+    const User = require("../models/User"); // User 모델 import
+
+    const feedbackWriters = await User.find({
+      uid: { $in: feedbackWriterUids },
+    })
+      .select("uid displayName email")
+      .lean();
 
     const writerMap = {};
     feedbackWriters.forEach((writer) => {
-      writerMap[writer.user.uid] = writer.user;
+      writerMap[writer.uid] = {
+        displayName: writer.displayName || "익명",
+        email: writer.email || "알 수 없음",
+      };
     });
 
+    // 4. 데이터 조합 (메모리 효율적으로)
     const submissionsWithFeedback = submissions.map((sub) => {
       const feedbacks = allFeedbacks
         .filter((fb) => fb.toSubmissionId.toString() === sub._id.toString())
-        .map((fb) => ({
-          _id: fb._id,
-          content: fb.content,
-          createdAt: fb.createdAt,
-          fromUser: writerMap[fb.fromUid] || { displayName: "익명" },
-        }));
+        .map((fb) => {
+          // 피드백 작성자 정보는 항상 최신 User 모델에서 가져오기
+          let fromUserInfo;
 
-      const submissionObj = sub.toObject();
-      submissionObj.feedbacks = feedbacks;
-      submissionObj.feedbackCount = feedbacks.length;
+          if (writerMap[fb.fromUid]) {
+            // User 모델에서 조회한 최신 정보 사용 (우선순위 1)
+            fromUserInfo = writerMap[fb.fromUid];
+          } else {
+            // User 모델에서 정보를 찾을 수 없는 경우 (계정 삭제 등)
+            // 이 경우에만 Feedback.fromUser 사용
+            if (fb.fromUser && fb.fromUser.displayName) {
+              fromUserInfo = {
+                displayName: fb.fromUser.displayName,
+                email: fb.fromUser.email || "알 수 없음",
+              };
+            } else {
+              // 모든 정보가 없는 경우
+              fromUserInfo = { displayName: "익명", email: "알 수 없음" };
+            }
+          }
 
-      return submissionObj;
+          return {
+            _id: fb._id,
+            content: fb.content,
+            createdAt: fb.createdAt,
+            fromUser: fromUserInfo,
+          };
+        });
+
+      return {
+        ...sub,
+        feedbacks,
+        feedbackCount: feedbacks.length,
+      };
     });
 
-    res.json(submissionsWithFeedback);
+    // 5. 총 개수 조회 (페이지네이션용) - countDocuments 대신 estimatedDocumentCount 사용 고려
+    const totalCount = await Submission.countDocuments(dateFilter);
+
+    res.json({
+      submissions: submissionsWithFeedback,
+      pagination: {
+        currentPage: parseInt(page),
+        totalPages: Math.ceil(totalCount / parseInt(limit)),
+        totalCount,
+        hasMore: parseInt(page) * parseInt(limit) < totalCount,
+      },
+    });
   } catch (error) {
     console.error("Error fetching submissions:", error);
     res.status(500).json({ error: "제출물 목록을 불러오는데 실패했습니다." });

@@ -571,26 +571,38 @@ async function handleSubmit(req, res) {
       });
     }
 
-    // 사용자 시간대 기준으로 오늘 날짜 계산
-    const userTime = new Date(currentTime.getTime() - userOffset * 60 * 1000);
-    const today = new Date(
-      Date.UTC(
-        userTime.getUTCFullYear(),
-        userTime.getUTCMonth(),
-        userTime.getUTCDate()
-      )
-    );
+    // 새로운 시간대 유틸리티 사용
+    const {
+      getUserTodayDateString,
+      getUserMonday,
+    } = require("../utils/timezoneUtils");
 
-    // 사용자 시간대 기준으로 월요일 계산
-    const userMonday = new Date(userTime);
-    const mondayDayOfWeek = userMonday.getUTCDay(); // 0=일요일, 1=월요일, ...
-    const monday = new Date(
-      Date.UTC(
-        userMonday.getUTCFullYear(),
-        userMonday.getUTCMonth(),
-        userMonday.getUTCDate() - mondayDayOfWeek + 1
-      )
-    );
+    // userOffset이 유효한지 확인하고 안전하게 처리
+    const safeUserOffset =
+      typeof userOffset === "number" && !isNaN(userOffset) ? userOffset : -540;
+
+    let today, monday;
+    try {
+      today = getUserTodayDateString(safeUserOffset);
+      monday = getUserMonday(safeUserOffset);
+
+      // 디버깅: 시간대 정보 로깅
+      console.log(`[시간대 디버깅] 유저: ${user.email}`);
+      console.log(
+        `  - userOffset: ${safeUserOffset} (${safeUserOffset / 60}시간)`
+      );
+      console.log(`  - 서버 현재시간: ${new Date().toISOString()}`);
+      console.log(`  - 계산된 today: ${today}`);
+      console.log(`  - 계산된 monday: ${monday}`);
+    } catch (error) {
+      console.error(
+        `Error getting date strings for userOffset: ${safeUserOffset}`,
+        error
+      );
+      // 에러 발생 시 기본값 사용
+      today = new Date().toISOString().slice(0, 10);
+      monday = new Date();
+    }
 
     const isWhitelisted = await checkEmailAccess(user.email);
 
@@ -825,7 +837,7 @@ async function handleSubmit(req, res) {
       mode,
       sessionCount: 1, // 임시로 1로 설정
       duration,
-      submissionDate: currentTime.toISOString().slice(0, 10),
+      submissionDate: today, // 사용자 시간대 기준으로 수정
       score,
       aiFeedback: feedback, // JSON 문자열로 저장
       userTimezone: timezone || "Asia/Seoul",

@@ -16,6 +16,9 @@ router.get("/today", async (req, res) => {
     const timezone = req.query.timezone || "Asia/Seoul";
     const offset = parseInt(req.query.offset) || -540; // 기본값: 한국 시간 (getTimezoneOffset 값)
 
+    // 새로운 시간대 유틸리티 사용
+    const { getUserTodayDate } = require("../utils/timezoneUtils");
+
     // 사용자 시간대 기준으로 현재 날짜 계산
     const now = new Date();
     const userTime = new Date(now.getTime() - offset * 60 * 1000);

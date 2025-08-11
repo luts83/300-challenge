@@ -23,19 +23,15 @@ function getManualTopicByDate(
   // offset 부호 보정
   offset = -offset;
 
+  // 새로운 시간대 유틸리티 사용
+  const { getUserTodayDate } = require("./timezoneUtils");
+
   // 1. 서버의 현재 시간을 기준으로 사용자의 시간을 계산합니다.
   const now = new Date();
   const userTime = new Date(now.getTime() + offset * 60 * 1000);
 
-  // 2. [핵심 수정] 사용자의 '오늘' 날짜를 서버 시간대가 아닌 UTC 기준으로 생성합니다.
-  // 이렇게 하면 어느 국가의 서버에서 실행되어도 항상 동일한 UTC 날짜 객체가 생성됩니다.
-  const today = new Date(
-    Date.UTC(
-      userTime.getUTCFullYear(),
-      userTime.getUTCMonth(),
-      userTime.getUTCDate()
-    )
-  );
+  // 2. 새로운 유틸리티 함수 사용
+  const today = getUserTodayDate(offset);
 
   // 3. 기준 날짜도 UTC로 명확하게 설정합니다.
   const base = new Date(config.TOPIC.BASE_DATE + "T00:00:00.000Z");
@@ -43,32 +39,24 @@ function getManualTopicByDate(
   const dayOfWeek = today.getUTCDay(); // UTC 기준 요일 (0: 일요일, 1: 월요일)
   const diffDays = Math.floor((today - base) / (1000 * 60 * 60 * 24));
 
-  // [버그 수정] 평일 인덱스 계산 로직을 단순하고 정확하게 수정합니다.
-  let weekdayIndex = 0;
-  let cursor = new Date(base);
-  while (cursor < today) {
-    // 오늘 날짜 직전까지만 반복
-    const d = cursor.getUTCDay(); // UTC 요일로 비교
-    if (d >= 1 && d <= 5) {
-      // 월(1)~금(5)
-      weekdayIndex++;
-    }
-    cursor.setUTCDate(cursor.getUTCDate() + 1); // UTC 날짜로 하루 증가
-  }
+  // [수정] 주차별 주제 계산 로직으로 변경
+  // 기준 날짜부터 오늘까지의 주차를 계산
+  const baseDate = new Date(base);
+  const todayDate = new Date(today);
+
+  // 주차 계산: 기준 날짜부터 오늘까지의 주차 수
+  const weekDiff = Math.floor(
+    (todayDate - baseDate) / (1000 * 60 * 60 * 24 * 7)
+  );
+
+  // 평일 인덱스: 주차별로 5개씩 주제가 있으므로
+  const weekdayIndex =
+    weekDiff * 5 + (dayOfWeek >= 1 && dayOfWeek <= 5 ? dayOfWeek - 1 : 0);
 
   const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
 
-  // 주말 인덱스 계산: 기준 날짜부터 오늘까지의 주말 날짜 개수 계산
-  let weekendCount = 0;
-  cursor = new Date(base); // let 제거, 기존 cursor 변수 재사용
-  while (cursor < today) {
-    const d = cursor.getUTCDay();
-    if (d === 0 || d === 6) {
-      // 일요일(0) 또는 토요일(6)
-      weekendCount++;
-    }
-    cursor.setUTCDate(cursor.getUTCDate() + 1);
-  }
+  // 주말 인덱스 계산: 주차별로 계산
+  const weekendCount = weekDiff * 2; // 주차별로 주차별로 주말은 2일씩
 
   let selectedTopic;
   if (mode === "300") {

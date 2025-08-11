@@ -6,6 +6,7 @@ import axios from 'axios';
 import { format } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { toZonedTime, format as formatTz } from 'date-fns-tz';
+import { convertUTCToUserTime, getLocationByTimezone } from '../utils/timezoneUtils';
 import { isAdmin } from '../utils/admin';
 import { useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
@@ -16,6 +17,44 @@ import VirtualizedUserList from '../components/VirtualizedUserList';
 import VirtualizedTopicRanking from '../components/VirtualizedTopicRanking';
 import ErrorBoundary from '../components/ErrorBoundary';
 import { toast } from 'react-hot-toast';
+
+// 스켈레톤 UI 컴포넌트
+const DashboardSkeleton = () => (
+  <div className="max-w-4xl mx-auto px-3 sm:px-4 py-4 sm:py-6 space-y-6">
+    {/* 제목 스켈레톤 */}
+    <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-48 mx-auto"></div>
+
+    {/* 통계 카드 스켈레톤 */}
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {[...Array(4)].map((_, i) => (
+        <div key={i} className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+          <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-2"></div>
+          <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+        </div>
+      ))}
+    </div>
+
+    {/* 필터 섹션 스켈레톤 */}
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+      <div className="flex flex-wrap gap-4">
+        <div className="h-10 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-32"></div>
+        <div className="h-10 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-32"></div>
+        <div className="h-10 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-32"></div>
+      </div>
+    </div>
+
+    {/* 제출물 목록 스켈레톤 */}
+    <div className="space-y-4">
+      {[...Array(5)].map((_, i) => (
+        <div key={i} className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+          <div className="h-5 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-2 w-3/4"></div>
+          <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse mb-2 w-1/2"></div>
+          <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded animate-pulse w-2/3"></div>
+        </div>
+      ))}
+    </div>
+  </div>
+);
 
 interface User {
   uid: string;
@@ -68,6 +107,7 @@ interface Submission {
   text: string;
   mode: 'mode_300' | 'mode_1000';
   user: {
+    uid: string;
     displayName: string;
     email: string;
   };
@@ -394,7 +434,7 @@ const Dashboard = () => {
     userProfile?: UserProfile;
   } | null>(null);
   const [isAdminView, setIsAdminView] = useState(false);
-  const [adminSubmissions, setAdminSubmissions] = useState([]);
+  const [adminSubmissions, setAdminSubmissions] = useState<Submission[]>([]);
   const [likeReceivedRanking, setLikeReceivedRanking] = useState<
     { user: { displayName: string; uid: string }; likeCount: number }[]
   >([]);
@@ -414,6 +454,7 @@ const Dashboard = () => {
     totalPages: 0,
     hasNext: false,
     hasPrev: false,
+    limit: 50,
   });
   const [topicSearchTerm, setTopicSearchTerm] = useState('');
   const [topicModeFilter, setTopicModeFilter] = useState<'all' | 'mode_300' | 'mode_1000'>('all');
@@ -466,19 +507,32 @@ const Dashboard = () => {
     }
   }, [user, navigate]);
 
-  // 모든 데이터 가져오기
-  const fetchAllData = async (start?: Date | null, end?: Date | null, userId?: string) => {
+  // 모든 데이터 가져오기 (페이지네이션 지원)
+  const fetchAllData = async (
+    start?: Date | null,
+    end?: Date | null,
+    userId?: string,
+    page = 1
+  ) => {
     if (!user && !userId) return;
 
-    setLoading(true);
+    // 첫 페이지가 아닌 경우에만 로딩 상태 설정
+    if (page === 1) {
+      setLoading(true);
+    }
+
     try {
-      const params: any = {};
+      const params: any = {
+        page,
+        limit: 50, // 한 번에 50개씩 로드
+      };
       if (start) params.start = format(start, 'yyyy-MM-dd');
       if (end) params.end = format(end, 'yyyy-MM-dd');
 
       // API 호출 시 선택된 사용자의 UID 사용
       const targetUid = userId || user?.uid;
 
+      // 병렬로 API 호출하여 성능 향상
       const [submissionsRes, statsRes, rankingsRes] = await Promise.all([
         axios.get(`${import.meta.env.VITE_API_URL}/api/dashboard/all-submissions/${targetUid}`, {
           params,
@@ -487,29 +541,51 @@ const Dashboard = () => {
         axios.get(`${import.meta.env.VITE_API_URL}/api/dashboard/rankings`, { params }),
       ]);
 
-      setSubmissions(submissionsRes.data);
+      // 페이지네이션 응답 처리
+      if (page === 1) {
+        setSubmissions(submissionsRes.data.submissions || submissionsRes.data);
+        setStableSubmissions(
+          (submissionsRes.data.submissions || submissionsRes.data).map((sub: Submission) => ({
+            ...sub,
+            userTimezone: sub.userTimezone || 'Asia/Seoul',
+          }))
+        );
+      } else {
+        // 추가 페이지 로드
+        setSubmissions(prev => [...prev, ...(submissionsRes.data.submissions || [])]);
+        setStableSubmissions(prev => [
+          ...prev,
+          ...(submissionsRes.data.submissions || []).map((sub: Submission) => ({
+            ...sub,
+            userTimezone: sub.userTimezone || 'Asia/Seoul',
+          })),
+        ]);
+      }
+
       setStats(statsRes.data);
       setRankings(rankingsRes.data);
 
-      // userTimezone 정보가 있는 submission들을 안정화
-      const submissionsWithStableTimezone = submissionsRes.data.map((sub: Submission) => ({
-        ...sub,
-        userTimezone: sub.userTimezone || 'Asia/Seoul',
-      }));
-      setStableSubmissions(submissionsWithStableTimezone);
-
-      // 주제 랭킹도 함께 업데이트
-      await fetchTopicRanking(1, topicSearchTerm, topicModeFilter);
+      // 주제 랭킹도 함께 업데이트 (비동기로 처리하여 메인 로딩에 영향 없게)
+      if (page === 1) {
+        fetchTopicRanking(1, topicSearchTerm, topicModeFilter);
+      }
     } catch (e) {
       setError('데이터 불러오기 실패');
     } finally {
-      setLoading(false);
+      if (page === 1) {
+        setLoading(false);
+      }
     }
   };
 
-  // 초기 로딩
+  // 초기 로딩 - 오늘 날짜로 초기화
   useEffect(() => {
-    fetchAllData();
+    if (user) {
+      const today = new Date();
+      setStartDate(today);
+      setEndDate(today);
+      fetchAllData(today, today, undefined, 1);
+    }
   }, [user]);
 
   useEffect(() => {
@@ -539,10 +615,10 @@ const Dashboard = () => {
     // 선택된 사용자의 데이터만 가져오도록 fetchAllData 호출
     if (uid) {
       // 특정 사용자 선택 시
-      fetchAllData(startDate, endDate, uid);
+      fetchAllData(startDate, endDate, uid, 1);
     } else {
       // "모든 사용자" 선택 시
-      fetchAllData(startDate, endDate);
+      fetchAllData(startDate, endDate, undefined, 1);
     }
   };
 
@@ -557,9 +633,19 @@ const Dashboard = () => {
 
       // 사용자 시간대가 있으면 해당 시간대로 변환
       if (userTimezone && userTimezoneOffset !== undefined) {
-        // getTimezoneOffset() 값을 사용하여 정확한 시간대 변환
-        const userTime = new Date(date.getTime() - userTimezoneOffset * 60 * 1000);
-        return format(userTime, 'PPP a h시 mm분', { locale: ko });
+        // 서머타임을 고려한 정확한 시간대 변환
+        try {
+          // date-fns-tz를 우선 사용 (서머타임 자동 처리)
+          const userTime = toZonedTime(date, userTimezone);
+          return formatTz(userTime, 'PPP a h시 mm분', {
+            timeZone: userTimezone,
+            locale: ko,
+          });
+        } catch (error) {
+          // date-fns-tz 실패 시 fallback으로 offset 기반 변환
+          const userTime = convertUTCToUserTime(dateString, userTimezone, userTimezoneOffset);
+          return format(userTime, 'PPP a h시 mm분', { locale: ko });
+        }
       } else if (userTimezone && userTimezone !== 'Asia/Seoul') {
         // fallback: date-fns-tz 사용
         const userTime = toZonedTime(date, userTimezone);
@@ -581,38 +667,8 @@ const Dashboard = () => {
   const formatLocation = (userTimezone?: string) => {
     if (!userTimezone) return '';
 
-    const timezoneMap: { [key: string]: string } = {
-      'Asia/Seoul': '🇰🇷 한국',
-      'Asia/Tokyo': '🇯🇵 일본',
-      'America/New_York': '🇺🇸 뉴욕',
-      'America/Los_Angeles': '🇺🇸 로스앤젤레스',
-      'Europe/London': '🇬🇧 런던',
-      'Europe/Paris': '🇫🇷 파리',
-      'Australia/Sydney': '🇦🇺 시드니',
-      'Asia/Shanghai': '🇨🇳 상하이',
-      'Asia/Singapore': '🇸🇬 싱가포르',
-      // Etc/GMT 형식 처리
-      'Etc/GMT-9': '🇰🇷 한국',
-      'Etc/GMT-8': '🇨🇳 중국',
-      'Etc/GMT-5': '🇺🇸 뉴욕',
-      'Etc/GMT+0': '🇬🇧 런던',
-      'Etc/GMT+1': '🇫🇷 파리',
-      'Etc/GMT+10': '🇦🇺 시드니',
-    };
-
-    // Etc/GMT 형식이 매핑에 없으면 기본 처리
-    if (userTimezone.startsWith('Etc/GMT')) {
-      const offset = userTimezone.replace('Etc/GMT', '');
-      const offsetNum = parseInt(offset);
-      if (offsetNum === -9) return '🇰🇷 한국';
-      if (offsetNum === -8) return '🇨🇳 중국';
-      if (offsetNum === -5) return '🇺🇸 뉴욕';
-      if (offsetNum === 0) return '🇬🇧 런던';
-      if (offsetNum === 1) return '🇫🇷 파리';
-      if (offsetNum === 10) return '🇦🇺 시드니';
-    }
-
-    return timezoneMap[userTimezone] || userTimezone;
+    const location = getLocationByTimezone(userTimezone);
+    return location;
   };
 
   // 소요 시간 포맷팅 함수 추가
@@ -628,7 +684,7 @@ const Dashboard = () => {
   // 관리자 뷰 토글 함수
   const toggleAdminView = () => {
     setIsAdminView(!isAdminView);
-    fetchAllData();
+    fetchAllData(startDate, endDate, undefined, 1);
   };
 
   const fetchTopicRanking = async (page = 1, search = '', mode = topicModeFilter) => {
@@ -693,7 +749,7 @@ const Dashboard = () => {
     const start = getStartOfWeek(now);
     setStartDate(start);
     setEndDate(now);
-    fetchAllData(start, now);
+    fetchAllData(start, now, undefined, 1);
   };
 
   const handleThisMonth = () => {
@@ -701,13 +757,13 @@ const Dashboard = () => {
     const first = new Date(now.getFullYear(), now.getMonth(), 1);
     setStartDate(first);
     setEndDate(now);
-    fetchAllData(first, now);
+    fetchAllData(first, now, undefined, 1);
   };
 
   const handleClear = () => {
     setStartDate(null);
     setEndDate(null);
-    fetchAllData(null, null);
+    fetchAllData(undefined, undefined, undefined, 1);
   };
 
   // 사용자 목록을 가져오는 함수 추가 (페이지네이션 지원)
@@ -791,10 +847,14 @@ const Dashboard = () => {
     }
   };
 
-  // useEffect 수정
+  // useEffect 수정 - 오늘 날짜로 초기화
   useEffect(() => {
+    const today = new Date();
+    setStartDate(today);
+    setEndDate(today);
+
     fetchUsers();
-    fetchAllData();
+    fetchAllData(today, today);
     fetchSubmissionDates();
     fetchCurrentDateTopic();
   }, []);
@@ -817,6 +877,19 @@ const Dashboard = () => {
             {isAdminView ? '관리자 대시보드' : '작성 현황'}
           </h1>
         </div>
+
+        {/* 로딩 상태 표시 */}
+        {loading && (
+          <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <div className="flex items-center space-x-3">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+              <div>
+                <p className="text-blue-800 font-medium">데이터를 불러오는 중...</p>
+                <p className="text-blue-600 text-sm">잠시만 기다려주세요</p>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="mb-6 bg-white dark:bg-gray-800 p-4 rounded shadow">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -848,7 +921,7 @@ const Dashboard = () => {
                   const isHighlighted = submissionDates.some(
                     d => format(d, 'yyyy-MM-dd') === dateStr
                   );
-                  return isHighlighted ? 'highlighted' : undefined;
+                  return isHighlighted ? 'highlighted' : '';
                 }}
               />
               <button
@@ -1521,7 +1594,9 @@ const Dashboard = () => {
             </div>
 
             {/* 제출물 목록 수정 */}
-            {!loading && displayedSubmissions.length > 0 && (
+            {loading ? (
+              <DashboardSkeleton />
+            ) : displayedSubmissions.length > 0 ? (
               <div className="space-y-4 sm:space-y-8">
                 {displayedSubmissions.map(submission => (
                   <div
@@ -1644,18 +1719,45 @@ const Dashboard = () => {
                   </div>
                 )}
               </div>
-            )}
-
-            {/* 로딩 상태 */}
-            {loading && (
-              <div className="flex justify-center items-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-              </div>
-            )}
+            ) : null}
 
             {/* 데이터 없음 상태 */}
             {!loading && displayedSubmissions.length === 0 && (
-              <div className="text-center py-8 text-gray-500">작성된 글이 없습니다.</div>
+              <div className="text-center py-8">
+                <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-6 max-w-md mx-auto">
+                  <div className="text-gray-400 mb-3">
+                    <svg
+                      className="w-16 h-16 mx-auto"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                      />
+                    </svg>
+                  </div>
+                  <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                    {selectedUser ? '작성된 글이 없습니다' : '데이터가 없습니다'}
+                  </h3>
+                  <p className="text-gray-500 dark:text-gray-400 text-sm">
+                    {selectedUser
+                      ? '선택한 사용자가 아직 글을 작성하지 않았습니다.'
+                      : '선택한 기간에 작성된 글이 없습니다.'}
+                  </p>
+                  {selectedUser && (
+                    <button
+                      onClick={() => handleUserChange('')}
+                      className="mt-3 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm"
+                    >
+                      전체 사용자 보기
+                    </button>
+                  )}
+                </div>
+              </div>
             )}
           </>
         )}

@@ -8,14 +8,22 @@ const {
   checkEmailAccess,
   detectNonWhitelistedUserActivity,
 } = require("./userController");
+const { getUserTodayDate } = require("../utils/timezoneUtils");
 
 // 피드백 가능 여부 확인 함수
-const canGiveFeedback = async (userUid, targetSubmission) => {
-  // 오늘 작성한 사용자의 글 모드 확인
-  const today = new Date().toISOString().slice(0, 10);
+const canGiveFeedback = async (
+  userUid,
+  targetSubmission,
+  userTimezone = "Asia/Seoul",
+  userOffset = -540
+) => {
+  // 사용자 시간대 기준으로 오늘 날짜 계산
+  const today = getUserTodayDate(userOffset);
+  const todayString = today.toISOString().slice(0, 10); // YYYY-MM-DD 형식으로 변환
+
   const userSubmission = await Submission.findOne({
     "user.uid": userUid,
-    submissionDate: today,
+    submissionDate: todayString,
   });
 
   if (!userSubmission) {
@@ -38,13 +46,16 @@ const canGiveFeedback = async (userUid, targetSubmission) => {
 // 피드백 대상 글 조회 API
 exports.getAvailableSubmissions = async (req, res) => {
   const { uid } = req.params;
+  const { userTimezone, userOffset } = req.query;
 
   try {
-    // 오늘 작성한 사용자의 글 확인
-    const today = new Date().toISOString().slice(0, 10);
+    // 사용자 시간대 기준으로 오늘 날짜 계산
+    const today = getUserTodayDate(userOffset ? parseInt(userOffset) : -540);
+    const todayString = today.toISOString().slice(0, 10); // YYYY-MM-DD 형식으로 변환
+
     const userSubmission = await Submission.findOne({
       "user.uid": uid,
-      submissionDate: today,
+      submissionDate: todayString,
     });
 
     if (!userSubmission) {
@@ -87,8 +98,23 @@ exports.getAvailableSubmissions = async (req, res) => {
 
 // 피드백 제출 API
 exports.submitFeedback = async (req, res) => {
-  const { toSubmissionId, fromUid, strengths, improvements, overall } =
-    req.body;
+  const {
+    toSubmissionId,
+    fromUid,
+    strengths,
+    improvements,
+    overall,
+    userTimezone,
+    userOffset,
+  } = req.body;
+
+  // 🔍 간단한 유저 시간 로깅
+  const { logUserTime } = require("../utils/timezoneUtils");
+  logUserTime(
+    req.user?.email || "Unknown",
+    userTimezone || "Unknown",
+    userOffset || 0
+  );
 
   // 구조화된 피드백 검증
   if (
@@ -114,6 +140,10 @@ exports.submitFeedback = async (req, res) => {
   }
 
   try {
+    // 사용자 시간대 기준으로 오늘 날짜 계산 (함수 시작 부분에서 미리 계산)
+    const today = getUserTodayDate(userOffset ? parseInt(userOffset) : -540);
+    const todayString = today.toISOString().slice(0, 10);
+
     // 중복 피드백 체크 추가
     const existingFeedback = await Feedback.findOne({
       toSubmissionId,
@@ -155,7 +185,12 @@ exports.submitFeedback = async (req, res) => {
 
     // 3. 피드백 작성 가능 여부 확인
     try {
-      const canGive = await canGiveFeedback(fromUid, targetSubmission);
+      const canGive = await canGiveFeedback(
+        fromUid,
+        targetSubmission,
+        userTimezone,
+        userOffset
+      );
       if (!canGive) {
         return res
           .status(403)
@@ -195,8 +230,8 @@ exports.submitFeedback = async (req, res) => {
         overall ? `\n\n전체적인 느낌:\n${overall}` : ""
       }`, // 하위 호환성
 
-      // 피드백 작성 날짜
-      writtenDate: new Date().toISOString().slice(0, 10), // YYYY-MM-DD 형식
+      // 피드백 작성 날짜 - 사용자 시간대 기준
+      writtenDate: todayString, // canGiveFeedback에서 계산된 날짜 사용
 
       // 피드백 상태
       isRead: false,
@@ -226,13 +261,12 @@ exports.submitFeedback = async (req, res) => {
       $inc: { feedbackCount: 1 },
     });
 
-    // 6. 오늘 작성한 피드백 수 확인 (모드별로 구분)
-    const today = new Date().toISOString().slice(0, 10);
+    // 6. 오늘 작성한 피드백 수 확인 (모드별로 구분) - 사용자 시간대 기준
 
     // 먼저 오늘 작성한 피드백들을 가져옴
     const todayFeedbacks = await Feedback.find({
       fromUid,
-      writtenDate: today,
+      writtenDate: todayString,
     }).populate("toSubmissionId", "mode");
 
     // 모드별로 피드백 수 계산
@@ -250,7 +284,7 @@ exports.submitFeedback = async (req, res) => {
     // 7. 사용자가 작성한 글의 모드 확인
     const userSubmissions = await Submission.find({
       "user.uid": fromUid,
-      submissionDate: today,
+      submissionDate: todayString,
     });
 
     // 8. 모드별로 피드백 언락 조건 체크 및 업데이트
@@ -276,8 +310,8 @@ exports.submitFeedback = async (req, res) => {
       message: "피드백이 성공적으로 저장되었습니다!",
       feedback: savedFeedback,
       todayFeedbackCount: {
-        mode300: mode300FeedbackCount,
-        mode1000: mode1000FeedbackCount,
+        mode_300: mode300FeedbackCount,
+        mode_1000: mode1000FeedbackCount,
         total: totalFeedbackCount, // 총 피드백 수도 응답에 포함
       },
     });
@@ -290,11 +324,15 @@ exports.submitFeedback = async (req, res) => {
 // 피드백 미션 할당 API도 수정
 exports.assignFeedbackMissions = async (req, res) => {
   const { uid } = req.params;
+  const { userOffset } = req.body; // 사용자 시간대 오프셋 받기
 
   try {
+    // 사용자 시간대 기준으로 오늘 날짜 계산 (기본값: 한국 시간)
+    const today = getUserTodayDate(userOffset ? parseInt(userOffset) : -540);
+
     const userSubmission = await Submission.findOne({
       "user.uid": uid,
-      submissionDate: new Date().toISOString().slice(0, 10),
+      submissionDate: today,
     });
 
     if (!userSubmission) {

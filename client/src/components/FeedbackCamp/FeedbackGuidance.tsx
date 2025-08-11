@@ -11,6 +11,11 @@ interface FeedbackGuidanceProps {
     mode300: number;
     mode1000: number;
   };
+  todayFeedbackCount: {
+    mode_300: number;
+    mode_1000: number;
+    total: number;
+  };
   availableModes: Set<'mode_300' | 'mode_1000'>;
   isExpanded: boolean;
   onToggleExpand: () => void;
@@ -18,6 +23,7 @@ interface FeedbackGuidanceProps {
 
 export const FeedbackGuidance: React.FC<FeedbackGuidanceProps> = ({
   dailyFeedbackCount,
+  todayFeedbackCount,
   availableModes,
   isExpanded,
   onToggleExpand,
@@ -29,8 +35,8 @@ export const FeedbackGuidance: React.FC<FeedbackGuidanceProps> = ({
 
     // 300자 모드와 1000자 모드 각각의 완료 여부 확인
     const mode300Completed =
-      hasMode300 && dailyFeedbackCount.mode300 >= CONFIG.FEEDBACK.REQUIRED_COUNT;
-    const mode1000Completed = hasMode1000 && dailyFeedbackCount.mode1000 >= 1;
+      hasMode300 && todayFeedbackCount.mode_300 >= CONFIG.FEEDBACK.REQUIRED_COUNT;
+    const mode1000Completed = hasMode1000 && todayFeedbackCount.mode_1000 >= 1;
 
     if (mode300Completed || mode1000Completed) {
       return {
@@ -39,6 +45,7 @@ export const FeedbackGuidance: React.FC<FeedbackGuidanceProps> = ({
         textColor: 'text-green-600 dark:text-green-300',
       };
     }
+
     return {
       emoji: '✨',
       statusText: '오늘의 피드백 미션',
@@ -62,18 +69,18 @@ export const FeedbackGuidance: React.FC<FeedbackGuidanceProps> = ({
             <div className="text-xs sm:text-sm text-gray-500 dark:text-gray-300">
               {hasMode300 && (
                 <p>
-                  300자 모드: {dailyFeedbackCount.mode300}/{CONFIG.FEEDBACK.REQUIRED_COUNT} 완료
-                  {dailyFeedbackCount.mode300 >= CONFIG.FEEDBACK.REQUIRED_COUNT && ' 🎉'}
-                  {dailyFeedbackCount.mode300 < CONFIG.FEEDBACK.REQUIRED_COUNT &&
-                    dailyFeedbackCount.mode300 + dailyFeedbackCount.mode1000 >=
+                  300자 모드: {todayFeedbackCount.mode_300}/{CONFIG.FEEDBACK.REQUIRED_COUNT} 완료
+                  {todayFeedbackCount.mode_300 >= CONFIG.FEEDBACK.REQUIRED_COUNT && ' 🎉'}
+                  {todayFeedbackCount.mode_300 < CONFIG.FEEDBACK.REQUIRED_COUNT &&
+                    todayFeedbackCount.mode_300 + todayFeedbackCount.mode_1000 >=
                       CONFIG.FEEDBACK.REQUIRED_COUNT &&
                     ' (피드백 열람 권한 언락됨)'}
                 </p>
               )}
               {hasMode1000 && (
                 <p>
-                  1000자 모드: {dailyFeedbackCount.mode1000}/1 완료
-                  {dailyFeedbackCount.mode1000 >= 1 && ' 🎉'}
+                  1000자 모드: {todayFeedbackCount.mode_1000}/1 완료
+                  {todayFeedbackCount.mode_1000 >= 1 && ' 🎉'}
                 </p>
               )}
             </div>
@@ -149,9 +156,31 @@ export const FeedbackGuidance: React.FC<FeedbackGuidanceProps> = ({
                 <span className="text-blue-500">•</span>
                 주간 목표(월-금 5일) 달성 시 {CONFIG.TOKEN.GOLDEN_KEY}개의 황금열쇠가 지급됩니다.
               </li>
+
+              {CONFIG.FEEDBACK.STRUCTURED.ENABLED && (
+                <>
+                  <li className="flex items-center gap-1">
+                    <span className="text-green-500">•</span>
+                    구조화된 피드백: 장점과 개선점은 각각 최소{' '}
+                    {CONFIG.FEEDBACK.STRUCTURED.MIN_LENGTH.STRENGTHS}자 이상 작성해주세요.
+                  </li>
+                  <li className="flex items-center gap-1">
+                    <span className="text-green-500">•</span>
+                    전체 의견은 선택사항이며, 작성 시 최소{' '}
+                    {CONFIG.FEEDBACK.STRUCTURED.MIN_LENGTH.OVERALL}자 이상 작성해주세요.
+                  </li>
+                </>
+              )}
+              {CONFIG.FEEDBACK.CROSS_MODE_FEEDBACK.ENABLED && (
+                <li className="flex items-center gap-1">
+                  <span className="text-purple-500">•</span>
+                  교차 피드백: 300자와 1000자 모드 간에도 피드백을 작성할 수 있습니다.
+                </li>
+              )}
               <li className="flex items-center gap-1">
-                <span className="text-blue-500">•</span>
-                피드백은 최소 {CONFIG.FEEDBACK.MIN_LENGTH}자 이상 작성해야 합니다.
+                <span className="text-orange-500">💡</span>
+                이미 피드백 미션을 완료하셨다면, 추가 피드백으로 다른 사용자들의 성장에
+                기여해주세요!
               </li>
             </ul>
           </div>

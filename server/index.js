@@ -141,12 +141,15 @@ mongoose
     useNewUrlParser: true,
     useUnifiedTopology: true,
   })
-  .then(() => {
+  .then(async () => {
     console.log("✅ MongoDB 연결 완료");
+
+    // 인덱스 생성
+    const createIndexes = require("./utils/createIndexes");
+    await createIndexes();
+
     // 연결 후 데이터 확인
-    return Submission.countDocuments();
-  })
-  .then((count) => {
+    const count = await Submission.countDocuments();
     console.log(`📚 총 ${count}개의 글이 있습니다.`);
   })
   .catch((err) => {

@@ -181,10 +181,12 @@ export const FeedbackList: React.FC<FeedbackListProps> = ({
 
       {/* 로딩 인디케이터 추가 */}
       {isLoadingMore && (
-        <div className="text-center py-4">
-          <div className="inline-block">
-            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500"></div>
-            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">더 불러오는 중...</p>
+        <div className="flex justify-center items-center py-6">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mb-3 mx-auto"></div>
+            <p className="text-sm font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-4 py-2 rounded-lg">
+              더 많은 글을 불러오는 중...
+            </p>
           </div>
         </div>
       )}

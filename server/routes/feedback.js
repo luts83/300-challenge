@@ -10,6 +10,7 @@ const WritingStreak = require("../models/WritingStreak");
 const Token = require("../models/Token");
 const { handleTokenChange } = require("../utils/tokenHistory");
 const HelpfulVote = require("../models/HelpfulVote");
+const { getUserTodayDate } = require("../utils/timezoneUtils");
 
 // 피드백할 글 추천 (모드 동일 + 적게 받은 글 우선)
 router.get("/assignments/:uid", async (req, res) => {
@@ -20,7 +21,8 @@ router.get("/assignments/:uid", async (req, res) => {
   }
 
   try {
-    const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    // 사용자 시간대 기준으로 오늘 날짜 계산 (기본값: 한국 시간)
+    const today = getUserTodayDate(); // YYYY-MM-DD
 
     // 오늘 내가 쓴 글 중 가장 최근 글 확인
     const todaySubmission = await Submission.findOne({
@@ -133,7 +135,8 @@ router.post("/", submitFeedback);
 // 내가 받은 피드백 조회
 router.get("/received/:uid", async (req, res) => {
   const { uid } = req.params;
-  const today = new Date().toISOString().slice(0, 10);
+  // 사용자 시간대 기준으로 오늘 날짜 계산 (기본값: 한국 시간)
+  const today = getUserTodayDate();
 
   try {
     // 오늘의 피드백 카운트 확인
@@ -213,7 +216,8 @@ router.get("/given/:uid", async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 1000;
   const mode = req.query.mode;
-  const today = new Date().toISOString().slice(0, 10);
+  // 사용자 시간대 기준으로 오늘 날짜 계산 (기본값: 한국 시간)
+  const today = getUserTodayDate();
 
   if (!uid || typeof uid !== "string") {
     return res.status(400).json({ message: "유효하지 않은 UID입니다." });
@@ -356,7 +360,8 @@ router.get("/stats/:uid", async (req, res) => {
 // 피드백 상태 조회 라우트 추가
 router.get("/status/:uid", async (req, res) => {
   const { uid } = req.params;
-  const today = new Date().toISOString().slice(0, 10);
+  // 사용자 시간대 기준으로 오늘 날짜 계산 (기본값: 한국 시간)
+  const today = getUserTodayDate();
 
   try {
     const feedbackCount = await Feedback.countDocuments({
@@ -384,7 +389,8 @@ router.get("/status/:uid", async (req, res) => {
 // 오늘의 피드백 카운트 조회
 router.get("/today/:uid", async (req, res) => {
   const { uid } = req.params;
-  const today = new Date().toISOString().slice(0, 10);
+  // 사용자 시간대 기준으로 오늘 날짜 계산 (기본값: 한국 시간)
+  const today = getUserTodayDate();
 
   try {
     // 오늘 작성한 피드백들을 가져옴
@@ -418,7 +424,8 @@ router.get("/today/:uid", async (req, res) => {
 // 피드백 열람 가능 여부 확인
 router.get("/unlock-status/:uid", async (req, res) => {
   const { uid } = req.params;
-  const today = new Date().toISOString().slice(0, 10);
+  // 사용자 시간대 기준으로 오늘 날짜 계산 (기본값: 한국 시간)
+  const today = getUserTodayDate();
 
   try {
     const feedbackCount = await Feedback.countDocuments({
@@ -695,7 +702,8 @@ router.get("/all-submissions/:uid", async (req, res) => {
 // 오늘 내가 남긴 피드백(모드별) 개수 반환
 router.get("/given-today/:uid", async (req, res) => {
   const { uid } = req.params;
-  const today = new Date().toISOString().slice(0, 10);
+  // 사용자 시간대 기준으로 오늘 날짜 계산 (기본값: 한국 시간)
+  const today = getUserTodayDate();
 
   // 오늘 내가 남긴 피드백 모두 조회
   const feedbacks = await Feedback.find({
