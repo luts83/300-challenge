@@ -129,34 +129,24 @@ const FeedbackCamp = () => {
     if (!user?.uid) return;
 
     try {
-      const response = await fetch(`/api/feedback/today/${user.uid}`);
-      const data = await response.json();
+      const { data } = await axios.get(
+        `${import.meta.env.VITE_API_URL}/api/feedback/today/${user.uid}`
+      );
 
-      if (response.ok) {
-        const newTodayFeedbackCount = {
-          mode_300: data.mode_300 || 0,
-          mode_1000: data.mode_1000 || 0,
-          total: data.total || 0,
-        };
+      const newTodayFeedbackCount = {
+        mode_300: data.mode_300 || 0,
+        mode_1000: data.mode_1000 || 0,
+        total: data.total || 0,
+      };
 
-        setTodayFeedbackCount(newTodayFeedbackCount);
+      setTodayFeedbackCount(newTodayFeedbackCount);
 
-        // localStorage에 저장
-        localStorage.setItem(
-          `todayFeedbackCount_${user.uid}`,
-          JSON.stringify(newTodayFeedbackCount)
-        );
-      } else {
-        console.error('❌ [피드백 현황] API 오류:', {
-          userUid: user.uid,
-          status: response.status,
-          error: data,
-        });
-      }
+      // localStorage에 저장
+      localStorage.setItem(`todayFeedbackCount_${user.uid}`, JSON.stringify(newTodayFeedbackCount));
     } catch (error) {
-      console.error('❌ [피드백 현황] 네트워크 오류:', {
-        userUid: user.uid,
-        error: error,
+      console.error('❌ [피드백 현황] 네트워크/API 오류:', {
+        userUid: user?.uid,
+        error,
       });
     }
   }, [user?.uid]);
@@ -166,52 +156,42 @@ const FeedbackCamp = () => {
     if (!user?.uid) return;
 
     try {
-      const response = await fetch(`/api/feedback/given/${user.uid}`);
-      const data = await response.json();
+      const { data } = await axios.get(
+        `${import.meta.env.VITE_API_URL}/api/feedback/given/${user.uid}`
+      );
 
-      if (response.ok) {
-        setGivenFeedbacks(data.feedbacks || []);
+      setGivenFeedbacks(data.feedbacks || []);
 
-        // 오늘의 피드백 카운트 계산
-        const today = new Date();
-        const koreaOffset = 9 * 60 * 60 * 1000; // KST는 UTC+9
-        const koreaTime = new Date(today.getTime() + koreaOffset);
-        const todayString = koreaTime.toISOString().split('T')[0];
+      // 오늘의 피드백 카운트 계산
+      const today = new Date();
+      const koreaOffset = 9 * 60 * 60 * 1000; // KST는 UTC+9
+      const koreaTime = new Date(today.getTime() + koreaOffset);
+      const todayString = koreaTime.toISOString().split('T')[0];
 
-        const todayFeedbacks =
-          data.feedbacks?.filter((fb: any) => fb.writtenDate === todayString) || [];
+      const todayFeedbacks =
+        data.feedbacks?.filter((fb: any) => fb.writtenDate === todayString) || [];
 
-        const mode300Count = todayFeedbacks.filter(
-          (fb: any) => (fb.mode || fb.toSubmissionId?.mode) === 'mode_300'
-        ).length;
-        const mode1000Count = todayFeedbacks.filter(
-          (fb: any) => (fb.mode || fb.toSubmissionId?.mode) === 'mode_1000'
-        ).length;
+      const mode300Count = todayFeedbacks.filter(
+        (fb: any) => (fb.mode || fb.toSubmissionId?.mode) === 'mode_300'
+      ).length;
+      const mode1000Count = todayFeedbacks.filter(
+        (fb: any) => (fb.mode || fb.toSubmissionId?.mode) === 'mode_1000'
+      ).length;
 
-        const newTodayFeedbackCount = {
-          mode_300: mode300Count,
-          mode_1000: mode1000Count,
-          total: mode300Count + mode1000Count,
-        };
+      const newTodayFeedbackCount = {
+        mode_300: mode300Count,
+        mode_1000: mode1000Count,
+        total: mode300Count + mode1000Count,
+      };
 
-        setTodayFeedbackCount(newTodayFeedbackCount);
+      setTodayFeedbackCount(newTodayFeedbackCount);
 
-        // localStorage에 저장
-        localStorage.setItem(
-          `todayFeedbackCount_${user.uid}`,
-          JSON.stringify(newTodayFeedbackCount)
-        );
-      } else {
-        console.error('❌ [피드백 미션] API 오류:', {
-          userUid: user.uid,
-          status: response.status,
-          error: data,
-        });
-      }
+      // localStorage에 저장
+      localStorage.setItem(`todayFeedbackCount_${user.uid}`, JSON.stringify(newTodayFeedbackCount));
     } catch (error) {
-      console.error('❌ [피드백 미션] 네트워크 오류:', {
-        userUid: user.uid,
-        error: error,
+      console.error('❌ [피드백 미션] 네트워크/API 오류:', {
+        userUid: user?.uid,
+        error,
       });
     }
   }, [user?.uid, activeTab]);
