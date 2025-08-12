@@ -582,7 +582,7 @@ const Write300 = () => {
         {/* 안내 메시지 */}
         <div className="mt-2 text-xs md:text-sm text-gray-800 dark:text-gray-300">
           <p>💡 제목과 내용을 모두 작성한 후 제출할 수 있습니다.</p>
-          <p>⏰ 제한 시간: 5분</p>
+          <p>⏰ 제한 시간: {CONFIG.TIMER.DURATION_MINUTES}분</p>
         </div>
 
         {/* 제출 상태 표시 */}

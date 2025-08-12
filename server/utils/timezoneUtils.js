@@ -49,7 +49,7 @@ const getUserTodayDate = (userOffset = 0) => {
     });
 
     // 사용자 시간대의 현재 시간 계산
-    const userTime = new Date(now.getTime() + userOffset * 60 * 1000);
+    const userTime = new Date(now.getTime() - userOffset * 60 * 1000);
 
     console.log("🌍 [DEBUG] 사용자 시간대 계산 (수정됨):", {
       userTime: userTime.toISOString(),
@@ -231,7 +231,7 @@ const getUserDateString = (date, userOffset = 0) => {
   // ✅ 영국 시간(UTC+0)을 기본값으로 변경
   // userOffset은 getTimezoneOffset() 값이므로 음수입니다
   // 사용자 시간대의 해당 날짜를 계산 (수정: -를 +로 변경)
-  const userTime = new Date(date.getTime() + userOffset * 60 * 1000);
+  const userTime = new Date(date.getTime() - userOffset * 60 * 1000);
 
   // 사용자 시간대 기준으로 해당 날짜의 시작(00:00:00)을 UTC로 변환
   const userDateStart = new Date(
@@ -259,7 +259,7 @@ const convertUTCToUserTime = (utcDateString, userOffset) => {
 
   // userOffset은 getTimezoneOffset() 값이므로 음수입니다
   // UTC 시간에서 사용자 시간대로 변환하려면 offset을 더해야 합니다
-  const userTime = new Date(utcDate.getTime() + userOffset * 60 * 1000);
+  const userTime = new Date(utcDate.getTime() - userOffset * 60 * 1000);
 
   return userTime;
 };
@@ -285,7 +285,7 @@ const convertUserTimeToUTC = (userDate, userOffset) => {
 const getUserMonday = (userOffset = 0) => {
   try {
     const now = new Date();
-    const userTime = new Date(now.getTime() + userOffset * 60 * 1000);
+    const userTime = new Date(now.getTime() - userOffset * 60 * 1000);
 
     // userTime이 유효한지 확인
     if (isNaN(userTime.getTime())) {
@@ -349,48 +349,19 @@ const getUserTodayDateString = (userOffset = 0) => {
 
     // 사용자 시간대 기준으로 현재 시간 계산
     // userOffset은 getTimezoneOffset() 값이므로 음수입니다
-    const userTime = new Date(now.getTime() + userOffset * 60 * 1000);
+    const userTime = new Date(now.getTime() - userOffset * 60 * 1000);
 
-    // ✅ 수정: UTC 메서드가 아닌 로컬 메서드 사용
-    // 사용자 시간대 기준으로 오늘 날짜 계산
-    const userYear = userTime.getFullYear(); // getUTCFullYear() → getFullYear()
-    const userMonth = userTime.getMonth(); // getUTCMonth() → getMonth()
-    const userDay = userTime.getDate(); // getUTCDate() → getDate()
-
-    // 결과 날짜 문자열 생성
-    const result = `${userYear}-${String(userMonth + 1).padStart(
-      2,
-      "0"
-    )}-${String(userDay).padStart(2, "0")}`;
-
-    // 안전장치: 날짜가 유효한지 확인
-    const resultDate = new Date(result);
-    if (isNaN(resultDate.getTime())) {
-      console.error(
-        `[ERROR] Invalid date result: ${result} for userOffset: ${userOffset}`
-      );
-      // 에러 시 현재 UTC 날짜 반환
-      return new Date().toISOString().slice(0, 10);
-    }
+    // 사용자 현지 날짜를 서버 로컬 타임존과 무관하게 안정적으로 계산
+    const result = userTime.toISOString().slice(0, 10);
 
     // 디버깅 로그 추가
     if (process.env.NODE_ENV === "development") {
-      console.log(`[DEBUG] getUserTodayDateString (수정됨):`, {
+      console.log(`[DEBUG] getUserTodayDateString (UTC-safe)`, {
         serverTime: now.toISOString(),
         userOffset,
         userOffsetHours: userOffset / 60,
-        userTime: userTime.toISOString(),
-        userTimeLocal: userTime.toLocaleString("ko-KR", {
-          timeZone: "Asia/Seoul",
-        }),
-        userYear,
-        userMonth: userMonth + 1,
-        userDay,
+        userTimeISO: userTime.toISOString(),
         result,
-        resultDate: resultDate.toISOString(),
-        calculation: `사용자 시간대 기준: ${userTime.toISOString()} → ${result}`,
-        validation: `Valid date: ${!isNaN(resultDate.getTime())}`,
-        note: "✅ getFullYear/getMonth/getDate 사용 (UTC 메서드 아님)",
       });
     }
 
@@ -507,6 +478,32 @@ const logTimezoneInfo = (userEmail, timezone, offset) => {
   );
 };
 
+function getTodayStringByTimezone(timezone = "UTC") {
+  try {
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: timezone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
+  } catch (e) {
+    return new Date().toISOString().slice(0, 10);
+  }
+}
+
+function getDateStringByTimezone(date, timezone = "UTC") {
+  try {
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: timezone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date(date));
+  } catch (e) {
+    return new Date(date).toISOString().slice(0, 10);
+  }
+}
+
 module.exports = {
   getUserTodayDate,
   getUserDateString,
@@ -522,4 +519,6 @@ module.exports = {
   getTodayDateKorea,
   getTodayDateKoreaSimple,
   getTodayDateKoreaFinal,
+  getTodayStringByTimezone,
+  getDateStringByTimezone,
 };

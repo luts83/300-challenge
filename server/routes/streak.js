@@ -16,12 +16,7 @@ router.get("/:uid", async (req, res) => {
       });
     }
 
-    if (streak.shouldStartNewWeek()) {
-      streak.weeklyProgress = [false, false, false, false, false];
-      streak.celebrationShown = false;
-      streak.currentWeekStartDate = new Date();
-      await streak.save();
-    }
+    // 주차 리셋은 제출 시점에만 처리 (서버 TZ 영향으로 조회 시 리셋 금지)
 
     res.json({
       weeklyProgress: streak.weeklyProgress,

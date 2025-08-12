@@ -555,7 +555,7 @@ async function handleSubmit(req, res) {
     // 토큰 리셋 체크 - 사용자 시간대 기준으로 수정
     const currentTime = new Date();
 
-    const dayOfWeek = currentTime.getDay();
+    let dayOfWeek = 0; // 사용자 시간대 기준으로 아래에서 계산
     let streak = null;
 
     // 토큰 처리
@@ -599,6 +599,17 @@ async function handleSubmit(req, res) {
       monday = new Date();
     }
 
+    // 사용자 시간대 기준 요일 계산 (0=일요일, 1=월요일, ...)
+    try {
+      const userNow = new Date(
+        currentTime.getTime() - safeUserOffset * 60 * 1000
+      );
+      dayOfWeek = userNow.getUTCDay();
+    } catch (e) {
+      // 실패 시 서버 기준으로 fallback
+      dayOfWeek = currentTime.getUTCDay();
+    }
+
     const isWhitelisted = await checkEmailAccess(user.email);
 
     // 비화이트리스트 유저 활동 로깅
@@ -626,7 +637,7 @@ async function handleSubmit(req, res) {
 
       // 사용자 시간대 기준으로 마지막 리프레시 날짜 계산
       const lastRefreshedUserDate = new Date(
-        lastRefreshedDate.getTime() + safeUserOffset * 60 * 1000
+        lastRefreshedDate.getTime() - safeUserOffset * 60 * 1000
       );
       const lastRefreshedUserDay = lastRefreshedUserDate
         .toISOString()
@@ -662,7 +673,7 @@ async function handleSubmit(req, res) {
 
       // 사용자 시간대 기준으로 마지막 리프레시 날짜 계산
       const lastRefreshedUserDate = new Date(
-        lastRefreshedDate.getTime() + safeUserOffset * 60 * 1000
+        lastRefreshedDate.getTime() - safeUserOffset * 60 * 1000
       );
       const lastRefreshedUserDay = lastRefreshedUserDate
         .toISOString()

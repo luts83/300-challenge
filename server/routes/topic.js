@@ -23,7 +23,7 @@ router.get("/today", async (req, res) => {
     const now = new Date();
     const userTime = new Date(now.getTime() - offset * 60 * 1000);
     const today = userTime;
-    const dayOfWeek = today.getDay();
+    const dayOfWeek = today.getUTCDay();
 
     // 주말인 경우 주말 주제 제공
     if (dayOfWeek === 0 || dayOfWeek === 6) {

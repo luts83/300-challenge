@@ -20,79 +20,46 @@ function getManualTopicByDate(
   timezone = "Asia/Seoul",
   offset = 540
 ) {
-  // offset 부호 보정
-  offset = -offset;
+  // 사용자 로컬 날짜(YYYY-MM-DD)를 timezone 기반으로 안전하게 계산
+  const todayStr = new Intl.DateTimeFormat("en-CA", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
 
-  // 1. 서버의 현재 시간을 기준으로 사용자의 시간을 계산합니다.
-  const now = new Date();
-  const userTime = new Date(now.getTime() + offset * 60 * 1000);
+  // 사용자 로컬 00:00을 UTC로 표현한 Date
+  const todayLocalStartUtc = new Date(`${todayStr}T00:00:00.000Z`);
 
-  // 2. 사용자 시간대 기준으로 요일 계산 (UTC가 아닌 사용자 시간대 기준)
-  const dayOfWeek = userTime.getDay(); // 사용자 시간대 기준 요일 (0: 일요일, 1: 월요일)
+  // 요일 계산: 사용자의 현지 요일을 얻기 위해 같은 포맷으로 다시 날짜 생성
+  const userNow = new Date(
+    new Date().toLocaleString("en-US", { timeZone: timezone })
+  );
+  const dayOfWeek = userNow.getDay();
 
-  // 3. 기준 날짜도 UTC로 명확하게 설정합니다.
+  // 기준 날짜 (UTC 표시된 한국 기준일 고정)
   const base = new Date(config.TOPIC.BASE_DATE + "T00:00:00.000Z");
 
-  // 4. 사용자 시간대 기준으로 오늘 날짜 계산
-  const today = new Date(
-    userTime.getFullYear(),
-    userTime.getMonth(),
-    userTime.getDate()
+  // 주차 계산을 위해 로컬 시작 시각 기준으로 날짜 차이를 계산
+  const diffDays = Math.floor(
+    (todayLocalStartUtc - base) / (1000 * 60 * 60 * 24)
   );
-
-  const diffDays = Math.floor((today - base) / (1000 * 60 * 60 * 24));
-
-  // [수정] 주차별 주제 계산 로직으로 변경
-  // 기준 날짜부터 오늘까지의 주차를 계산
-  const baseDate = new Date(base);
-  const todayDate = new Date(today);
-
-  // 주차 계산: 기준 날짜부터 오늘까지의 주차 수
-  const weekDiff = Math.floor(
-    (todayDate - baseDate) / (1000 * 60 * 60 * 24 * 7)
-  );
-
-  // 평일 인덱스: 주차별로 5개씩 주제가 있으므로
-  const weekdayIndex =
-    weekDiff * 5 + (dayOfWeek >= 1 && dayOfWeek <= 5 ? dayOfWeek - 1 : 0);
+  const weekDiff = Math.floor(diffDays / 7);
 
   const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
 
-  // 주말 인덱스 계산: 주차별로 계산
-  const weekendCount = weekDiff * 2; // 주차별로 주차별로 주말은 2일씩
-
-  let selectedTopic;
-  if (mode === "300") {
-    if (isWeekend) {
-      selectedTopic = weekendTopics300[weekendCount % weekendTopics300.length];
-    } else {
-      selectedTopic = topics300[weekdayIndex % topics300.length];
-    }
-  } else if (mode === "1000") {
-    // 평일/주말 구분
-    if (isWeekend) {
-      selectedTopic =
-        weekendTopics1000[weekendCount % weekendTopics1000.length];
-    } else {
-      const todayMonday = new Date(today);
-      todayMonday.setUTCDate(today.getUTCDate() - today.getUTCDay() + 1);
-      const baseMonday = new Date(base);
-      baseMonday.setUTCDate(base.getUTCDate() - base.getUTCDay() + 1);
-      const weekDiff = Math.floor(
-        (todayMonday - baseMonday) / (1000 * 60 * 60 * 24 * 7)
-      );
-      selectedTopic = topics1000[weekDiff % topics1000.length];
-    }
-  }
+  // 평일 인덱스: 주차별 5개 (월~금)
+  const weekdayIndex =
+    weekDiff * 5 + (dayOfWeek >= 1 && dayOfWeek <= 5 ? dayOfWeek - 1 : 0);
 
   if (mode === "300") {
     if (isWeekend) {
+      const weekendCount = weekDiff * 2;
       const topic = weekendTopics300[weekendCount % weekendTopics300.length];
       return topic
         ? { topic, isManualTopic: true }
         : { topic: null, isManualTopic: false };
     } else {
-      // weekdayIndex가 오늘 주제에 대한 0-based 인덱스가 됩니다.
       const topic = topics300[weekdayIndex % topics300.length];
       return topic
         ? { topic, isManualTopic: true }
@@ -102,19 +69,13 @@ function getManualTopicByDate(
 
   if (mode === "1000") {
     if (isWeekend) {
+      const weekendCount = weekDiff * 2;
       const topic = weekendTopics1000[weekendCount % weekendTopics1000.length];
       return topic
         ? { topic, isManualTopic: true }
         : { topic: null, isManualTopic: false };
     } else {
-      const todayMonday = new Date(today);
-      todayMonday.setUTCDate(today.getUTCDate() - today.getUTCDay() + 1);
-      const baseMonday = new Date(base);
-      baseMonday.setUTCDate(base.getUTCDate() - base.getUTCDay() + 1);
-
-      const weekDiff = Math.floor(
-        (todayMonday - baseMonday) / (1000 * 60 * 60 * 24 * 7)
-      );
+      // 1000자: 주 단위 주제
       const topic = topics1000[weekDiff % topics1000.length];
       return topic
         ? { topic, isManualTopic: true }

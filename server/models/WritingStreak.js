@@ -21,16 +21,18 @@ const writingStreakSchema = new Schema({
   ],
 });
 
-// 새로운 주 시작 여부 확인 메서드
+// 새로운 주 시작 여부 확인 메서드 (UTC 기준 월요일 비교로 고정)
 writingStreakSchema.methods.shouldStartNewWeek = function () {
   if (!this.currentWeekStartDate) return true;
 
   const now = new Date();
-  const monday = new Date();
-  // UTC 기준으로 월요일 0시 계산
-  const dayOfWeek = monday.getUTCDay(); // 0=일요일, 1=월요일, ...
-  monday.setUTCDate(monday.getUTCDate() - dayOfWeek + 1); // 이번 주 월요일로 설정
-  monday.setUTCHours(0, 0, 0, 0); // UTC 0시로 설정
+  const monday = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
+  );
+  const dayOfWeek = monday.getUTCDay(); // 0=일요일, 1=월요일
+  // 이번 주 월요일 00:00:00 UTC로 이동
+  monday.setUTCDate(monday.getUTCDate() - dayOfWeek + 1);
+  monday.setUTCHours(0, 0, 0, 0);
 
   return this.currentWeekStartDate < monday;
 };

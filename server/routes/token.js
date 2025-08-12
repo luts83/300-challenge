@@ -105,6 +105,7 @@ router.get("/:uid", async (req, res) => {
     // 새로운 시간대 유틸리티 사용
     const {
       getUserTodayDateString,
+      getUserTodayDate,
       getUserMonday,
       logTimezoneInfo,
     } = require("../utils/timezoneUtils");
@@ -249,7 +250,7 @@ router.get("/:uid", async (req, res) => {
 
       // 사용자 시간대 기준으로 마지막 리프레시 날짜 계산
       const lastRefreshedUserDate = new Date(
-        lastRefreshedDate.getTime() + offset * 60 * 1000
+        lastRefreshedDate.getTime() - offset * 60 * 1000
       );
       const lastRefreshedUserDay = lastRefreshedUserDate
         .toISOString()
@@ -260,7 +261,7 @@ router.get("/:uid", async (req, res) => {
 
       // 날짜 비교 전 추가 검증
       const now = new Date();
-      const currentUserTime = new Date(now.getTime() + offset * 60 * 1000);
+      const currentUserTime = new Date(now.getTime() - offset * 60 * 1000);
       const currentUserDay = currentUserTime.toISOString().slice(0, 10);
 
       const refreshDebugKey = `${uid}_refresh_${today}`;
@@ -464,16 +465,16 @@ router.get("/:uid", async (req, res) => {
     // 다음 리프레시 예정일 계산
     let nextRefreshDate = null;
     if (isWhitelisted || daysSinceJoin < 7) {
-      // 내일 0시
-      const todayDate = new Date(today + "T00:00:00.000Z");
-      const tomorrow = new Date(todayDate);
-      tomorrow.setDate(todayDate.getDate() + 1);
-      nextRefreshDate = tomorrow.toISOString();
+      // 사용자 로컬 자정(내일 00:00 로컬)의 실제 UTC 시간
+      const [y, m, d] = today.split("-").map(Number);
+      const nextLocalMidnightUtcMs =
+        Date.UTC(y, m - 1, d + 1, 0, 0, 0) + offset * 60 * 1000;
+      nextRefreshDate = new Date(nextLocalMidnightUtcMs).toISOString();
     } else {
-      // 다음주 월요일 0시
-      const nextMonday = new Date(monday);
-      nextMonday.setDate(monday.getDate() + 7);
-      nextRefreshDate = nextMonday.toISOString();
+      // 다음 주 월요일 00:00(로컬)의 실제 UTC 시간
+      const nextMondayUtcMs =
+        monday.getTime() + 7 * 24 * 60 * 60 * 1000 + offset * 60 * 1000;
+      nextRefreshDate = new Date(nextMondayUtcMs).toISOString();
     }
 
     await finalTokenEntry.save();
