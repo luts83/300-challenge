@@ -188,8 +188,12 @@ const getUserTodayDateString = (userOffset = 0) => {
     const now = new Date();
     const userTime = new Date(now.getTime() + userOffset * 60 * 1000);
 
-    // 사용자 시간대 기준으로 오늘 날짜 문자열 반환
-    return userTime.toISOString().slice(0, 10);
+    // 사용자 시간대 기준으로 날짜 구성 (toISOString() 사용하지 않음)
+    const year = userTime.getFullYear();
+    const month = String(userTime.getMonth() + 1).padStart(2, "0");
+    const day = String(userTime.getDate()).padStart(2, "0");
+
+    return `${year}-${month}-${day}`;
   } catch (error) {
     console.error(
       `Error in getUserTodayDateString with userOffset: ${userOffset}`,
