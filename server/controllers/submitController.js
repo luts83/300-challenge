@@ -626,8 +626,21 @@ async function handleSubmit(req, res) {
 
     // 300자 토큰 지급
     if (isWhitelisted) {
-      // 매일 리셋
-      if (userToken.lastRefreshed < today) {
+      // 매일 리셋 - 사용자 시간대 기준으로 간단한 비교
+      const lastRefreshedDate = new Date(userToken.lastRefreshed);
+
+      // 사용자 시간대 기준으로 마지막 리프레시 날짜 계산
+      const lastRefreshedUserDate = new Date(
+        lastRefreshedDate.getTime() + safeUserOffset * 60 * 1000
+      );
+      const lastRefreshedUserDay = lastRefreshedUserDate
+        .toISOString()
+        .slice(0, 10);
+
+      // 오늘 날짜 (이미 사용자 시간대 기준으로 계산됨)
+      const todayStr = today;
+
+      if (lastRefreshedUserDay < todayStr) {
         userToken.tokens_300 = TOKEN.DAILY_LIMIT_300;
         userToken.lastRefreshed = currentTime;
 
@@ -650,7 +663,20 @@ async function handleSubmit(req, res) {
       }
     } else if (daysSinceJoin < 7) {
       // 비참여자, 가입 후 7일 이내: 매일 지급
-      if (userToken.lastRefreshed < today) {
+      const lastRefreshedDate = new Date(userToken.lastRefreshed);
+
+      // 사용자 시간대 기준으로 마지막 리프레시 날짜 계산
+      const lastRefreshedUserDate = new Date(
+        lastRefreshedDate.getTime() + safeUserOffset * 60 * 1000
+      );
+      const lastRefreshedUserDay = lastRefreshedUserDate
+        .toISOString()
+        .slice(0, 10);
+
+      // 오늘 날짜 (이미 사용자 시간대 기준으로 계산됨)
+      const todayStr = today;
+
+      if (lastRefreshedUserDay < todayStr) {
         userToken.tokens_300 = TOKEN.DAILY_LIMIT_300;
         userToken.lastRefreshed = currentTime;
 
@@ -701,7 +727,7 @@ async function handleSubmit(req, res) {
             type: "WEEKLY_RESET",
             amount: TOKEN.WEEKLY_LIMIT_1000,
             mode: "mode_1000",
-            timestamp: now,
+            timestamp: currentTime,
           },
           {
             session,
@@ -751,7 +777,7 @@ async function handleSubmit(req, res) {
             type: "WEEKLY_RESET",
             amount: TOKEN.WEEKLY_LIMIT_1000,
             mode: "mode_1000",
-            timestamp: now,
+            timestamp: currentTime,
           },
           {
             session,

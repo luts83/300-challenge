@@ -108,7 +108,13 @@ const Write300 = () => {
     const finalIsMinLengthMet = finalCharCount >= CONFIG.SUBMISSION.MODE_300.MIN_LENGTH;
 
     if (!forceSubmit) {
-      if (!title.trim() || title.trim().length < CONFIG.SUBMISSION.TITLE.MIN_LENGTH) {
+      // 제목 검증 강화
+      if (
+        !title ||
+        title === 'undefined' ||
+        !title.trim() ||
+        title.trim().length < CONFIG.SUBMISSION.TITLE.MIN_LENGTH
+      ) {
         return alert(`제목을 ${CONFIG.SUBMISSION.TITLE.MIN_LENGTH}글자 이상 입력해주세요.`);
       }
 
@@ -293,7 +299,7 @@ const Write300 = () => {
 
       // ✅ 디버깅: 전송할 데이터 로그
       const submitData = {
-        title,
+        title: title || '', // title이 undefined인 경우 빈 문자열로 처리
         text: finalText, // ✅ 실시간 텍스트 사용
         topic: dailyTopic || null,
         mode: 'mode_300',

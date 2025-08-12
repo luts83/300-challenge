@@ -26,16 +26,31 @@ const logUserTime = (userEmail, userTimezone, userOffset) => {
  * @returns {Date} UTC 기준 Date 객체
  */
 const getUserTodayDate = (userOffset = 0) => {
-  // ✅ 영국 시간(UTC+0)을 기본값으로 변경
   try {
     const now = new Date();
 
     // userOffset은 getTimezoneOffset() 값이므로 음수입니다
-    // 사용자 시간대의 현재 시간을 계산 (수정: -를 +로 변경)
+    // 한국시간(UTC+9)의 경우 userOffset = -540
+    // 사용자 시간대의 현재 시간을 계산
     const userTime = new Date(now.getTime() + userOffset * 60 * 1000);
 
-    // 사용자 시간대 기준으로 오늘 날짜를 반환
-    return userTime;
+    // 사용자 시간대 기준으로 오늘 날짜의 시작(00:00:00)을 UTC로 계산
+    const userDateStart = new Date(
+      userTime.getFullYear(),
+      userTime.getMonth(),
+      userTime.getDate(),
+      0,
+      0,
+      0,
+      0
+    );
+
+    // UTC 기준으로 변환 (userOffset을 빼서 UTC 시간으로 변환)
+    const utcDateStart = new Date(
+      userDateStart.getTime() - userOffset * 60 * 1000
+    );
+
+    return utcDateStart;
   } catch (error) {
     console.error(
       `Error in getUserTodayDate with userOffset: ${userOffset}`,
@@ -169,17 +184,12 @@ const getUserMonday = (userOffset = 0) => {
  */
 const getUserTodayDateString = (userOffset = 0) => {
   try {
-    const date = getUserTodayDate(userOffset);
+    // 사용자 시간대 기준으로 현재 시간 계산
+    const now = new Date();
+    const userTime = new Date(now.getTime() + userOffset * 60 * 1000);
 
-    // Date 객체가 유효한지 확인
-    if (!(date instanceof Date) || isNaN(date.getTime())) {
-      console.warn(
-        `Invalid date object for userOffset: ${userOffset}, falling back to current date`
-      );
-      return new Date().toISOString().slice(0, 10);
-    }
-
-    return date.toISOString().slice(0, 10);
+    // 사용자 시간대 기준으로 오늘 날짜 문자열 반환
+    return userTime.toISOString().slice(0, 10);
   } catch (error) {
     console.error(
       `Error in getUserTodayDateString with userOffset: ${userOffset}`,

@@ -244,36 +244,36 @@ router.get("/:uid", async (req, res) => {
 
     // 300자 토큰 지급 (submitController.js와 동일한 분기 및 디버깅)
     if (isWhitelisted) {
-      // 매일 리셋 - 더 명확한 조건
+      // 매일 리셋 - 사용자 시간대 기준으로 간단한 비교
       const lastRefreshedDate = new Date(finalTokenEntry.lastRefreshed);
-      const lastRefreshedDay = new Date(
-        Date.UTC(
-          lastRefreshedDate.getUTCFullYear(),
-          lastRefreshedDate.getUTCMonth(),
-          lastRefreshedDate.getUTCDate()
-        )
+
+      // 사용자 시간대 기준으로 마지막 리프레시 날짜 계산
+      const lastRefreshedUserDate = new Date(
+        lastRefreshedDate.getTime() + offset * 60 * 1000
       );
+      const lastRefreshedUserDay = lastRefreshedUserDate
+        .toISOString()
+        .slice(0, 10);
+
+      // 오늘 날짜 (이미 사용자 시간대 기준으로 계산됨)
+      const todayStr = today;
 
       const refreshDebugKey = `${uid}_refresh_${today}`;
       if (
         process.env.NODE_ENV === "development" &&
         !debugLogCache.has(refreshDebugKey)
       ) {
-        const lastRefreshedDayStr = lastRefreshedDay
-          .toISOString()
-          .split("T")[0];
-        const todayStr = today;
         console.log(
           `[리프레시] ${
             userRecord.email
-          }: ${lastRefreshedDayStr} → ${todayStr} (필요: ${
-            lastRefreshedDay < new Date(today + "T00:00:00.000Z")
+          }: ${lastRefreshedUserDay} → ${todayStr} (필요: ${
+            lastRefreshedUserDay < todayStr
           })`
         );
         debugLogCache.add(refreshDebugKey);
       }
 
-      if (lastRefreshedDay < new Date(today + "T00:00:00.000Z")) {
+      if (lastRefreshedUserDay < todayStr) {
         finalTokenEntry.tokens_300 = TOKEN.DAILY_LIMIT_300;
         finalTokenEntry.lastRefreshed = now;
         console.log(`[토큰지급] ${userRecord.email}: 300자 일일리셋`);
@@ -297,7 +297,20 @@ router.get("/:uid", async (req, res) => {
       }
     } else if (daysSinceJoin < 7) {
       // 비참여자, 가입 후 7일 이내: 매일 지급
-      if (finalTokenEntry.lastRefreshed < new Date(today + "T00:00:00.000Z")) {
+      const lastRefreshedDate = new Date(finalTokenEntry.lastRefreshed);
+
+      // 사용자 시간대 기준으로 마지막 리프레시 날짜 계산
+      const lastRefreshedUserDate = new Date(
+        lastRefreshedDate.getTime() + offset * 60 * 1000
+      );
+      const lastRefreshedUserDay = lastRefreshedUserDate
+        .toISOString()
+        .slice(0, 10);
+
+      // 오늘 날짜 (이미 사용자 시간대 기준으로 계산됨)
+      const todayStr = today;
+
+      if (lastRefreshedUserDay < todayStr) {
         finalTokenEntry.tokens_300 = TOKEN.DAILY_LIMIT_300;
         finalTokenEntry.lastRefreshed = now;
         console.log(`[토큰지급] ${userRecord.email}: 300자 신규유저 일일리셋`);
