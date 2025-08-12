@@ -1,5 +1,5 @@
 // src/components/FeedbackCamp/MyFeedbacks.tsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { Feedback } from './types';
@@ -25,6 +25,13 @@ export const MyFeedbacks: React.FC<MyFeedbacksProps> = ({
   const [isExpanded, setIsExpanded] = useState(false);
   const [selectedFeedback, setSelectedFeedback] = useState<string | null>(null);
   const { user } = useUser();
+
+  // 모바일(소형 화면)에서는 기본적으로 펼쳐서 사용자 혼란 방지
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.innerWidth < 640) {
+      setIsExpanded(true);
+    }
+  }, []);
 
   const fetchGivenFeedbacks = async () => {
     if (!user) return;
