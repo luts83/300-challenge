@@ -23,20 +23,23 @@ function getManualTopicByDate(
   // offset 부호 보정
   offset = -offset;
 
-  // 새로운 시간대 유틸리티 사용
-  const { getUserTodayDate } = require("./timezoneUtils");
-
   // 1. 서버의 현재 시간을 기준으로 사용자의 시간을 계산합니다.
   const now = new Date();
   const userTime = new Date(now.getTime() + offset * 60 * 1000);
 
-  // 2. 새로운 유틸리티 함수 사용
-  const today = getUserTodayDate(offset);
+  // 2. 사용자 시간대 기준으로 요일 계산 (UTC가 아닌 사용자 시간대 기준)
+  const dayOfWeek = userTime.getDay(); // 사용자 시간대 기준 요일 (0: 일요일, 1: 월요일)
 
   // 3. 기준 날짜도 UTC로 명확하게 설정합니다.
   const base = new Date(config.TOPIC.BASE_DATE + "T00:00:00.000Z");
 
-  const dayOfWeek = today.getUTCDay(); // UTC 기준 요일 (0: 일요일, 1: 월요일)
+  // 4. 사용자 시간대 기준으로 오늘 날짜 계산
+  const today = new Date(
+    userTime.getFullYear(),
+    userTime.getMonth(),
+    userTime.getDate()
+  );
+
   const diffDays = Math.floor((today - base) / (1000 * 60 * 60 * 24));
 
   // [수정] 주차별 주제 계산 로직으로 변경
