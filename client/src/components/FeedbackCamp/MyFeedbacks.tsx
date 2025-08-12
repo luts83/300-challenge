@@ -100,15 +100,20 @@ export const MyFeedbacks: React.FC<MyFeedbacksProps> = ({
                           })}
                         </span>
                         <HelpfulButton submissionId={feedback.toSubmissionId} />
-                        <span
-                          className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                            feedback.mode === 'mode_300'
-                              ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/80 dark:text-blue-300'
-                              : 'bg-green-100 text-green-800 dark:bg-green-900/80 dark:text-green-300'
-                          }`}
-                        >
-                          {feedback.mode === 'mode_300' ? '300자' : '1000자'}
-                        </span>
+                        {(() => {
+                          const displayMode = feedback.mode || submission?.mode;
+                          return (
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                                displayMode === 'mode_300'
+                                  ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/80 dark:text-blue-300'
+                                  : 'bg-green-100 text-green-800 dark:bg-green-900/80 dark:text-green-300'
+                              }`}
+                            >
+                              {displayMode === 'mode_300' ? '300자' : '1000자'}
+                            </span>
+                          );
+                        })()}
                       </div>
                     </div>
                   </div>

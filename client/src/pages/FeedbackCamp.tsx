@@ -182,10 +182,10 @@ const FeedbackCamp = () => {
           data.feedbacks?.filter((fb: any) => fb.writtenDate === todayString) || [];
 
         const mode300Count = todayFeedbacks.filter(
-          (fb: any) => fb.toSubmissionId?.mode === 'mode_300'
+          (fb: any) => (fb.mode || fb.toSubmissionId?.mode) === 'mode_300'
         ).length;
         const mode1000Count = todayFeedbacks.filter(
-          (fb: any) => fb.toSubmissionId?.mode === 'mode_1000'
+          (fb: any) => (fb.mode || fb.toSubmissionId?.mode) === 'mode_1000'
         ).length;
 
         const newTodayFeedbackCount = {
@@ -692,9 +692,9 @@ const FeedbackCamp = () => {
         '📝 [디버그] 최근 5개 피드백:',
         recentFeedbacks.map(fb => ({
           id: fb._id,
-          writtenDate: fb.writtenDate,
+          writtenDate: (fb as any).writtenDate,
           createdAt: fb.createdAt,
-          mode: fb.toSubmissionId?.mode,
+          mode: (fb as any).mode || (fb as any).toSubmissionId?.mode,
         }))
       );
 

@@ -109,13 +109,13 @@ exports.submitFeedback = async (req, res) => {
     userOffset,
   } = req.body;
 
-  // 🔍 간단한 유저 시간 로깅
-  const { logUserTime } = require("../utils/timezoneUtils");
-  logUserTime(
-    req.user?.email || "Unknown",
-    userTimezone || "Unknown",
-    userOffset || 0
-  );
+  // 🔍 간단한 유저 시간 로깅 (제거 - 불필요한 반복 로그 방지)
+  // const { logUserTime } = require("../utils/timezoneUtils");
+  // logUserTime(
+  //   req.user?.email || "Unknown",
+  //   userTimezone || "Unknown",
+  //   userOffset || 0
+  // );
 
   // 구조화된 피드백 검증
   if (

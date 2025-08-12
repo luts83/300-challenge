@@ -235,7 +235,7 @@ router.get("/given/:uid", async (req, res) => {
     const submissions = await Submission.find({
       _id: { $in: submissionIds },
     })
-      .select("mode title content user")
+      .select("mode title content user topic createdAt")
       .lean();
 
     // submissionId를 키로 하는 맵 생성
@@ -263,6 +263,9 @@ router.get("/given/:uid", async (req, res) => {
           "내용을 불러올 수 없습니다.",
         submissionTitle:
           feedback.submissionTitle || submission?.title || "제목 없음",
+        submissionTopic: feedback.submissionTopic || submission?.topic || null,
+        submissionCreatedAt: submission?.createdAt || null,
+        mode: feedback.mode || submission?.mode || null,
       };
     });
 

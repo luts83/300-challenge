@@ -12,12 +12,20 @@
  * @param {number} userOffset - 사용자 UTC 오프셋 (분)
  */
 const logUserTime = (userEmail, userTimezone, userOffset) => {
-  console.log("🌍 유저 시간:", {
-    email: userEmail,
-    timezone: userTimezone,
-    offset: userOffset,
-    time: new Date().toISOString(),
-  });
+  // 이메일이 유효하지 않으면 로그 출력하지 않음
+  if (!userEmail || userEmail === "Unknown" || userEmail === "undefined") {
+    return;
+  }
+
+  // 개발 환경에서만 로그 출력
+  if (process.env.NODE_ENV === "development") {
+    console.log("🌍 유저 시간:", {
+      email: userEmail,
+      timezone: userTimezone,
+      offset: userOffset,
+      time: new Date().toISOString(),
+    });
+  }
 };
 
 /**
@@ -336,16 +344,57 @@ const getUserMonday = (userOffset = 0) => {
  */
 const getUserTodayDateString = (userOffset = 0) => {
   try {
-    // 사용자 시간대 기준으로 현재 시간 계산
+    // 현재 UTC 시간
     const now = new Date();
+
+    // 사용자 시간대 기준으로 현재 시간 계산
+    // userOffset은 getTimezoneOffset() 값이므로 음수입니다
     const userTime = new Date(now.getTime() + userOffset * 60 * 1000);
 
-    // 사용자 시간대 기준으로 날짜 구성 (toISOString() 사용하지 않음)
-    const year = userTime.getFullYear();
-    const month = String(userTime.getMonth() + 1).padStart(2, "0");
-    const day = String(userTime.getDate()).padStart(2, "0");
+    // ✅ 수정: UTC 메서드가 아닌 로컬 메서드 사용
+    // 사용자 시간대 기준으로 오늘 날짜 계산
+    const userYear = userTime.getFullYear(); // getUTCFullYear() → getFullYear()
+    const userMonth = userTime.getMonth(); // getUTCMonth() → getMonth()
+    const userDay = userTime.getDate(); // getUTCDate() → getDate()
 
-    return `${year}-${month}-${day}`;
+    // 결과 날짜 문자열 생성
+    const result = `${userYear}-${String(userMonth + 1).padStart(
+      2,
+      "0"
+    )}-${String(userDay).padStart(2, "0")}`;
+
+    // 안전장치: 날짜가 유효한지 확인
+    const resultDate = new Date(result);
+    if (isNaN(resultDate.getTime())) {
+      console.error(
+        `[ERROR] Invalid date result: ${result} for userOffset: ${userOffset}`
+      );
+      // 에러 시 현재 UTC 날짜 반환
+      return new Date().toISOString().slice(0, 10);
+    }
+
+    // 디버깅 로그 추가
+    if (process.env.NODE_ENV === "development") {
+      console.log(`[DEBUG] getUserTodayDateString (수정됨):`, {
+        serverTime: now.toISOString(),
+        userOffset,
+        userOffsetHours: userOffset / 60,
+        userTime: userTime.toISOString(),
+        userTimeLocal: userTime.toLocaleString("ko-KR", {
+          timeZone: "Asia/Seoul",
+        }),
+        userYear,
+        userMonth: userMonth + 1,
+        userDay,
+        result,
+        resultDate: resultDate.toISOString(),
+        calculation: `사용자 시간대 기준: ${userTime.toISOString()} → ${result}`,
+        validation: `Valid date: ${!isNaN(resultDate.getTime())}`,
+        note: "✅ getFullYear/getMonth/getDate 사용 (UTC 메서드 아님)",
+      });
+    }
+
+    return result;
   } catch (error) {
     console.error(
       `Error in getUserTodayDateString with userOffset: ${userOffset}`,
@@ -443,6 +492,11 @@ const getTimezoneDescription = (timezone, offset) => {
  * @param {number} offset - 사용자 UTC 오프셋
  */
 const logTimezoneInfo = (userEmail, timezone, offset) => {
+  // 개발 환경에서만 로그 출력
+  if (process.env.NODE_ENV !== "development") {
+    return;
+  }
+
   const offsetHours = -offset / 60;
   const locationInfo = getLocationByOffset(offsetHours);
 

@@ -258,6 +258,11 @@ router.get("/:uid", async (req, res) => {
       // 오늘 날짜 (이미 사용자 시간대 기준으로 계산됨)
       const todayStr = today;
 
+      // 날짜 비교 전 추가 검증
+      const now = new Date();
+      const currentUserTime = new Date(now.getTime() + offset * 60 * 1000);
+      const currentUserDay = currentUserTime.toISOString().slice(0, 10);
+
       const refreshDebugKey = `${uid}_refresh_${today}`;
       if (
         process.env.NODE_ENV === "development" &&
@@ -270,10 +275,63 @@ router.get("/:uid", async (req, res) => {
             lastRefreshedUserDay < todayStr
           })`
         );
+        console.log(`[리프레시 상세]`, {
+          lastRefreshedDate: finalTokenEntry.lastRefreshed.toISOString(),
+          lastRefreshedUserDate: lastRefreshedUserDate.toISOString(),
+          lastRefreshedUserDay,
+          todayStr,
+          currentUserDay,
+          offset,
+          serverTime: now.toISOString(),
+          userTime: currentUserTime.toISOString(),
+          comparison: `${lastRefreshedUserDay} < ${todayStr} = ${
+            lastRefreshedUserDay < todayStr
+          }`,
+          validation: `todayStr === currentUserDay: ${
+            todayStr === currentUserDay
+          }`,
+        });
         debugLogCache.add(refreshDebugKey);
       }
 
-      if (lastRefreshedUserDay < todayStr) {
+      // 날짜 비교 전 검증: todayStr이 현재 사용자 시간과 일치하는지 확인
+      if (todayStr !== currentUserDay) {
+        console.warn(`[경고] 날짜 불일치: ${userRecord.email}`, {
+          todayStr,
+          currentUserDay,
+          offset,
+          serverTime: now.toISOString(),
+        });
+      }
+
+      // 토큰 지급 조건 검사 전 추가 검증
+      const shouldRefresh = lastRefreshedUserDay < todayStr;
+      const timeSinceLastRefresh =
+        now.getTime() - finalTokenEntry.lastRefreshed.getTime();
+      const hoursSinceLastRefresh = timeSinceLastRefresh / (1000 * 60 * 60);
+
+      if (process.env.NODE_ENV === "development") {
+        console.log(`[토큰검증] ${userRecord.email}:`, {
+          shouldRefresh,
+          timeSinceLastRefresh: `${hoursSinceLastRefresh.toFixed(2)}시간`,
+          lastRefreshedUserDay,
+          todayStr,
+          currentUserDay,
+          condition: `${lastRefreshedUserDay} < ${todayStr} = ${shouldRefresh}`,
+        });
+      }
+
+      if (shouldRefresh) {
+        // 추가 안전장치: 마지막 리프레시로부터 최소 12시간이 지났는지 확인
+        if (hoursSinceLastRefresh < 12) {
+          console.warn(`[경고] 의심스러운 토큰 리프레시: ${userRecord.email}`, {
+            hoursSinceLastRefresh: hoursSinceLastRefresh.toFixed(2),
+            lastRefreshed: finalTokenEntry.lastRefreshed.toISOString(),
+            currentTime: now.toISOString(),
+            reason: "마지막 리프레시로부터 12시간 미만",
+          });
+        }
+
         finalTokenEntry.tokens_300 = TOKEN.DAILY_LIMIT_300;
         finalTokenEntry.lastRefreshed = now;
         console.log(
@@ -284,6 +342,14 @@ router.get("/:uid", async (req, res) => {
             { timeZone: "Asia/Seoul" }
           )})`
         );
+        console.log(`[토큰지급 상세]`, {
+          lastRefreshedUserDay,
+          todayStr,
+          currentUserDay,
+          hoursSinceLastRefresh: hoursSinceLastRefresh.toFixed(2),
+          reason: "일일 리셋 조건 만족",
+          timestamp: now.toISOString(),
+        });
       } else {
         // 스킵 로그는 토큰이 0개일 때만 출력하고, 중복 방지
         if (finalTokenEntry.tokens_300 === 0) {
@@ -297,6 +363,13 @@ router.get("/:uid", async (req, res) => {
                 { timeZone: "Asia/Seoul" }
               )})`
             );
+            console.log(`[토큰스킵 상세]`, {
+              lastRefreshedUserDay,
+              todayStr,
+              currentUserDay,
+              reason: "일일 리셋 조건 불만족",
+              timestamp: now.toISOString(),
+            });
             debugLogCache.add(logKey);
 
             // 캐시 크기 제한 (메모리 누수 방지)
