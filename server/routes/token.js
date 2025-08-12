@@ -276,14 +276,26 @@ router.get("/:uid", async (req, res) => {
       if (lastRefreshedUserDay < todayStr) {
         finalTokenEntry.tokens_300 = TOKEN.DAILY_LIMIT_300;
         finalTokenEntry.lastRefreshed = now;
-        console.log(`[토큰지급] ${userRecord.email}: 300자 일일리셋`);
+        console.log(
+          `[토큰지급] ${
+            userRecord.email
+          }: 300자 일일리셋 (유저 로컬타임: ${new Date().toLocaleString(
+            "ko-KR",
+            { timeZone: "Asia/Seoul" }
+          )})`
+        );
       } else {
         // 스킵 로그는 토큰이 0개일 때만 출력하고, 중복 방지
         if (finalTokenEntry.tokens_300 === 0) {
           const logKey = `token_skip_${userRecord.uid}_${today}`;
           if (!debugLogCache.has(logKey)) {
             console.log(
-              `[토큰스킵] ${userRecord.email}: 아직 리프레시 시간이 아님`
+              `[토큰스킵] ${
+                userRecord.email
+              }: 아직 리프레시 시간이 아님 (유저 로컬타임: ${new Date().toLocaleString(
+                "ko-KR",
+                { timeZone: "Asia/Seoul" }
+              )})`
             );
             debugLogCache.add(logKey);
 
@@ -313,7 +325,14 @@ router.get("/:uid", async (req, res) => {
       if (lastRefreshedUserDay < todayStr) {
         finalTokenEntry.tokens_300 = TOKEN.DAILY_LIMIT_300;
         finalTokenEntry.lastRefreshed = now;
-        console.log(`[토큰지급] ${userRecord.email}: 300자 신규유저 일일리셋`);
+        console.log(
+          `[토큰지급] ${
+            userRecord.email
+          }: 300자 신규유저 일일리셋 (유저 로컬타임: ${new Date().toLocaleString(
+            "ko-KR",
+            { timeZone: "Asia/Seoul" }
+          )})`
+        );
       }
     } else {
       // 비참여자, 가입 7일 이후: 주간 지급
@@ -324,7 +343,14 @@ router.get("/:uid", async (req, res) => {
         finalTokenEntry.tokens_300 = TOKEN.WEEKLY_LIMIT_300;
         finalTokenEntry.tokens_1000 = TOKEN.WEEKLY_LIMIT_1000;
         finalTokenEntry.lastWeeklyRefreshed = monday;
-        console.log(`[토큰지급] ${userRecord.email}: 300자+1000자 주간리셋`);
+        console.log(
+          `[토큰지급] ${
+            userRecord.email
+          }: 300자+1000자 주간리셋 (유저 로컬타임: ${new Date().toLocaleString(
+            "ko-KR",
+            { timeZone: "Asia/Seoul" }
+          )})`
+        );
       }
     }
 
@@ -335,7 +361,14 @@ router.get("/:uid", async (req, res) => {
       if (finalTokenEntry.lastWeeklyRefreshed < monday) {
         finalTokenEntry.tokens_1000 = TOKEN.WEEKLY_LIMIT_1000;
         finalTokenEntry.lastWeeklyRefreshed = monday;
-        console.log(`[토큰지급] ${userRecord.email}: 1000자 주간리셋`);
+        console.log(
+          `[토큰지급] ${
+            userRecord.email
+          }: 1000자 주간리셋 (유저 로컬타임: ${new Date().toLocaleString(
+            "ko-KR",
+            { timeZone: "Asia/Seoul" }
+          )})`
+        );
       }
     } else if (daysSinceJoin < 7) {
       // 비참여자, 가입 후 7일 이내: 주간 지급 (사용자 시간대 기준으로 이미 계산된 monday 사용)
@@ -343,7 +376,14 @@ router.get("/:uid", async (req, res) => {
       if (finalTokenEntry.lastWeeklyRefreshed < monday) {
         finalTokenEntry.tokens_1000 = TOKEN.WEEKLY_LIMIT_1000;
         finalTokenEntry.lastWeeklyRefreshed = monday;
-        console.log(`[토큰지급] ${userRecord.email}: 1000자 신규유저 주간리셋`);
+        console.log(
+          `[토큰지급] ${
+            userRecord.email
+          }: 1000자 신규유저 주간리셋 (유저 로컬타임: ${new Date().toLocaleString(
+            "ko-KR",
+            { timeZone: "Asia/Seoul" }
+          )})`
+        );
       }
     }
     // 비참여자, 가입 7일 이후는 위에서 이미 처리됨

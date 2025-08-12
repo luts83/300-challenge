@@ -124,21 +124,97 @@ const FeedbackCamp = () => {
     }
   }, [user]); // user만 의존성으로 설정
 
-  // 내가 작성한 피드백 가져오기
-  const fetchGivenFeedbacks = async () => {
-    if (!user) return;
+  // 오늘의 피드백 현황 직접 가져오기
+  const fetchTodayFeedbackStatus = useCallback(async () => {
+    if (!user?.uid) return;
+
     try {
-      const modeParam = activeTab === 'all' ? '' : `&mode=${encodeURIComponent(activeTab)}`;
-      const res = await axios.get(
-        `${import.meta.env.VITE_API_URL}/api/feedback/given/${user.uid}?page=1&limit=1000${modeParam}`
-      );
-      setGivenFeedbacks(res.data.feedbacks);
-      setTotalFeedbacks(res.data.total);
-      setTodaySummary(res.data.todaySummary);
-    } catch (err) {
-      logger.error('내가 작성한 피드백 조회 실패:', err);
+      const response = await fetch(`/api/feedback/today/${user.uid}`);
+      const data = await response.json();
+
+      if (response.ok) {
+        const newTodayFeedbackCount = {
+          mode_300: data.mode_300 || 0,
+          mode_1000: data.mode_1000 || 0,
+          total: data.total || 0,
+        };
+
+        setTodayFeedbackCount(newTodayFeedbackCount);
+
+        // localStorage에 저장
+        localStorage.setItem(
+          `todayFeedbackCount_${user.uid}`,
+          JSON.stringify(newTodayFeedbackCount)
+        );
+      } else {
+        console.error('❌ [피드백 현황] API 오류:', {
+          userUid: user.uid,
+          status: response.status,
+          error: data,
+        });
+      }
+    } catch (error) {
+      console.error('❌ [피드백 현황] 네트워크 오류:', {
+        userUid: user.uid,
+        error: error,
+      });
     }
-  };
+  }, [user?.uid]);
+
+  // 내가 쓴 피드백 불러오기
+  const fetchGivenFeedbacks = useCallback(async () => {
+    if (!user?.uid) return;
+
+    try {
+      const response = await fetch(`/api/feedback/given/${user.uid}`);
+      const data = await response.json();
+
+      if (response.ok) {
+        setGivenFeedbacks(data.feedbacks || []);
+
+        // 오늘의 피드백 카운트 계산
+        const today = new Date();
+        const koreaOffset = 9 * 60 * 60 * 1000; // KST는 UTC+9
+        const koreaTime = new Date(today.getTime() + koreaOffset);
+        const todayString = koreaTime.toISOString().split('T')[0];
+
+        const todayFeedbacks =
+          data.feedbacks?.filter((fb: any) => fb.writtenDate === todayString) || [];
+
+        const mode300Count = todayFeedbacks.filter(
+          (fb: any) => fb.toSubmissionId?.mode === 'mode_300'
+        ).length;
+        const mode1000Count = todayFeedbacks.filter(
+          (fb: any) => fb.toSubmissionId?.mode === 'mode_1000'
+        ).length;
+
+        const newTodayFeedbackCount = {
+          mode_300: mode300Count,
+          mode_1000: mode1000Count,
+          total: mode300Count + mode1000Count,
+        };
+
+        setTodayFeedbackCount(newTodayFeedbackCount);
+
+        // localStorage에 저장
+        localStorage.setItem(
+          `todayFeedbackCount_${user.uid}`,
+          JSON.stringify(newTodayFeedbackCount)
+        );
+      } else {
+        console.error('❌ [피드백 미션] API 오류:', {
+          userUid: user.uid,
+          status: response.status,
+          error: data,
+        });
+      }
+    } catch (error) {
+      console.error('❌ [피드백 미션] 네트워크 오류:', {
+        userUid: user.uid,
+        error: error,
+      });
+    }
+  }, [user?.uid, activeTab]);
 
   // setTodayFeedbackCount를 래핑하여 localStorage에 자동 저장
   const updateTodayFeedbackCount = useCallback(
@@ -273,8 +349,11 @@ const FeedbackCamp = () => {
       if (givenFeedbacks.length === 0) {
         fetchGivenFeedbacks(); // 내가 쓴 피드백 목록 가져오기
       }
+
+      // 오늘의 피드백 현황 API 호출
+      fetchTodayFeedbackStatus();
     }
-  }, [user, isStateRestored]); // checkAndApplyRetroactiveFeedback 의존성도 제거
+  }, [user, isStateRestored, fetchGivenFeedbacks, fetchTodayFeedbackStatus]); // checkAndApplyRetroactiveFeedback 의존성도 제거
 
   useEffect(() => {
     const fetchPopularSubmissions = async () => {
@@ -563,12 +642,158 @@ const FeedbackCamp = () => {
     });
   }, [user?.uid, todayFeedbackCount]);
 
+  // 오늘의 피드백 현황 디버깅 함수
+  const debugTodayFeedbackStatus = useCallback(async () => {
+    if (!user?.uid) {
+      alert('사용자 정보가 없습니다.');
+      return;
+    }
+
+    try {
+      console.log('🔍 [디버그] 오늘의 피드백 현황 디버그 시작');
+
+      // 클라이언트 시간 정보
+      const clientTime = new Date();
+      const clientToday = clientTime.toISOString().split('T')[0];
+
+      console.log('🕐 [디버그] 클라이언트 시간 정보:', {
+        clientTime: clientTime.toLocaleString(),
+        clientToday,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      });
+
+      // 현재 상태 정보
+      console.log('📊 [디버그] 현재 상태:', {
+        todayFeedbackCount,
+        givenFeedbacksCount: givenFeedbacks.length,
+        allSubmissionsCount: allSubmissions.length,
+      });
+
+      // localStorage 정보
+      const storedData = localStorage.getItem(`todayFeedbackCount_${user.uid}`);
+      console.log('💾 [디버그] localStorage 데이터:', {
+        storedData,
+        parsedData: storedData ? JSON.parse(storedData) : null,
+      });
+
+      // API 직접 호출
+      console.log('📡 [디버그] API 직접 호출 시작');
+      const response = await fetch(`/api/feedback/today/${user.uid}`);
+      const apiData = await response.json();
+
+      console.log('📡 [디버그] API 응답:', {
+        status: response.status,
+        data: apiData,
+      });
+
+      // 최근 피드백 상세 정보
+      const recentFeedbacks = givenFeedbacks.slice(0, 5);
+      console.log(
+        '📝 [디버그] 최근 5개 피드백:',
+        recentFeedbacks.map(fb => ({
+          id: fb._id,
+          writtenDate: fb.writtenDate,
+          createdAt: fb.createdAt,
+          mode: fb.toSubmissionId?.mode,
+        }))
+      );
+
+      // 피드백 미션 상태 분석
+      console.log('🎯 [디버그] 피드백 미션 상태 분석:', {
+        hasTodayFeedback: todayFeedbackCount.total > 0,
+        canWriteFeedback: allSubmissions.length > 0,
+        feedbackTargets: allSubmissions.filter(sub => !sub.feedbackUnlocked).length,
+        unlockedSubmissions: allSubmissions.filter(sub => sub.feedbackUnlocked).length,
+      });
+
+      // 결과 요약
+      const summary = {
+        clientToday,
+        clientTime: clientTime.toLocaleString(),
+        currentState: todayFeedbackCount,
+        localStorageData: storedData ? JSON.parse(storedData) : null,
+        apiResponse: apiData,
+        recentFeedbacksCount: recentFeedbacks.length,
+        missionStatus: {
+          hasTodayFeedback: todayFeedbackCount.total > 0,
+          canWriteFeedback: allSubmissions.length > 0,
+          feedbackTargets: allSubmissions.filter(sub => !sub.feedbackUnlocked).length,
+        },
+      };
+
+      console.log('📋 [디버그] 전체 요약:', summary);
+
+      // 모바일용 alert
+      alert(
+        `디버그 완료!\n\n클라이언트 오늘: ${clientToday}\n현재 상태: ${JSON.stringify(todayFeedbackCount)}\nAPI 응답: ${JSON.stringify(apiData)}\n\n콘솔에서 자세한 정보를 확인하세요.`
+      );
+    } catch (error) {
+      console.error('❌ [디버그] 오류:', error);
+      alert(`디버그 오류: ${error}`);
+    }
+  }, [user?.uid, todayFeedbackCount, givenFeedbacks, allSubmissions]);
+
+  // 모바일 친화적 간단 디버깅 함수
+  const debugMobile = useCallback(() => {
+    if (!user?.uid) {
+      alert('사용자 정보가 없습니다.');
+      return;
+    }
+
+    const info = {
+      userUid: user.uid,
+      currentTime: new Date().toISOString(),
+      todayFeedbackCount,
+      givenFeedbacks: givenFeedbacks?.length || 0,
+      allSubmissions: allSubmissions?.length || 0,
+      counts,
+      localStorage: {
+        todayFeedbackCount: localStorage.getItem(`todayFeedbackCount_${user.uid}`),
+        date: localStorage.getItem(`todayFeedbackCount_date_${user.uid}`),
+      },
+    };
+
+    // 모바일에서 보기 쉽게 alert로 표시
+    alert(`📊 디버깅 정보:
+사용자: ${info.userUid}
+현재 시간: ${info.currentTime}
+오늘 피드백 카운트: ${JSON.stringify(info.todayFeedbackCount)}
+작성한 피드백: ${info.givenFeedbacks}개
+전체 제출물: ${info.allSubmissions}개
+카운트: ${JSON.stringify(info.counts)}
+localStorage: ${JSON.stringify(info.localStorage)}`);
+
+    // 콘솔에도 출력
+    console.log('📱 모바일 디버깅:', info);
+  }, [user?.uid, todayFeedbackCount, givenFeedbacks, allSubmissions, counts]);
+
   // 전역 객체에 디버깅 함수 등록
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      (window as any).debugLocalStorage = debugLocalStorage;
+      (window as any).debugFeedbackCamp = {
+        debugLocalStorage,
+        debugTodayFeedbackStatus,
+        debugMobile, // 모바일용 추가
+        getCurrentState: () => ({
+          todayFeedbackCount,
+          givenFeedbacks: givenFeedbacks.length,
+          allSubmissions: allSubmissions.length,
+          counts,
+          user: user?.uid,
+        }),
+      };
+      console.log('🔧 디버깅 함수가 전역에 등록되었습니다. window.debugFeedbackCamp 사용 가능');
     }
-  }, [debugLocalStorage]);
+  }, [
+    debugLocalStorage,
+    debugTodayFeedbackStatus,
+    debugMobile,
+    todayFeedbackCount,
+    givenFeedbacks.length,
+    allSubmissions.length,
+    counts,
+    user?.uid,
+  ]);
 
   const fetchMySubmissionStatus = async () => {
     if (!user) return;
@@ -576,11 +801,16 @@ const FeedbackCamp = () => {
       const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/submit/user/${user.uid}`);
       const submissions = Array.isArray(res.data) ? res.data : res.data.submissions || [];
 
-      const today = new Date().toISOString().slice(0, 10);
-      const todaySubmissions = submissions.filter((sub: any) => sub.submissionDate === today);
+      const today = new Date();
+      const koreaOffset = 9 * 60 * 60 * 1000; // KST는 UTC+9
+      const koreaTime = new Date(today.getTime() + koreaOffset);
+      const todayString = koreaTime.toISOString().split('T')[0];
+      const todaySubmissions = submissions.filter((sub: any) => sub.submissionDate === todayString);
 
-      setHasMySubmission(todaySubmissions.length > 0); // ✅ 오늘 글 여부만 반영
+      const newHasMySubmission = todaySubmissions.length > 0;
       const modes = new Set(todaySubmissions.map((sub: any) => sub.mode));
+
+      setHasMySubmission(newHasMySubmission); // ✅ 오늘 글 여부만 반영
       setTodaySubmissionModes(modes);
 
       // 피드백 소급 적용 확인 (글 작성 후 호출되는 경우)
@@ -588,6 +818,7 @@ const FeedbackCamp = () => {
         await checkAndApplyRetroactiveFeedback();
       }
     } catch (err) {
+      console.error('❌ [글 작성 상태] 내 글 존재 여부 확인 실패:', err);
       logger.error('내 글 존재 여부 확인 실패:', err);
     } finally {
       setLoading(false);

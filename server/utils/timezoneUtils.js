@@ -29,34 +29,186 @@ const getUserTodayDate = (userOffset = 0) => {
   try {
     const now = new Date();
 
-    // userOffset은 getTimezoneOffset() 값이므로 음수입니다
-    // 한국시간(UTC+9)의 경우 userOffset = -540
-    // 사용자 시간대의 현재 시간을 계산
+    // 기본값: 한국 시간 (UTC+9, offset = -540)
+    if (userOffset === 0) {
+      userOffset = -540; // 한국 시간 기본값
+    }
+
+    console.log("🕐 [DEBUG] getUserTodayDate 계산 (수정됨):", {
+      serverTime: now.toISOString(),
+      userOffset,
+      userOffsetHours: userOffset / 60,
+    });
+
+    // 사용자 시간대의 현재 시간 계산
     const userTime = new Date(now.getTime() + userOffset * 60 * 1000);
 
+    console.log("🌍 [DEBUG] 사용자 시간대 계산 (수정됨):", {
+      userTime: userTime.toISOString(),
+      userTimeLocal: userTime.toLocaleString("ko-KR", {
+        timeZone: "Asia/Seoul",
+      }),
+    });
+
     // 사용자 시간대 기준으로 오늘 날짜의 시작(00:00:00)을 UTC로 계산
-    const userDateStart = new Date(
-      userTime.getFullYear(),
-      userTime.getMonth(),
-      userTime.getDate(),
+    // getTodayDateKorea와 동일한 방식 사용
+    const userYear = userTime.getUTCFullYear();
+    const userMonth = userTime.getUTCMonth();
+    const userDay = userTime.getUTCDate();
+
+    // UTC 기준으로 사용자 시간대의 오늘 시작점 계산
+    const utcDateStart = new Date(
+      Date.UTC(userYear, userMonth, userDay, 0, 0, 0, 0)
+    );
+
+    console.log("📅 [DEBUG] 최종 날짜 계산 (수정됨):", {
+      userYear,
+      userMonth,
+      userDay,
+      utcDateStart: utcDateStart.toISOString(),
+      result: utcDateStart.toDateString(),
+      expectedDate: "Tue Aug 12 2025",
+    });
+
+    return utcDateStart;
+  } catch (error) {
+    console.error(
+      `❌ Error in getUserTodayDate with userOffset: ${userOffset}`,
+      error
+    );
+    // 에러 발생 시 한국 시간 기준으로 오늘 날짜 반환
+    const koreaTime = new Date(new Date().getTime() + 9 * 60 * 60 * 1000);
+    const koreaDateStart = new Date(
+      koreaTime.getFullYear(),
+      koreaTime.getMonth(),
+      koreaTime.getDate(),
       0,
       0,
       0,
       0
     );
+    return new Date(koreaDateStart.getTime() - 9 * 60 * 60 * 1000);
+  }
+};
 
-    // UTC 기준으로 변환 (userOffset을 빼서 UTC 시간으로 변환)
+/**
+ * 한국 시간 기준으로 오늘 날짜를 간단하게 계산하는 함수
+ * UTC 기준으로 직접 계산하여 정확성 보장
+ * @returns {Date} 한국 시간 기준 오늘 날짜의 시작 (UTC로 변환)
+ */
+const getTodayDateKorea = () => {
+  try {
+    const now = new Date();
+
+    // 현재 UTC 시간
+    const utcNow = now.getTime();
+
+    // 한국 시간 (UTC+9) 계산
+    const koreaOffset = 9 * 60 * 60 * 1000; // 9시간을 밀리초로
+    const koreaTime = new Date(utcNow + koreaOffset);
+
+    // 한국 시간 기준으로 오늘 날짜의 시작 (00:00:00)
+    // 주의: new Date() 생성자는 UTC 기준으로 해석되므로 직접 계산
+    const koreaYear = koreaTime.getUTCFullYear();
+    const koreaMonth = koreaTime.getUTCMonth();
+    const koreaDay = koreaTime.getUTCDate();
+
+    // UTC 기준으로 한국 시간 00:00:00을 나타내는 시간 계산
+    // 한국 시간 00:00:00 = UTC 15:00:00 (전날)
     const utcDateStart = new Date(
-      userDateStart.getTime() - userOffset * 60 * 1000
+      Date.UTC(koreaYear, koreaMonth, koreaDay, 0, 0, 0, 0)
     );
+
+    console.log("🇰🇷 [DEBUG] getTodayDateKorea 계산 (UTC 기준):", {
+      serverTime: now.toISOString(),
+      serverDate: now.toDateString(),
+      utcNow: utcNow,
+      koreaOffset: koreaOffset,
+      koreaTime: koreaTime.toISOString(),
+      koreaDate: koreaTime.toDateString(),
+      koreaYear,
+      koreaMonth,
+      koreaDay,
+      utcDateStart: utcDateStart.toISOString(),
+      result: utcDateStart.toDateString(),
+      expectedDate: "Tue Aug 12 2025",
+    });
 
     return utcDateStart;
   } catch (error) {
-    console.error(
-      `Error in getUserTodayDate with userOffset: ${userOffset}`,
-      error
-    );
-    // 에러 발생 시 현재 날짜 반환
+    console.error("❌ Error in getTodayDateKorea:", error);
+
+    // 에러 시 현재 날짜 반환
+    return new Date();
+  }
+};
+
+/**
+ * 한국 시간 기준으로 오늘 날짜를 가장 간단하게 계산하는 함수 (최종 버전)
+ * 한국 시간의 오늘 날짜를 직접 계산
+ * @returns {Date} 한국 시간 기준 오늘 날짜의 시작 (UTC로 변환)
+ */
+const getTodayDateKoreaFinal = () => {
+  try {
+    const now = new Date();
+    const utcNow = now.getTime();
+    const koreaOffset = 9 * 60 * 60 * 1000; // KST는 UTC+9
+    const koreaTime = new Date(utcNow + koreaOffset);
+
+    // KST 기준으로 오늘의 시작 (00:00:00)
+    const koreaYear = koreaTime.getUTCFullYear();
+    const koreaMonth = koreaTime.getUTCMonth();
+    const koreaDay = koreaTime.getUTCDate();
+
+    // UTC 기준으로 KST 00:00:00에 해당하는 시간 계산
+    const utcDateStart = Date.UTC(koreaYear, koreaMonth, koreaDay);
+
+    return new Date(utcDateStart);
+  } catch (error) {
+    console.error("❌ getTodayDateKoreaFinal 오류:", error);
+    // 오류 시 KST 기준으로 오늘 시작 시간 반환
+    const now = new Date();
+    const utcNow = now.getTime();
+    const koreaOffset = 9 * 60 * 60 * 1000;
+    const koreaTime = new Date(utcNow + koreaOffset);
+    const koreaYear = koreaTime.getUTCFullYear();
+    const koreaMonth = koreaTime.getUTCMonth();
+    const koreaDay = koreaTime.getUTCDate();
+    return new Date(Date.UTC(koreaYear, koreaMonth, koreaDay));
+  }
+};
+
+/**
+ * 한국 시간 기준으로 오늘 날짜를 가장 간단하게 계산하는 함수
+ * 단순한 시간 더하기/빼기로 계산
+ * @returns {Date} 한국 시간 기준 오늘 날짜의 시작 (UTC로 변환)
+ */
+const getTodayDateKoreaSimple = () => {
+  try {
+    const now = new Date();
+
+    // 현재 UTC 시간에 9시간을 더해서 한국 시간 계산
+    const koreaTime = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+
+    // 한국 시간 기준 오늘 날짜의 시작 (00:00:00)
+    // 한국 시간 00:00:00 = UTC 15:00:00 (전날)
+    // 따라서 UTC 기준으로는 15시간을 빼야 함
+    const utcDateStart = new Date(koreaTime.getTime() - 15 * 60 * 60 * 1000);
+
+    console.log("🇰🇷 [DEBUG] getTodayDateKoreaSimple 계산:", {
+      serverTime: now.toISOString(),
+      serverDate: now.toDateString(),
+      koreaTime: koreaTime.toISOString(),
+      koreaDate: koreaTime.toDateString(),
+      utcDateStart: utcDateStart.toISOString(),
+      result: utcDateStart.toISOString(),
+      expectedDate: "Tue Aug 12 2025",
+      calculation: "koreaTime - 15시간 = UTC 기준 한국 오늘 시작",
+    });
+
+    return utcDateStart;
+  } catch (error) {
+    console.error("❌ Error in getTodayDateKoreaSimple:", error);
     return new Date();
   }
 };
@@ -241,7 +393,7 @@ const getLocationByOffset = (offsetHours) => {
     4: "🇷🇺 모스크바 (서머타임)",
     5: "🇮🇳 뭄바이",
     5.5: "🇮🇳 뭄바이",
-    6: "🇰🇿 알마티",
+    6: "🇮🇿 알마티",
     7: "🇹🇭 방콕",
     8: "🇨🇳 베이징 / 🇭🇰 홍콩",
     9: "🇰🇷 서울 / 🇯🇵 도쿄",
@@ -313,4 +465,7 @@ module.exports = {
   getTimezoneDescription,
   logTimezoneInfo,
   logUserTime,
+  getTodayDateKorea,
+  getTodayDateKoreaSimple,
+  getTodayDateKoreaFinal,
 };

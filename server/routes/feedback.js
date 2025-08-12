@@ -10,7 +10,12 @@ const WritingStreak = require("../models/WritingStreak");
 const Token = require("../models/Token");
 const { handleTokenChange } = require("../utils/tokenHistory");
 const HelpfulVote = require("../models/HelpfulVote");
-const { getUserTodayDate } = require("../utils/timezoneUtils");
+const {
+  getUserTodayDate,
+  getTodayDateKorea,
+  getTodayDateKoreaSimple,
+  getTodayDateKoreaFinal,
+} = require("../utils/timezoneUtils");
 
 // 피드백할 글 추천 (모드 동일 + 적게 받은 글 우선)
 router.get("/assignments/:uid", async (req, res) => {
@@ -21,8 +26,8 @@ router.get("/assignments/:uid", async (req, res) => {
   }
 
   try {
-    // 사용자 시간대 기준으로 오늘 날짜 계산 (기본값: 한국 시간)
-    const today = getUserTodayDate(); // YYYY-MM-DD
+    // 한국 시간 기준으로 오늘 날짜 계산 (일관된 방식)
+    const today = getTodayDateKoreaFinal(); // YYYY-MM-DD
 
     // 오늘 내가 쓴 글 중 가장 최근 글 확인
     const todaySubmission = await Submission.findOne({
@@ -136,7 +141,7 @@ router.post("/", submitFeedback);
 router.get("/received/:uid", async (req, res) => {
   const { uid } = req.params;
   // 사용자 시간대 기준으로 오늘 날짜 계산 (기본값: 한국 시간)
-  const today = getUserTodayDate();
+  const today = getTodayDateKoreaFinal();
 
   try {
     // 오늘의 피드백 카운트 확인
@@ -212,77 +217,79 @@ router.get("/received/:uid", async (req, res) => {
 
 // 내가 작성한 피드백 조회 (페이지네이션 + mode 필터 + 오늘 요약 포함)
 router.get("/given/:uid", async (req, res) => {
-  const { uid } = req.params;
-  const page = parseInt(req.query.page) || 1;
-  const limit = parseInt(req.query.limit) || 1000;
-  const mode = req.query.mode;
-  // 사용자 시간대 기준으로 오늘 날짜 계산 (기본값: 한국 시간)
-  const today = getUserTodayDate();
-
-  if (!uid || typeof uid !== "string") {
-    return res.status(400).json({ message: "유효하지 않은 UID입니다." });
-  }
-
   try {
-    const feedbacksRaw = await Feedback.find({ fromUid: uid })
-      .sort({ createdAt: -1 })
-      .populate({
-        path: "toSubmissionId",
-        select: "text mode user createdAt title topic",
-      });
+    const { uid } = req.params;
 
-    // ✅ mode별로 필터링
-    const feedbacks = feedbacksRaw.filter((fb) => {
-      if (!fb.toSubmissionId) return false;
-      if (mode === "mode_300" || mode === "mode_1000") {
-        return fb.toSubmissionId.mode === mode;
-      }
-      return true;
+    const today = getTodayDateKoreaFinal();
+    const todayString = today.toISOString().split("T")[0];
+
+    // 내가 작성한 피드백 조회 (populate 없이)
+    const myFeedbacks = await Feedback.find({
+      fromUid: uid,
+    }).lean();
+
+    // 원문 정보를 별도로 조회
+    const submissionIds = myFeedbacks
+      .map((fb) => fb.toSubmissionId)
+      .filter(Boolean);
+    const submissions = await Submission.find({
+      _id: { $in: submissionIds },
+    })
+      .select("mode title content user")
+      .lean();
+
+    // submissionId를 키로 하는 맵 생성
+    const submissionMap = {};
+    submissions.forEach((sub) => {
+      submissionMap[sub._id.toString()] = sub;
     });
 
-    const total = feedbacks.length;
-    const paged = feedbacks.slice((page - 1) * limit, page * limit);
-
-    const transformed = paged.map((fb) => ({
-      _id: fb._id,
-      content: fb.content,
-      strengths: fb.strengths,
-      improvements: fb.improvements,
-      overall: fb.overall,
-      fromUid: fb.fromUid,
-      toSubmissionId: fb.toSubmissionId?._id || null,
-      submissionTitle: fb.toSubmissionId?.title || "",
-      submissionText: fb.toSubmissionId?.text || "",
-      submissionTopic: fb.toSubmissionId?.topic || "",
-      mode: fb.toSubmissionId?.mode || null,
-      createdAt: fb.createdAt,
-      submissionAuthor: fb.toSubmissionId?.user || null,
-      submissionCreatedAt: fb.toSubmissionId?.createdAt || null,
-    }));
-
-    // ✅ 오늘 쓴 피드백 요약
-    let todayMode_300 = 0;
-    let todayMode_1000 = 0;
-
-    feedbacksRaw.forEach((fb) => {
-      if (fb.writtenDate === today && fb.toSubmissionId) {
-        if (fb.toSubmissionId.mode === "mode_300") todayMode_300++;
-        if (fb.toSubmissionId.mode === "mode_1000") todayMode_1000++;
-      }
+    // 원문 작성자 정보와 텍스트를 포함하여 피드백 데이터 구성
+    const enhancedFeedbacks = myFeedbacks.map((feedback) => {
+      const submission = submissionMap[feedback.toSubmissionId.toString()];
+      return {
+        ...feedback,
+        submissionAuthor: submission?.user
+          ? {
+              uid: submission.user.uid,
+              displayName: submission.user.displayName || "익명",
+              email: submission.user.email || "알 수 없음",
+            }
+          : null,
+        // submissionText가 없으면 submission에서 가져오기 (fallback)
+        submissionText:
+          feedback.submissionText ||
+          submission?.content ||
+          "내용을 불러올 수 없습니다.",
+        submissionTitle:
+          feedback.submissionTitle || submission?.title || "제목 없음",
+      };
     });
+
+    // 오늘 작성한 피드백 요약
+    const todayFeedbacks = enhancedFeedbacks.filter(
+      (fb) => fb.writtenDate === todayString
+    );
+    const todaySummary = {
+      mode_300: todayFeedbacks.filter((fb) => {
+        const submission = submissionMap[fb.toSubmissionId.toString()];
+        return submission?.mode === "mode_300";
+      }).length,
+      mode_1000: todayFeedbacks.filter((fb) => {
+        const submission = submissionMap[fb.toSubmissionId.toString()];
+        return submission?.mode === "mode_1000";
+      }).length,
+      total: todayFeedbacks.length,
+    };
 
     res.json({
-      page,
-      total,
-      feedbacks: transformed,
-      todaySummary: {
-        mode_300: todayMode_300,
-        mode_1000: todayMode_1000,
-      },
+      total: enhancedFeedbacks.length,
+      feedbacks: enhancedFeedbacks,
+      todaySummary,
     });
-  } catch (err) {
-    console.error("❌ 내가 작성한 피드백 조회 실패:", err);
-    res.status(500).json({ message: err.message });
+  } catch (error) {
+    console.error("❌ [피드백 미션] 내가 작성한 피드백 조회 오류:", error);
+    res.status(500).json({ error: "피드백 조회 실패" });
   }
 });
 
@@ -361,12 +368,15 @@ router.get("/stats/:uid", async (req, res) => {
 router.get("/status/:uid", async (req, res) => {
   const { uid } = req.params;
   // 사용자 시간대 기준으로 오늘 날짜 계산 (기본값: 한국 시간)
-  const today = getUserTodayDate();
+  const today = getTodayDateKoreaFinal();
 
   try {
+    // writtenDate는 String 타입이므로 날짜 문자열로 비교
+    const todayString = today.toISOString().slice(0, 10); // YYYY-MM-DD 형식
+
     const feedbackCount = await Feedback.countDocuments({
       fromUid: uid,
-      writtenDate: today,
+      writtenDate: todayString,
     });
 
     const submissions = await Submission.find({
@@ -386,46 +396,53 @@ router.get("/status/:uid", async (req, res) => {
   }
 });
 
-// 오늘의 피드백 카운트 조회
+// 오늘의 피드백 현황 조회
 router.get("/today/:uid", async (req, res) => {
-  const { uid } = req.params;
-  // 사용자 시간대 기준으로 오늘 날짜 계산 (기본값: 한국 시간)
-  const today = getUserTodayDate();
-
   try {
-    // 오늘 작성한 피드백들을 가져옴
+    const { uid } = req.params;
+
+    const today = getTodayDateKoreaFinal();
+    const todayString = today.toISOString().split("T")[0];
+
+    // 전체 피드백 수 조회
+    const totalFeedbacks = await Feedback.countDocuments({});
+
+    // 오늘 작성된 피드백 조회
     const todayFeedbacks = await Feedback.find({
-      fromUid: uid,
-      writtenDate: today,
-    }).populate("toSubmissionId", "mode");
+      writtenDate: todayString,
+    })
+      .populate({
+        path: "toSubmissionId",
+        select: "mode title content",
+        model: "Submission",
+      })
+      .lean();
 
-    // 모드별로 피드백 수 계산
-    const mode300FeedbackCount = todayFeedbacks.filter(
-      (fb) => fb.toSubmissionId.mode === "mode_300"
+    // 모드별 피드백 수 계산
+    const mode300Count = todayFeedbacks.filter(
+      (fb) => fb.toSubmissionId?.mode === "mode_300"
     ).length;
-
-    const mode1000FeedbackCount = todayFeedbacks.filter(
-      (fb) => fb.toSubmissionId.mode === "mode_1000"
+    const mode1000Count = todayFeedbacks.filter(
+      (fb) => fb.toSubmissionId?.mode === "mode_1000"
     ).length;
+    const totalTodayCount = mode300Count + mode1000Count;
 
     res.json({
-      count: {
-        mode300: mode300FeedbackCount,
-        mode1000: mode1000FeedbackCount,
-        total: mode300FeedbackCount + mode1000FeedbackCount,
-      },
+      mode_300: mode300Count,
+      mode_1000: mode1000Count,
+      total: totalTodayCount,
     });
-  } catch (err) {
-    console.error("오늘의 피드백 카운트 조회 실패:", err);
-    res.status(500).json({ message: "서버 오류" });
+  } catch (error) {
+    console.error("❌ [피드백 현황] API 오류:", error);
+    res.status(500).json({ error: "피드백 현황 조회 실패" });
   }
 });
 
 // 피드백 열람 가능 여부 확인
 router.get("/unlock-status/:uid", async (req, res) => {
   const { uid } = req.params;
-  // 사용자 시간대 기준으로 오늘 날짜 계산 (기본값: 한국 시간)
-  const today = getUserTodayDate();
+  // 한국 시간 기준으로 오늘 날짜 계산 (일관된 방식)
+  const today = getTodayDateKoreaFinal();
 
   try {
     const feedbackCount = await Feedback.countDocuments({
@@ -703,12 +720,15 @@ router.get("/all-submissions/:uid", async (req, res) => {
 router.get("/given-today/:uid", async (req, res) => {
   const { uid } = req.params;
   // 사용자 시간대 기준으로 오늘 날짜 계산 (기본값: 한국 시간)
-  const today = getUserTodayDate();
+  const today = getTodayDateKoreaFinal();
+
+  // writtenDate는 String 타입이므로 날짜 문자열로 비교
+  const todayString = today.toISOString().slice(0, 10); // YYYY-MM-DD 형식
 
   // 오늘 내가 남긴 피드백 모두 조회
   const feedbacks = await Feedback.find({
     fromUid: uid,
-    writtenDate: today,
+    writtenDate: todayString,
   });
 
   // 모드별 개수 집계
@@ -801,6 +821,43 @@ router.post("/unlock-dilating", async (req, res) => {
     res.status(500).json({
       message: "딜라이팅AI 버전 구매 중 오류가 발생했습니다.",
     });
+  }
+});
+
+// 🧪 시간대 테스트용 디버깅 엔드포인트
+router.get("/debug/timezone", async (req, res) => {
+  try {
+    const now = new Date();
+    const koreaTime = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+
+    const testResults = {
+      serverTime: {
+        utc: now.toISOString(),
+        local: now.toLocaleString(),
+        date: now.toDateString(),
+      },
+      koreaTime: {
+        utc: koreaTime.toISOString(),
+        local: koreaTime.toLocaleString("ko-KR", { timeZone: "Asia/Seoul" }),
+        date: koreaTime.toDateString(),
+      },
+      functions: {
+        getUserTodayDate: getUserTodayDate().toISOString(),
+        getTodayDateKorea: getTodayDateKorea().toISOString(),
+        getTodayDateKoreaFinal: getTodayDateKoreaFinal().toISOString(),
+      },
+      timezoneInfo: {
+        userTimezone: "Asia/Seoul (UTC+9)",
+        serverTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        offset: "UTC+0 (서버)",
+      },
+    };
+
+    console.log("🧪 [DEBUG] 시간대 테스트 결과:", testResults);
+    res.json(testResults);
+  } catch (error) {
+    console.error("❌ 시간대 테스트 에러:", error);
+    res.status(500).json({ error: error.message });
   }
 });
 

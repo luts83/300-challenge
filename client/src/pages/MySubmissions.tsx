@@ -322,6 +322,11 @@ const MySubmissions = () => {
   const fetchAllStats = async () => {
     if (!user) return;
 
+    console.log('🚀 [DEBUG] fetchAllStats 시작:', {
+      userUid: user.uid,
+      timestamp: new Date().toISOString(),
+    });
+
     try {
       const [statsRes, feedbackStatsRes, weeklyRes, dailyRes] = await Promise.all([
         // 작성 통계
@@ -334,16 +339,38 @@ const MySubmissions = () => {
         axios.get(`${import.meta.env.VITE_API_URL}/api/feedback/today/${user.uid}`),
       ]);
 
+      console.log('📡 [DEBUG] API 응답 데이터:', {
+        stats: statsRes.data,
+        feedbackStats: feedbackStatsRes.data,
+        weeklyGrowth: weeklyRes.data,
+        dailyFeedback: dailyRes.data,
+      });
+
       // 각 상태 업데이트
       setStats(statsRes.data);
       setFeedbackStats(feedbackStatsRes.data);
       setWeeklyGrowth(weeklyRes.data);
-      setDailyFeedbackCount({
+
+      const newDailyFeedbackCount = {
         mode300: dailyRes.data.count.mode300 || 0,
         mode1000: dailyRes.data.count.mode1000 || 0,
         total: (dailyRes.data.count.mode300 || 0) + (dailyRes.data.count.mode1000 || 0),
+      };
+
+      console.log('🔄 [DEBUG] 상태 업데이트:', {
+        before: dailyFeedbackCount,
+        after: newDailyFeedbackCount,
+        rawData: dailyRes.data,
       });
-    } catch (err) {
+
+      setDailyFeedbackCount(newDailyFeedbackCount);
+    } catch (err: any) {
+      console.error('❌ [DEBUG] 통계 데이터 조회 실패:', {
+        error: err,
+        message: err.message,
+        response: err.response?.data,
+        status: err.response?.status,
+      });
       logger.error('통계 데이터 조회 실패:', err);
     }
   };

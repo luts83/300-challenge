@@ -573,7 +573,7 @@ async function handleSubmit(req, res) {
 
     // 새로운 시간대 유틸리티 사용
     const {
-      getUserTodayDateString,
+      getTodayDateKoreaFinal,
       getUserMonday,
     } = require("../utils/timezoneUtils");
 
@@ -583,17 +583,12 @@ async function handleSubmit(req, res) {
 
     let today, monday;
     try {
-      today = getUserTodayDateString(safeUserOffset);
+      // 한국 시간 기준으로 오늘 날짜 계산
+      const todayDate = getTodayDateKoreaFinal();
+      today = todayDate.toISOString().split("T")[0];
       monday = getUserMonday(safeUserOffset);
 
       // 디버깅: 시간대 정보 로깅
-      console.log(`[시간대 디버깅] 유저: ${user.email}`);
-      console.log(
-        `  - userOffset: ${safeUserOffset} (${safeUserOffset / 60}시간)`
-      );
-      console.log(`  - 서버 현재시간: ${new Date().toISOString()}`);
-      console.log(`  - 계산된 today: ${today}`);
-      console.log(`  - 계산된 monday: ${monday}`);
     } catch (error) {
       console.error(
         `Error getting date strings for userOffset: ${safeUserOffset}`,
@@ -915,7 +910,14 @@ async function handleSubmit(req, res) {
         );
 
         // 황금열쇠 지급 성공 로그
-        console.log(`[황금열쇠 지급] ${user.email}: 1000자 글 작성 보상 (+1)`);
+        console.log(
+          `[황금열쇠 지급] ${
+            user.email
+          }: 1000자 글 작성 보상 (+1) (유저 로컬타임: ${new Date().toLocaleString(
+            "ko-KR",
+            { timeZone: "Asia/Seoul" }
+          )})`
+        );
       } catch (error) {
         console.error("[황금열쇠 지급 실패]", {
           userId: user.uid,
@@ -990,7 +992,12 @@ async function handleSubmit(req, res) {
 
             // 황금열쇠 지급 성공 로그
             console.log(
-              `[황금열쇠 지급] ${user.email}: 주간 스트릭 완료 보상 (+1)`
+              `[황금열쇠 지급] ${
+                user.email
+              }: 주간 스트릭 완료 보상 (+1) (유저 로컬타임: ${new Date().toLocaleString(
+                "ko-KR",
+                { timeZone: "Asia/Seoul" }
+              )})`
             );
 
             // 스트릭 완료 기록
@@ -1089,7 +1096,14 @@ const handleStreakCompletion = async (user, streak, userToken) => {
     await userToken.save({ session });
 
     // 황금열쇠 지급 성공 로그
-    console.log(`[황금열쇠 지급] ${user.email}: 스트릭 완료 보상 (+1)`);
+    console.log(
+      `[황금열쇠 지급] ${
+        user.email
+      }: 스트릭 완료 보상 (+1) (유저 로컬타임: ${new Date().toLocaleString(
+        "ko-KR",
+        { timeZone: "Asia/Seoul" }
+      )})`
+    );
 
     // 스트릭 상태 업데이트
     streak.celebrationShown = true;

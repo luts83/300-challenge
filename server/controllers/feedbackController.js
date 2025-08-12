@@ -9,6 +9,7 @@ const {
   detectNonWhitelistedUserActivity,
 } = require("./userController");
 const { getUserTodayDate } = require("../utils/timezoneUtils");
+const { getTodayDateKoreaFinal } = require("../utils/timezoneUtils");
 
 // 피드백 가능 여부 확인 함수
 const canGiveFeedback = async (
@@ -18,7 +19,7 @@ const canGiveFeedback = async (
   userOffset = -540
 ) => {
   // 사용자 시간대 기준으로 오늘 날짜 계산
-  const today = getUserTodayDate(userOffset);
+  const today = getTodayDateKoreaFinal();
   const todayString = today.toISOString().slice(0, 10); // YYYY-MM-DD 형식으로 변환
 
   const userSubmission = await Submission.findOne({
@@ -50,7 +51,7 @@ exports.getAvailableSubmissions = async (req, res) => {
 
   try {
     // 사용자 시간대 기준으로 오늘 날짜 계산
-    const today = getUserTodayDate(userOffset ? parseInt(userOffset) : -540);
+    const today = getTodayDateKoreaFinal();
     const todayString = today.toISOString().slice(0, 10); // YYYY-MM-DD 형식으로 변환
 
     const userSubmission = await Submission.findOne({
@@ -141,7 +142,8 @@ exports.submitFeedback = async (req, res) => {
 
   try {
     // 사용자 시간대 기준으로 오늘 날짜 계산 (함수 시작 부분에서 미리 계산)
-    const today = getUserTodayDate(userOffset ? parseInt(userOffset) : -540);
+    // getTodayDateKoreaFinal을 사용하여 일관된 시간대 처리
+    const today = getTodayDateKoreaFinal();
     const todayString = today.toISOString().slice(0, 10);
 
     // 중복 피드백 체크 추가
@@ -328,15 +330,17 @@ exports.assignFeedbackMissions = async (req, res) => {
 
   try {
     // 사용자 시간대 기준으로 오늘 날짜 계산 (기본값: 한국 시간)
-    const today = getUserTodayDate(userOffset ? parseInt(userOffset) : -540);
+    const today = getTodayDateKoreaFinal();
 
     const userSubmission = await Submission.findOne({
       "user.uid": uid,
-      submissionDate: today,
+      submissionDate: today.toISOString().split("T")[0],
     });
 
     if (!userSubmission) {
-      return res.status(403).json({ message: "오늘 작성한 글이 없습니다." });
+      return res.status(403).json({
+        message: "오늘 작성한 글이 없습니다.",
+      });
     }
 
     // 교차 피드백 설정에 따른 미션 대상 필터링
