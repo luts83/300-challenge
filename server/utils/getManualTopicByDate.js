@@ -13,27 +13,32 @@ const logger = require("./logger");
  * @param {string} mode - '300' 또는 '1000'
  * @param {string} timezone - 사용자 시간대 (예: 'Asia/Seoul', 'Europe/London')
  * @param {number} offset - 사용자 시간대 오프셋 (분 단위)
+ * @param {Date|string|null} targetDate - 특정 날짜(옵션). 제공되면 해당 날짜 기준으로 계산
  * @returns {Object} { topic: string | null, isManualTopic: boolean }
  */
 function getManualTopicByDate(
   mode = "300",
   timezone = "Asia/Seoul",
-  offset = 540
+  offset = 540,
+  targetDate = null
 ) {
+  // 기준이 될 날짜 선택 (제공되면 그 날짜, 아니면 현재)
+  const baseDate = targetDate ? new Date(targetDate) : new Date();
+
   // 사용자 로컬 날짜(YYYY-MM-DD)를 timezone 기반으로 안전하게 계산
   const todayStr = new Intl.DateTimeFormat("en-CA", {
     timeZone: timezone,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
-  }).format(new Date());
+  }).format(baseDate);
 
   // 사용자 로컬 00:00을 UTC로 표현한 Date
   const todayLocalStartUtc = new Date(`${todayStr}T00:00:00.000Z`);
 
   // 요일 계산: 사용자의 현지 요일을 얻기 위해 같은 포맷으로 다시 날짜 생성
   const userNow = new Date(
-    new Date().toLocaleString("en-US", { timeZone: timezone })
+    baseDate.toLocaleString("en-US", { timeZone: timezone })
   );
   const dayOfWeek = userNow.getDay();
 

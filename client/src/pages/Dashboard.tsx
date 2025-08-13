@@ -473,6 +473,11 @@ const Dashboard = () => {
   const [submissionDates, setSubmissionDates] = useState<Date[]>([]);
   const [displayCount, setDisplayCount] = useState(5); // 모바일에서는 5개만 표시
   const ITEMS_PER_PAGE = 5; // 모바일 최적화
+  const [submissionsPagination, setSubmissionsPagination] = useState({
+    currentPage: 1,
+    totalPages: 1,
+    hasMore: false,
+  });
 
   useEffect(() => {
     const fetchData = async () => {
@@ -524,7 +529,8 @@ const Dashboard = () => {
     try {
       const params: any = {
         page,
-        limit: 50, // 한 번에 50개씩 로드
+        // 관리자 전체 보기에서는 더 큰 limit로 네트워크 요청 수를 줄임
+        limit: userId ? 50 : 200,
       };
       if (start) params.start = format(start, 'yyyy-MM-dd');
       if (end) params.end = format(end, 'yyyy-MM-dd');
@@ -535,7 +541,11 @@ const Dashboard = () => {
       // 병렬로 API 호출하여 성능 향상
       const [submissionsRes, statsRes, rankingsRes] = await Promise.all([
         axios.get(`${import.meta.env.VITE_API_URL}/api/dashboard/all-submissions/${targetUid}`, {
-          params,
+          params: {
+            ...params,
+            // 특정 사용자 미선택(관리자 전체 보기) 시 전체 조회 플래그 전달
+            adminView: userId ? undefined : 'true',
+          },
         }),
         axios.get(`${import.meta.env.VITE_API_URL}/api/dashboard/stats/${targetUid}`, { params }),
         axios.get(`${import.meta.env.VITE_API_URL}/api/dashboard/rankings`, { params }),
@@ -550,6 +560,15 @@ const Dashboard = () => {
             userTimezone: sub.userTimezone || 'Asia/Seoul',
           }))
         );
+        if (submissionsRes.data.pagination) {
+          setSubmissionsPagination({
+            currentPage: submissionsRes.data.pagination.currentPage,
+            totalPages: submissionsRes.data.pagination.totalPages,
+            hasMore: submissionsRes.data.pagination.hasMore,
+          });
+        } else {
+          setSubmissionsPagination({ currentPage: 1, totalPages: 1, hasMore: false });
+        }
       } else {
         // 추가 페이지 로드
         setSubmissions(prev => [...prev, ...(submissionsRes.data.submissions || [])]);
@@ -560,6 +579,13 @@ const Dashboard = () => {
             userTimezone: sub.userTimezone || 'Asia/Seoul',
           })),
         ]);
+        if (submissionsRes.data.pagination) {
+          setSubmissionsPagination({
+            currentPage: submissionsRes.data.pagination.currentPage,
+            totalPages: submissionsRes.data.pagination.totalPages,
+            hasMore: submissionsRes.data.pagination.hasMore,
+          });
+        }
       }
 
       setStats(statsRes.data);
@@ -631,44 +657,33 @@ const Dashboard = () => {
     try {
       const date = new Date(dateString);
 
-      // 사용자 시간대가 있으면 해당 시간대로 변환
-      if (userTimezone && userTimezoneOffset !== undefined) {
-        // 서머타임을 고려한 정확한 시간대 변환
+      if (userTimezone) {
         try {
-          // date-fns-tz를 우선 사용 (서머타임 자동 처리)
           const userTime = toZonedTime(date, userTimezone);
-          return formatTz(userTime, 'PPP a h시 mm분', {
+          return formatTz(userTime, 'yyyy년 M월 d일 a h시 mm분', {
             timeZone: userTimezone,
-            locale: ko,
           });
         } catch (error) {
-          // date-fns-tz 실패 시 fallback으로 offset 기반 변환
-          const userTime = convertUTCToUserTime(dateString, userTimezone, userTimezoneOffset);
-          return format(userTime, 'PPP a h시 mm분', { locale: ko });
+          const userTime = convertUTCToUserTime(
+            dateString,
+            userTimezone,
+            userTimezoneOffset ?? -540
+          );
+          return format(userTime, 'yyyy년 M월 d일 a h시 mm분');
         }
-      } else if (userTimezone && userTimezone !== 'Asia/Seoul') {
-        // fallback: date-fns-tz 사용
-        const userTime = toZonedTime(date, userTimezone);
-        return formatTz(userTime, 'PPP a h시 mm분', {
-          timeZone: userTimezone,
-          locale: ko,
-        });
       }
 
-      // 기본: 한국 시간으로 표시
-      return format(date, 'PPP a h시 mm분', { locale: ko });
+      // 시간대 정보가 없으면 기본 포맷
+      return format(date, 'yyyy년 M월 d일 a h시 mm분');
     } catch (error) {
-      // 에러 발생 시 기본 포맷 사용
-      return format(new Date(dateString), 'PPP a h시 mm분', { locale: ko });
+      return format(new Date(dateString), 'yyyy년 M월 d일 a h시 mm분');
     }
   };
 
   // 작성 위치 정보 포맷팅 함수
   const formatLocation = (userTimezone?: string) => {
     if (!userTimezone) return '';
-
-    const location = getLocationByTimezone(userTimezone);
-    return location;
+    return getLocationByTimezone(userTimezone);
   };
 
   // 소요 시간 포맷팅 함수 추가
@@ -725,7 +740,18 @@ const Dashboard = () => {
 
   // 더보기 버튼 클릭 핸들러 추가
   const handleLoadMore = () => {
-    setDisplayCount(prev => prev + ITEMS_PER_PAGE);
+    if (submissionsPagination.hasMore) {
+      // 서버에서 다음 페이지를 가져와 누적
+      fetchAllData(
+        startDate,
+        endDate,
+        selectedUser || undefined,
+        submissionsPagination.currentPage + 1
+      );
+    } else {
+      // 남은 항목이 화면에 안 보이는 경우를 대비해 로컬 카운트 증가
+      setDisplayCount(prev => prev + ITEMS_PER_PAGE);
+    }
   };
 
   // 필터링된 제출물을 계산하는 부분 수정
@@ -734,7 +760,7 @@ const Dashboard = () => {
     : stableSubmissions;
 
   // 표시할 제출물만 선택
-  const displayedSubmissions = filteredSubmissions.slice(0, displayCount);
+  const displayedSubmissions = filteredSubmissions; // 서버 페이지네이션으로 누적 표시
 
   // 날짜 유틸 함수
   const getStartOfWeek = (date: Date) => {
@@ -985,7 +1011,7 @@ const Dashboard = () => {
           // 관리자 뷰
           <ErrorBoundary>
             <div className="space-y-4 sm:space-y-6">
-              {adminSubmissions.slice(0, displayCount).map(submission => (
+              {displayedSubmissions.map(submission => (
                 <div
                   key={submission._id}
                   className="bg-white dark:bg-gray-800 text-black dark:text-white rounded-lg shadow p-3 sm:p-4 mb-4 sm:mb-6"
@@ -1015,7 +1041,7 @@ const Dashboard = () => {
                             submission.userTimezone,
                             submission.userTimezoneOffset
                           )}
-                          {submission.userTimezone && submission.userTimezone !== '' && (
+                          {submission.userTimezone && (
                             <span className="ml-2 text-gray-500">
                               {formatLocation(submission.userTimezone)}
                             </span>
@@ -1628,7 +1654,7 @@ const Dashboard = () => {
                               submission.userTimezone,
                               submission.userTimezoneOffset
                             )}
-                            {submission.userTimezone && submission.userTimezone !== '' && (
+                            {submission.userTimezone && (
                               <span className="ml-2 text-gray-500">
                                 {formatLocation(submission.userTimezone)}
                               </span>
@@ -1708,13 +1734,14 @@ const Dashboard = () => {
                 ))}
 
                 {/* 더보기 버튼 */}
-                {filteredSubmissions.length > displayCount && (
+                {submissionsPagination.hasMore && (
                   <div className="flex justify-center mt-6">
                     <button
                       onClick={handleLoadMore}
                       className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
                     >
-                      더보기 ({displayCount}/{filteredSubmissions.length})
+                      더보기 (페이지 {submissionsPagination.currentPage}/
+                      {submissionsPagination.totalPages})
                     </button>
                   </div>
                 )}
