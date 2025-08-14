@@ -387,7 +387,7 @@ router.get("/:uid", async (req, res) => {
 
       // 사용자 시간대 기준으로 마지막 리프레시 날짜 계산
       const lastRefreshedUserDate = new Date(
-        lastRefreshedDate.getTime() + offset * 60 * 1000
+        lastRefreshedDate.getTime() - offset * 60 * 1000
       );
       const lastRefreshedUserDay = lastRefreshedUserDate
         .toISOString()
