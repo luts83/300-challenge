@@ -30,6 +30,9 @@ export const FeedbackGuidance: React.FC<FeedbackGuidanceProps> = ({
 }) => {
   // 피드백 상태 정보
   const getStatusInfo = () => {
+    // 황금열쇠로 이미 언락했는지 확인 (props로 전달받아야 함)
+    const hasUnlockedWithGoldenKey = false; // TODO: props로 전달받기
+
     const hasMode300 = availableModes.has('mode_300');
     const hasMode1000 = availableModes.has('mode_1000');
 
@@ -37,6 +40,14 @@ export const FeedbackGuidance: React.FC<FeedbackGuidanceProps> = ({
     const mode300Completed =
       hasMode300 && todayFeedbackCount.mode_300 >= CONFIG.FEEDBACK.REQUIRED_COUNT;
     const mode1000Completed = hasMode1000 && todayFeedbackCount.mode_1000 >= 1;
+
+    if (hasUnlockedWithGoldenKey) {
+      return {
+        emoji: '🔑',
+        statusText: '황금열쇠로 피드백 언락 완료!',
+        textColor: 'text-yellow-600 dark:text-yellow-300',
+      };
+    }
 
     if (mode300Completed || mode1000Completed) {
       return {

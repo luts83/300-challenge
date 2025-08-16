@@ -32,13 +32,26 @@ class UserProfileService {
       const modeKey = mode === "mode_300" ? "mode_300" : "mode_1000";
 
       // 2. 새 글 히스토리에 추가
+      const normalizedOverall = Number(aiFeedback.overall_score) || 0;
+      const criteriaScores = {};
+      if (
+        aiFeedback.criteria_scores &&
+        typeof aiFeedback.criteria_scores === "object"
+      ) {
+        for (const [key, value] of Object.entries(aiFeedback.criteria_scores)) {
+          criteriaScores[key] =
+            typeof value === "object" && value !== null
+              ? Number(value.score) || 0
+              : Number(value) || 0;
+        }
+      }
       profile.writingHistory[modeKey].push({
         submissionId: newSubmission._id.toString(),
         date: new Date(),
         mode: mode,
-        score: aiFeedback.overallScore,
-        criteria: aiFeedback.criteria,
-        aiFeedback: aiFeedback.feedback,
+        score: normalizedOverall,
+        criteria: criteriaScores,
+        aiFeedback: JSON.stringify(aiFeedback),
         userText: newSubmission.text,
         title: newSubmission.title,
         topic: newSubmission.topic,
@@ -85,6 +98,7 @@ class UserProfileService {
         writingFrequency: 0,
         preferredTopics: [],
         commonMistakes: [],
+        userStyleProfile: { dominantStyle: "unknown", styleDistribution: {} },
         lastUpdated: new Date(),
       };
     }
@@ -105,6 +119,9 @@ class UserProfileService {
     // 자주 하는 실수 패턴 분석
     const commonMistakes = this.analyzeCommonMistakes(history);
 
+    // 사용자 서명 스타일 분석
+    const userStyleProfile = this.analyzeUserStyleProfile(history);
+
     // NaN 방지를 위한 안전한 평균 계산
     const validScores = scores.filter(
       (score) => score !== null && score !== undefined && !isNaN(score)
@@ -122,6 +139,7 @@ class UserProfileService {
       writingFrequency: history.length / 4, // 4주 기준
       preferredTopics,
       commonMistakes,
+      userStyleProfile,
       lastUpdated: new Date(),
     };
 
@@ -261,14 +279,49 @@ class UserProfileService {
 
   // 자주 하는 실수 패턴 분석 (간단한 버전)
   analyzeCommonMistakes(history) {
-    // 실제로는 AI 피드백을 분석해서 패턴을 추출해야 함
-    // 현재는 기본값 반환
-    return ["문장 구조", "표현력"];
+    const bucket = {};
+    const bump = (k) => (bucket[k] = (bucket[k] || 0) + 1);
+
+    const keywordRules = [
+      { key: "문장 구조", regex: /(문장|구조|어순|군더더기|장황)/ },
+      { key: "표현력", regex: /(표현|어휘|생동감|비유|묘사)/ },
+      { key: "전개/논리", regex: /(논리|전개|근거|설득|일관성)/ },
+      { key: "맞춤법/문법", regex: /(맞춤법|문법|띄어쓰기|철자|오탈자)/ },
+      { key: "구체성", regex: /(구체|예시|세부|근거)/ },
+      { key: "구조화", regex: /(문단|구성|서론|본론|결론)/ },
+    ];
+
+    for (const item of history) {
+      let fbObj = null;
+      try {
+        if (item.aiFeedback) {
+          fbObj = JSON.parse(item.aiFeedback);
+        }
+      } catch (e) {
+        fbObj = null;
+      }
+
+      const improvements = Array.isArray(fbObj?.improvements)
+        ? fbObj.improvements
+        : [];
+      const tips = fbObj?.writing_tips ? [fbObj.writing_tips] : [];
+      const text = [...improvements, ...tips].join(" ");
+
+      for (const { key, regex } of keywordRules) {
+        if (regex.test(text)) bump(key);
+      }
+    }
+
+    return Object.entries(bucket)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([k]) => k);
   }
 
   // 1000자 모드 글쓰기 스타일 분석
   analyzeWritingStyle(history) {
-    if (history.length === 0) {
+    const texts = history.map((h) => h.userText).filter(Boolean);
+    if (texts.length === 0) {
       return {
         sentenceLength: 0,
         paragraphStructure: "unknown",
@@ -277,33 +330,79 @@ class UserProfileService {
       };
     }
 
-    // 평균 문장 길이 계산 (간단한 버전)
-    const validWordCounts = history
-      .map((h) => h.wordCount)
-      .filter(
-        (count) => count !== null && count !== undefined && !isNaN(count)
-      );
+    const all = texts.join("\n\n");
+    const paragraphs = all.split(/\n{2,}/).filter(Boolean);
+    const sentences = all
+      .split(/[.!?…。\n]+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const words = all.replace(/\n+/g, " ").split(/\s+/).filter(Boolean);
 
-    if (validWordCounts.length === 0) {
-      return {
-        sentenceLength: 0,
-        paragraphStructure: "unknown",
-        vocabularyLevel: "unknown",
-        logicalFlow: "unknown",
-      };
-    }
-
-    const avgWordCount =
-      validWordCounts.reduce((sum, count) => sum + count, 0) /
-      validWordCounts.length;
-    const avgSentenceLength = avgWordCount / 20; // 대략적인 문장 수 추정
+    const unique = new Set(words.map((w) => w.toLowerCase()));
+    const typeTokenRatio = unique.size / Math.max(1, words.length);
 
     return {
-      sentenceLength: Math.round(avgSentenceLength),
-      paragraphStructure: "structured", // 기본값
-      vocabularyLevel: "intermediate", // 기본값
-      logicalFlow: "clear", // 기본값
+      sentenceLength: Math.round(words.length / Math.max(1, sentences.length)),
+      paragraphStructure: paragraphs.length >= 3 ? "structured" : "simple",
+      vocabularyLevel:
+        typeTokenRatio > 0.35
+          ? "advanced"
+          : typeTokenRatio > 0.25
+          ? "intermediate"
+          : "basic",
+      logicalFlow: paragraphs.length >= 3 ? "clear" : "basic",
     };
+  }
+
+  // 사용자 서명 스타일 분석 (간단 키워드 기반)
+  analyzeUserStyleProfile(history) {
+    const styleCounts = {
+      analytical: 0,
+      emotive: 0,
+      narrative: 0,
+      reflective: 0,
+      goal: 0,
+      general: 0,
+    };
+
+    const analytical = /분석|이유|원인|결과|관계|비교|대조|논리|근거|증거|통계/;
+    const emotive =
+      /감정|사랑|행복|위로|기쁨|눈물|슬픔|화남|설렘|감동|희망|두려움|불안/;
+    const narrative =
+      /그때|언젠가|어느날|기억|이야기|일화|에피소드|사건|발생|일어나다/;
+    const reflective =
+      /회고|성찰|깨달음|후회|배움|변화|성장|인생|경험|교훈|이해/;
+    const goal = /목표|계획|달성|도전|실현|이루다|성취|목적|비전|꿈/;
+
+    for (const h of history) {
+      const t = (h.userText || "").toLowerCase();
+      const scores = {
+        analytical: (t.match(analytical) || []).length,
+        emotive: (t.match(emotive) || []).length,
+        narrative: (t.match(narrative) || []).length,
+        reflective: (t.match(reflective) || []).length,
+        goal: (t.match(goal) || []).length,
+      };
+      const max = Math.max(...Object.values(scores), 0);
+      const style =
+        max === 0
+          ? "general"
+          : Object.keys(scores).find((k) => scores[k] === max) || "general";
+      styleCounts[style] = (styleCounts[style] || 0) + 1;
+    }
+
+    const total = Object.values(styleCounts).reduce((a, b) => a + b, 0) || 1;
+    const styleDistribution = Object.fromEntries(
+      Object.entries(styleCounts).map(([k, v]) => [
+        k,
+        Number((v / total).toFixed(2)),
+      ])
+    );
+    const dominantStyle = Object.entries(styleCounts).sort(
+      (a, b) => b[1] - a[1]
+    )[0][0];
+
+    return { dominantStyle, styleDistribution };
   }
 
   // 사용자 프로필 가져오기

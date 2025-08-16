@@ -72,10 +72,19 @@ const AIFeedback: React.FC<AIFeedbackProps> = ({
 
     setIsUnlocking(true);
     try {
+      // 인증 토큰 가져오기
+      const token = await user.getIdToken();
+      if (!token) {
+        alert('인증 토큰을 가져올 수 없습니다. 다시 로그인해주세요.');
+        setIsUnlocking(false);
+        return;
+      }
+
       const response = await fetch(`${import.meta.env.VITE_API_URL}/api/feedback/unlock-dilating`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           uid: user.uid,

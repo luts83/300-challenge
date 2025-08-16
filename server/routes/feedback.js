@@ -16,6 +16,10 @@ const {
   getTodayDateKoreaSimple,
   getTodayDateKoreaFinal,
 } = require("../utils/timezoneUtils");
+const { authenticateToken } = require("../middleware/auth");
+
+// 모든 feedback 라우트에 인증 미들웨어 적용
+router.use(authenticateToken);
 
 // 피드백할 글 추천 (모드 동일 + 적게 받은 글 우선)
 router.get("/assignments/:uid", async (req, res) => {

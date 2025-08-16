@@ -62,7 +62,19 @@ export const WeeklyProgress: React.FC<WeeklyProgressProps> = ({ className = '' }
   const handleStreakCompletion = async () => {
     if (!user) return;
     try {
-      await axios.post(`${import.meta.env.VITE_API_URL}/api/streak/celebration/${user.uid}`);
+      const token = await user.getIdToken();
+      if (!token) {
+        toast.error('인증 토큰을 가져올 수 없습니다.');
+        return;
+      }
+
+      await axios.post(
+        `${import.meta.env.VITE_API_URL}/api/streak/celebration/${user.uid}`,
+        {},
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
       setTimeout(() => {
         setShowCelebration(false);
       }, CELEBRATION_DURATION);
@@ -74,8 +86,17 @@ export const WeeklyProgress: React.FC<WeeklyProgressProps> = ({ className = '' }
   const fetchStreak = async () => {
     if (!user) return;
     try {
+      const token = await user.getIdToken();
+      if (!token) {
+        toast.error('인증 토큰을 가져올 수 없습니다.');
+        return;
+      }
+
       const response = await axios.get<StreakData>(
-        `${import.meta.env.VITE_API_URL}/api/streak/${user.uid}`
+        `${import.meta.env.VITE_API_URL}/api/streak/${user.uid}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
       );
       const { weeklyProgress, celebrationShown } = response.data;
       setProgress(weeklyProgress);

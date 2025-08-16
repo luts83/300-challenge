@@ -31,6 +31,9 @@ const feedbackSchema = new mongoose.Schema(
       displayName: { type: String },
       email: { type: String },
     },
+    // 피드백 작성자 시간대 정보 추가
+    fromUserTimezone: { type: String },
+    fromUserOffset: { type: Number },
 
     // 구조화된 피드백 내용
     strengths: { type: String, required: true }, // 좋았던 점

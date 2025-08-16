@@ -22,11 +22,17 @@ const HelpfulButton = ({ submissionId }: HelpfulButtonProps) => {
   const [total, setTotal] = useState(0);
 
   const fetchStatus = async () => {
-    if (!submissionId || !userUid) return;
+    if (!submissionId || !userUid || !user) return;
     try {
+      const token = await user.getIdToken();
+      if (!token) return;
+
       const res = await axios.get(
         `${import.meta.env.VITE_API_URL}/api/feedback/${submissionId}/like-status`,
-        { params: { uid: userUid } }
+        {
+          params: { uid: userUid },
+          headers: { Authorization: `Bearer ${token}` },
+        }
       );
       setLiked(res.data.liked);
       setTotal(res.data.total);
@@ -36,10 +42,17 @@ const HelpfulButton = ({ submissionId }: HelpfulButtonProps) => {
   };
 
   const toggleLike = async () => {
+    if (!user) return;
     try {
+      const token = await user.getIdToken();
+      if (!token) return;
+
       const res = await axios.post(
         `${import.meta.env.VITE_API_URL}/api/feedback/${submissionId}/like`,
-        { uid: userUid, displayName: userDisplayName }
+        { uid: userUid, displayName: userDisplayName },
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
       );
       setLiked(res.data.liked);
       setTotal(res.data.total);

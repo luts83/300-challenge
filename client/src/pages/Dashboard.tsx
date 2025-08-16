@@ -98,6 +98,9 @@ interface Feedback {
   };
   writtenDate: string;
   createdAt: string;
+  // 작성자 시간대 정보 (선택)
+  fromUserTimezone?: string;
+  fromUserOffset?: number;
 }
 
 interface Submission {
@@ -486,8 +489,19 @@ const Dashboard = () => {
         const start = startDate || new Date(1970, 0, 1);
         const end = endDate || new Date();
 
+        // 인증 토큰 가져오기
+        const token = await user?.getIdToken();
+        if (!token) {
+          setError('인증 토큰을 가져올 수 없습니다.');
+          setLoading(false);
+          return;
+        }
+
         const chartRes = await axios.get(
-          `${import.meta.env.VITE_API_URL}/api/dashboard/weekly?start=${format(start, 'yyyy-MM-dd')}&end=${format(end, 'yyyy-MM-dd')}`
+          `${import.meta.env.VITE_API_URL}/api/dashboard/weekly?start=${format(start, 'yyyy-MM-dd')}&end=${format(end, 'yyyy-MM-dd')}`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
         );
 
         setSubmissions(chartRes.data);
@@ -527,6 +541,13 @@ const Dashboard = () => {
     }
 
     try {
+      // 인증 토큰 가져오기
+      const token = await user?.getIdToken();
+      if (!token) {
+        setError('인증 토큰을 가져올 수 없습니다.');
+        return;
+      }
+
       const params: any = {
         page,
         // 관리자 전체 보기에서는 더 큰 limit로 네트워크 요청 수를 줄임
@@ -538,17 +559,36 @@ const Dashboard = () => {
       // API 호출 시 선택된 사용자의 UID 사용
       const targetUid = userId || user?.uid;
 
+      // UID 유효성 검증
+      if (!targetUid || targetUid === '$' || targetUid.trim() === '') {
+        console.error('Invalid UID:', targetUid);
+        setError('유효하지 않은 사용자 ID입니다.');
+        return;
+      }
+
+      // 인증 헤더 설정
+      const authHeaders = {
+        Authorization: `Bearer ${token}`,
+      };
+
       // 병렬로 API 호출하여 성능 향상
       const [submissionsRes, statsRes, rankingsRes] = await Promise.all([
         axios.get(`${import.meta.env.VITE_API_URL}/api/dashboard/all-submissions/${targetUid}`, {
+          headers: authHeaders,
           params: {
             ...params,
             // 특정 사용자 미선택(관리자 전체 보기) 시 전체 조회 플래그 전달
             adminView: userId ? undefined : 'true',
           },
         }),
-        axios.get(`${import.meta.env.VITE_API_URL}/api/dashboard/stats/${targetUid}`, { params }),
-        axios.get(`${import.meta.env.VITE_API_URL}/api/dashboard/rankings`, { params }),
+        axios.get(`${import.meta.env.VITE_API_URL}/api/dashboard/stats/${targetUid}`, {
+          headers: authHeaders,
+          params,
+        }),
+        axios.get(`${import.meta.env.VITE_API_URL}/api/dashboard/rankings`, {
+          headers: authHeaders,
+          params,
+        }),
       ]);
 
       // 페이지네이션 응답 처리
@@ -623,17 +663,32 @@ const Dashboard = () => {
   useEffect(() => {
     const fetchLikesReceived = async () => {
       try {
+        // 인증 토큰 가져오기
+        const token = await user?.getIdToken();
+        if (!token) {
+          console.error('인증 토큰을 가져올 수 없습니다.');
+          return;
+        }
+
+        const authHeaders = {
+          Authorization: `Bearer ${token}`,
+        };
+
         const res = await axios.get(
-          `${import.meta.env.VITE_API_URL}/api/dashboard/rankings/likes-received`
+          `${import.meta.env.VITE_API_URL}/api/dashboard/rankings/likes-received`,
+          { headers: authHeaders }
         );
         setLikeReceivedRanking(res.data.likeReceivedRanking);
       } catch (err) {
         // 좋아요 받은 랭킹 로딩 실패는 무시
+        console.error('좋아요 받은 랭킹 조회 실패:', err);
       }
     };
 
-    fetchLikesReceived();
-  }, []);
+    if (user) {
+      fetchLikesReceived();
+    }
+  }, [user]);
 
   // 사용자 선택 시
   const handleUserChange = (uid: string) => {
@@ -702,37 +757,53 @@ const Dashboard = () => {
     fetchAllData(startDate, endDate, undefined, 1);
   };
 
-  const fetchTopicRanking = async (page = 1, search = '', mode = topicModeFilter) => {
+  // 주제별 랭킹 조회
+  const fetchTopicRanking = async (
+    page = 1,
+    search = '',
+    mode = 'all' as 'all' | 'mode_300' | 'mode_1000'
+  ) => {
     try {
       setTopicLoading(true);
-      const params: any = {
-        page: page.toString(),
-        limit: '50',
+
+      // 인증 토큰 가져오기
+      const token = await user?.getIdToken();
+      if (!token) {
+        setError('인증 토큰을 가져올 수 없습니다.');
+        return;
+      }
+
+      const authHeaders = {
+        Authorization: `Bearer ${token}`,
       };
 
-      // 날짜 필터 적용
-      if (startDate) params.start = format(startDate, 'yyyy-MM-dd');
-      if (endDate) params.end = format(endDate, 'yyyy-MM-dd');
+      const params: any = {
+        page,
+        limit: topicPagination.limit,
+      };
       if (search) params.search = search;
-      if (mode && mode !== 'all') params.mode = mode;
+      if (mode !== 'all') params.mode = mode;
 
       const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/dashboard/rankings/topics`, {
+        headers: authHeaders,
         params,
       });
 
-      if (res.data && res.data.topicRanking) {
-        if (page === 1) {
-          setTopicRanking(res.data.topicRanking);
-        } else {
-          setTopicRanking(prev => [...prev, ...res.data.topicRanking]);
-        }
-        setTopicPagination(res.data.pagination);
+      if (page === 1) {
+        setTopicRanking(res.data.topicRanking || []);
+        setTopicPagination({
+          ...topicPagination,
+          page: res.data.pagination?.page || 1,
+          total: res.data.pagination?.total || 0,
+          totalPages: res.data.pagination?.totalPages || 1,
+          hasNext: res.data.pagination?.hasNext || false,
+        });
       } else {
-        setTopicRanking([]);
+        setTopicRanking(prev => [...prev, ...(res.data.topicRanking || [])]);
       }
-    } catch (e) {
-      setTopicRanking([]);
-      toast.error('주제 랭킹을 불러오는데 실패했습니다.');
+    } catch (error) {
+      console.error('주제 랭킹 조회 실패:', error);
+      setError('주제 랭킹을 불러오는데 실패했습니다.');
     } finally {
       setTopicLoading(false);
     }
@@ -796,6 +867,15 @@ const Dashboard = () => {
   const fetchUsers = async (page = 1, search = '') => {
     try {
       setUserLoading(true);
+
+      // 인증 토큰 가져오기
+      const token = await user?.getIdToken();
+      if (!token) {
+        toast.error('인증 토큰을 가져올 수 없습니다.');
+        setUserLoading(false);
+        return;
+      }
+
       const params = new URLSearchParams({
         page: page.toString(),
         limit: '100',
@@ -806,7 +886,10 @@ const Dashboard = () => {
       }
 
       const response = await axios.get(
-        `${import.meta.env.VITE_API_URL}/api/dashboard/stats/users?${params}`
+        `${import.meta.env.VITE_API_URL}/api/dashboard/stats/users?${params}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
       );
 
       if (page === 1) {
@@ -828,8 +911,18 @@ const Dashboard = () => {
   // 작성된 날짜를 가져오는 함수 수정
   const fetchSubmissionDates = async () => {
     try {
+      // 인증 토큰 가져오기
+      const token = await user?.getIdToken();
+      if (!token) {
+        console.error('인증 토큰을 가져올 수 없습니다.');
+        return;
+      }
+
       const response = await axios.get(
-        `${import.meta.env.VITE_API_URL}/api/dashboard/submission-dates`
+        `${import.meta.env.VITE_API_URL}/api/dashboard/submission-dates`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
       );
 
       const dates = response.data.dates.map((dateStr: string) => {
@@ -848,8 +941,20 @@ const Dashboard = () => {
   // 특정 날짜의 주제 가져오기
   const fetchDateTopic = async (date: Date) => {
     try {
+      // 인증 토큰 가져오기
+      const token = await user?.getIdToken();
+      if (!token) {
+        console.error('인증 토큰을 가져올 수 없습니다.');
+        return null;
+      }
+
       const dateStr = format(date, 'yyyy-MM-dd');
-      const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/dashboard/topic/${dateStr}`);
+      const res = await axios.get(
+        `${import.meta.env.VITE_API_URL}/api/dashboard/topic/${dateStr}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
 
       return res.data.topic;
     } catch (error) {
@@ -860,11 +965,22 @@ const Dashboard = () => {
   // 현재 날짜의 주제 가져오기
   const fetchCurrentDateTopic = async () => {
     try {
+      // 인증 토큰 가져오기
+      const token = await user?.getIdToken();
+      if (!token) {
+        console.error('인증 토큰을 가져올 수 없습니다.');
+        setCurrentDateTopic(null);
+        return;
+      }
+
       const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
       const userOffset = new Date().getTimezoneOffset();
 
       const res = await axios.get(
-        `${import.meta.env.VITE_API_URL}/api/topic/today?mode=mode_300&timezone=${encodeURIComponent(userTimezone)}&offset=${userOffset}`
+        `${import.meta.env.VITE_API_URL}/api/topic/today?mode=mode_300&timezone=${encodeURIComponent(userTimezone)}&offset=${userOffset}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
       );
 
       setCurrentDateTopic(res.data.topic);
@@ -1103,8 +1219,8 @@ const Dashboard = () => {
                             <p className="text-xs sm:text-sm text-gray-500">
                               {formatDateTime(
                                 feedback.createdAt,
-                                submission.userTimezone,
-                                submission.userTimezoneOffset
+                                feedback.fromUserTimezone || submission.userTimezone,
+                                feedback.fromUserOffset ?? submission.userTimezoneOffset
                               )}
                             </p>
                           </div>
@@ -1718,8 +1834,8 @@ const Dashboard = () => {
                               <p className="text-xs sm:text-sm text-gray-500">
                                 {formatDateTime(
                                   feedback.createdAt,
-                                  submission.userTimezone,
-                                  submission.userTimezoneOffset
+                                  feedback.fromUserTimezone || submission.userTimezone,
+                                  feedback.fromUserOffset ?? submission.userTimezoneOffset
                                 )}
                               </p>
                             </div>

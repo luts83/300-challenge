@@ -195,6 +195,50 @@ const evaluateSubmission = async (
     const evaluation = response.data.choices[0].message.content;
     logger.debug("원본 AI 응답:", evaluation);
 
+    // AI 응답 구조 상세 로깅 (디버깅용)
+    try {
+      const parsedEvaluation = JSON.parse(evaluation);
+      logger.debug("🔍 [AI 응답 구조 분석]:", {
+        hasOverallScore: "overall_score" in parsedEvaluation,
+        overallScoreValue: parsedEvaluation.overall_score,
+        hasCriteriaScores: "criteria_scores" in parsedEvaluation,
+        criteriaScoresKeys: parsedEvaluation.criteria_scores
+          ? Object.keys(parsedEvaluation.criteria_scores)
+          : [],
+        hasStrengths: "strengths" in parsedEvaluation,
+        strengthsLength: parsedEvaluation.strengths
+          ? parsedEvaluation.strengths.length
+          : 0,
+        hasImprovements: "improvements" in parsedEvaluation,
+        improvementsLength: parsedEvaluation.improvements
+          ? parsedEvaluation.improvements.length
+          : 0,
+        allKeys: Object.keys(parsedEvaluation),
+      });
+    } catch (parseError) {
+      logger.warn("⚠️ AI 응답 JSON 파싱 실패:", parseError.message);
+    }
+
+    // AI 평가 품질 검증 추가
+    const ImprovedEvaluationSystem = require("../utils/evaluationSystem");
+    const qualityValidation = ImprovedEvaluationSystem.validateAIEvaluation(
+      evaluation,
+      mode
+    );
+
+    if (!qualityValidation.isValid) {
+      logger.warn("⚠️ AI 평가 품질 문제 감지:", {
+        mode,
+        qualityScore: qualityValidation.qualityScore,
+        issues: qualityValidation.issues,
+        recommendation: qualityValidation.recommendation,
+        debugInfo: qualityValidation.debugInfo,
+        text: text.substring(0, 100) + "...",
+        title,
+        topic,
+      });
+    }
+
     // 더 강화된 응답 정제
     let cleaned = evaluation
       .replace(/```json|```/g, "")
@@ -264,6 +308,71 @@ const evaluateSubmission = async (
           improved_version: { title: title, content: text },
         }),
       };
+    }
+
+    // 약점 앵커 포함 여부 검증 및 보강 재요청
+    try {
+      const profile = await userProfileService.getUserProfile(userId);
+      const modeKey = mode === "mode_300" ? "mode_300" : "mode_1000";
+      const weaknessAreas =
+        profile?.writingStats?.[modeKey]?.weaknessAreas || [];
+      const haystack = [
+        ...(Array.isArray(parsed.improvements) ? parsed.improvements : []),
+        parsed.writing_tips || "",
+      ].join(" ");
+      const hasAnchor = weaknessAreas.some(
+        (w) => w && typeof w === "string" && haystack.includes(w)
+      );
+
+      const hasEvidence =
+        parsed.personalization_evidence &&
+        (Array.isArray(parsed.personalization_evidence.recent_titles_or_topics)
+          ? parsed.personalization_evidence.recent_titles_or_topics.length > 0
+          : false);
+      const hasPeer = parsed.peer_learning && parsed.peer_learning.technique;
+
+      if (!(hasAnchor && hasEvidence && hasPeer) && retryCount > 0) {
+        const reinforcement = `\n\n[강화 지시]\n- 사용자 약점 영역(${weaknessAreas.join(
+          ", "
+        )}) 중 최소 1개를 'improvements'에 명시하고, 해당 영역 'Before->After' 예시 포함.\n- 'personalization_evidence'에 최근 글 제목/주제 1개 이상과 점수 흐름 설명 1개 이상을 반드시 기입.\n- 'peer_learning'에 다른 사용자들의 강점에서 배울 수 있는 구체적 기법 1개와 현재 글 적용 예시를 반드시 포함.`;
+
+        const reinforced = await axios.post(
+          "https://openrouter.ai/api/v1/chat/completions",
+          {
+            model: AI.MODEL,
+            messages: [
+              { role: "system", content: AI.SYSTEM_MESSAGE },
+              { role: "user", content: personalizedPrompt + reinforcement },
+            ],
+          },
+          {
+            headers: {
+              Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+              "HTTP-Referer": "https://dwriting.ai",
+              "Content-Type": "application/json",
+            },
+            timeout: 30000,
+          }
+        );
+
+        const reEval = reinforced.data.choices?.[0]?.message?.content || "";
+        let reClean = reEval
+          .replace(/```json|```/g, "")
+          .replace(/```/g, "")
+          .replace(/\\n/g, " ")
+          .replace(/\n/g, " ")
+          .replace(/[<>]/g, "")
+          .replace(/\s+/g, " ")
+          .replace(/\r/g, " ")
+          .replace(/\t/g, " ")
+          .trim();
+        try {
+          const reParsed = JSON.parse(reClean);
+          parsed = reParsed;
+        } catch (_) {}
+      }
+    } catch (anchorErr) {
+      logger.warn("개인화 요소 검증 중 경고:", anchorErr.message);
     }
 
     // 응답 검증
@@ -400,9 +509,18 @@ async function validateScoreConsistency(userId, feedback, mode) {
     // 점수 업데이트
     feedback.overall_score = finalScore;
 
+    // 적응형 점수 제한 결과 로깅
+    logger.info("🔍 [점수 일관성 검증] 완료:", {
+      userId,
+      mode,
+      originalScore,
+      finalScore,
+      adjustment: finalScore - originalScore,
+    });
+
     return feedback;
   } catch (error) {
-    console.error("❌ 개선된 점수 일관성 검증 실패:", error);
+    logger.error("❌ 개선된 점수 일관성 검증 실패:", error);
     return feedback; // 에러 시 원본 피드백 반환
   }
 }
@@ -434,7 +552,8 @@ async function handleSubmit(req, res) {
     // ✅ 디버깅: 요청 데이터 로그 (에러 발생 시에만 출력)
     const debugData = {
       text: text ? `${text.substring(0, 50)}...` : "undefined",
-      textLength: text ? text.length : 0,
+      textLength: text ? text.trim().length : 0,
+      originalLength: text ? text.length : 0,
       title: title ? title.substring(0, 30) : "undefined",
       user: user ? { uid: user.uid, email: user.email } : "undefined",
       mode: mode,
@@ -529,11 +648,13 @@ async function handleSubmit(req, res) {
     const MIN_LENGTH = SUBMISSION[mode.toUpperCase()].MIN_LENGTH;
     const MAX_LENGTH = SUBMISSION[mode.toUpperCase()].MAX_LENGTH;
 
-    // ✅ 서버 측에서도 글자 수 검증 강화
-    if (text.length < MIN_LENGTH || text.length > MAX_LENGTH) {
+    // ✅ 서버 측에서도 글자 수 검증 강화 (trim된 텍스트로 검증)
+    const trimmedTextLength = text.trim().length;
+    if (trimmedTextLength < MIN_LENGTH || trimmedTextLength > MAX_LENGTH) {
       console.warn("❌ 글자 수 범위 초과:", {
         ...debugData,
-        textLength: text.length,
+        textLength: trimmedTextLength,
+        originalLength: text.length,
         minLength: MIN_LENGTH,
         maxLength: MAX_LENGTH,
       });
@@ -542,10 +663,10 @@ async function handleSubmit(req, res) {
       });
     }
 
-    // 🚨 클라이언트와 서버의 글자 수 불일치 검증
-    if (charCount !== undefined && charCount !== text.length) {
+    // 🚨 클라이언트와 서버의 글자 수 불일치 검증 (trim된 텍스트로 비교)
+    if (charCount !== undefined && charCount !== trimmedTextLength) {
       console.warn(
-        `[글자수 불일치] ${user.email}: 클라이언트 ${charCount}자, 서버 ${text.length}자`
+        `[글자수 불일치] ${user.email}: 클라이언트 ${charCount}자, 서버 ${trimmedTextLength}자 (원본: ${text.length}자)`
       );
       return res.status(400).json({
         message: "글자 수가 일치하지 않습니다. 다시 시도해주세요.",

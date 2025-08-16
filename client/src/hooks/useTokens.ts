@@ -36,12 +36,23 @@ export const useTokens = () => {
 
     setIsLoading(true);
     try {
+      // 인증 토큰 가져오기
+      const token = await user.getIdToken();
+      if (!token) {
+        setError('인증 토큰을 가져올 수 없습니다.');
+        setIsLoading(false);
+        return;
+      }
+
       // 사용자의 시간대 정보 가져오기
       const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
       const userOffset = new Date().getTimezoneOffset();
 
       const response = await axios.get<TokenData>(
-        `${import.meta.env.VITE_API_URL}/api/tokens/${user.uid}?timezone=${encodeURIComponent(userTimezone)}&offset=${userOffset}`
+        `${import.meta.env.VITE_API_URL}/api/tokens/${user.uid}?timezone=${encodeURIComponent(userTimezone)}&offset=${userOffset}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
       );
 
       const tokenData = {

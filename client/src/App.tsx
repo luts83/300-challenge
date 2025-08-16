@@ -20,6 +20,7 @@ import Profile from './pages/Profile';
 import { initTheme, toggleDarkMode } from './utils/theme';
 import { ThemeProvider } from './context/ThemeContext';
 import TimezoneDebug from './components/TimezoneDebug';
+import PrivateRoute from './components/PrivateRoute';
 
 // 배경 이미지 래퍼 컴포넌트
 const BackgroundWrapper = ({ children }: { children: React.ReactNode }) => {
@@ -64,13 +65,55 @@ function App() {
           <BackgroundWrapper>
             <Routes>
               <Route path="/" element={user ? <Write /> : <LandingPage />} />
-              <Route path="/write/300" element={<Write300 />} />
-              <Route path="/write/1000" element={<Write1000 />} />
+              <Route
+                path="/write/300"
+                element={
+                  <PrivateRoute>
+                    <Write300 />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/write/1000"
+                element={
+                  <PrivateRoute>
+                    <Write1000 />
+                  </PrivateRoute>
+                }
+              />
               <Route path="/login" element={<Login />} />
-              <Route path="/my" element={<MySubmissions />} />
-              <Route path="/feedback-camp" element={<FeedbackCamp />} />
-              <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/profile" element={<Profile />} />
+              <Route
+                path="/my"
+                element={
+                  <PrivateRoute>
+                    <MySubmissions />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/feedback-camp"
+                element={
+                  <PrivateRoute>
+                    <FeedbackCamp />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/dashboard"
+                element={
+                  <PrivateRoute>
+                    <Dashboard />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/profile"
+                element={
+                  <PrivateRoute>
+                    <Profile />
+                  </PrivateRoute>
+                }
+              />
               <Route path="/terms-of-service" element={<TermsOfService />} />
               <Route path="/privacy-policy" element={<PrivacyPolicy />} />
               <Route path="/cookie-policy" element={<CookiePolicy />} />

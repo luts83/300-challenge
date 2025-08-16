@@ -17,6 +17,7 @@ interface UserContextType extends UserState {
   setUser: (user: User | null) => void;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
+  getIdToken: () => Promise<string | null>;
 }
 
 // 초기 상태
@@ -77,6 +78,17 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
     }
   }, []);
 
+  // ID 토큰 가져오기 함수
+  const getIdToken = useCallback(async (): Promise<string | null> => {
+    try {
+      if (!state.user) return null;
+      return await state.user.getIdToken();
+    } catch (error) {
+      console.error('ID 토큰 가져오기 실패:', error);
+      return null;
+    }
+  }, [state.user]);
+
   // 사용자 정보 새로고침 함수 (간소화)
   const refreshUser = useCallback(async () => {
     try {
@@ -98,13 +110,17 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
           loading: false,
         }));
       } else {
-        setState(prev => ({ ...prev, loading: false }));
+        setState(prev => ({
+          ...prev,
+          user: null,
+          loading: false,
+        }));
       }
     } catch (error) {
       console.error('사용자 정보 새로고침 실패:', error);
       setState(prev => ({ ...prev, loading: false }));
     }
-  }, [state.user]);
+  }, []);
 
   // Firebase Auth 상태 변경 감지
   useEffect(() => {
@@ -136,17 +152,15 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
   }, [state.user]);
 
   // Context 값
-  const value = useMemo(
+  const contextValue = useMemo(
     () => ({
-      user: enhancedUser,
-      loading: state.loading,
-      initialized: state.initialized,
-      isAdmin: state.isAdmin,
+      ...state,
       setUser,
       logout,
       refreshUser,
+      getIdToken,
     }),
-    [enhancedUser, state.loading, state.initialized, state.isAdmin, setUser, logout, refreshUser]
+    [state, setUser, logout, refreshUser, getIdToken]
   );
 
   // 초기화되지 않은 경우 로딩 표시
@@ -158,5 +172,5 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
     );
   }
 
-  return <UserContext.Provider value={value}>{children}</UserContext.Provider>;
+  return <UserContext.Provider value={contextValue}>{children}</UserContext.Provider>;
 };

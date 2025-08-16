@@ -31,6 +31,7 @@ import Layout from '../components/Layout';
 import FeedbackNotice from '../components/FeedbackNotice';
 import DateRangePicker from '../components/DateRangePicker';
 import DateRangeFilter from '../components/DateRangeFilter';
+import { toast } from 'react-hot-toast';
 
 type Submission = {
   _id: string;
@@ -95,7 +96,7 @@ const MySubmissions = () => {
   const { user, loading: authLoading } = useUser();
   const navigate = useNavigate();
   const location = useLocation();
-  const [submissions, setSubmissions] = useState<Submission[]>([]);
+  const [submissions, setSubmissions] = useState<any[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [stats, setStats] = useState<StatsData>({
     mode_300: {
@@ -134,7 +135,7 @@ const MySubmissions = () => {
     return () => clearTimeout(timeout);
   }, [inputValue]);
 
-  const [sortBy, setSortBy] = useState<'date' | 'score' | 'feedback'>('date');
+  const [sortBy, setSortBy] = useState<'date' | 'score' | 'feedback' | 'likes'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [feedbackStats, setFeedbackStats] = useState({
     totalSubmissions: 0,
@@ -232,7 +233,23 @@ const MySubmissions = () => {
   const fetchSummaryCounts = async () => {
     if (!user) return;
     try {
-      const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/submit/summary/${user.uid}`);
+      // 인증 토큰 가져오기
+      const token = await user.getIdToken();
+      if (!token) {
+        toast.error('인증 토큰을 가져올 수 없습니다.');
+        return;
+      }
+
+      const authHeaders = {
+        Authorization: `Bearer ${token}`,
+      };
+
+      const res = await axios.get(
+        `${import.meta.env.VITE_API_URL}/api/submit/summary/${user.uid}`,
+        {
+          headers: authHeaders,
+        }
+      );
       setCounts(res.data);
     } catch (err) {
       logger.error('📊 summary count fetch 실패:', err);
@@ -262,8 +279,20 @@ const MySubmissions = () => {
     else setIsLoadingMore(true);
 
     try {
+      // 인증 토큰 가져오기
+      const token = await user.getIdToken();
+      if (!token) {
+        toast.error('인증 토큰을 가져올 수 없습니다.');
+        return;
+      }
+
+      const authHeaders = {
+        Authorization: `Bearer ${token}`,
+      };
+
       const [submissionsRes, feedbackRes] = await Promise.all([
         axios.get(`${import.meta.env.VITE_API_URL}/api/submit/user/${user.uid}`, {
+          headers: authHeaders,
           params: {
             page: pageNum,
             limit: ITEMS_PER_PAGE,
@@ -271,7 +300,9 @@ const MySubmissions = () => {
             feedbackFilter: feedbackFilter || undefined,
           },
         }),
-        axios.get(`${import.meta.env.VITE_API_URL}/api/feedback/stats/${user.uid}`),
+        axios.get(`${import.meta.env.VITE_API_URL}/api/feedback/stats/${user.uid}`, {
+          headers: authHeaders,
+        }),
       ]);
 
       // console.log('🔍 요청 params', {
@@ -284,7 +315,7 @@ const MySubmissions = () => {
       const { submissions: newSubmissions, hasMore: more } = submissionsRes.data;
       const feedbackData = feedbackRes.data.receivedFeedbackDetails || [];
 
-      const submissionsWithFeedback = newSubmissions.map((submission: Submission) => {
+      const submissionsWithFeedback = newSubmissions.map((submission: any) => {
         const matchedFeedbacks = feedbackData.filter((feedback: any) => {
           const feedbackId = feedback.toSubmissionId || feedback.submissionId;
           return feedbackId?.toString() === submission._id.toString();
@@ -292,6 +323,8 @@ const MySubmissions = () => {
 
         return {
           ...submission,
+          score: submission.score || null,
+          feedback: submission.feedback || '',
           feedbacks: matchedFeedbacks.map((feedback: any) => ({
             content: feedback.content || feedback.feedbackContent,
             createdAt: feedback.createdAt || feedback.feedbackDate,
@@ -322,46 +355,100 @@ const MySubmissions = () => {
   const fetchAllStats = async () => {
     if (!user) return;
 
-    console.log('🚀 [DEBUG] fetchAllStats 시작:', {
-      userUid: user.uid,
-      timestamp: new Date().toISOString(),
-    });
+    // 개발 환경에서만 로깅 (프로덕션에서는 제거)
+    if (import.meta.env.DEV) {
+      console.log('🚀 [DEBUG] fetchAllStats 시작:', {
+        userUid: user.uid,
+        timestamp: new Date().toISOString(),
+      });
+    }
 
     try {
-      const [statsRes, feedbackStatsRes, weeklyRes, dailyRes] = await Promise.all([
-        // 작성 통계
-        axios.get(`${import.meta.env.VITE_API_URL}/api/stats/${user.uid}`),
-        // 피드백 통계
-        axios.get(`${import.meta.env.VITE_API_URL}/api/feedback/stats/${user.uid}`),
-        // 주간 성장
-        axios.get(`${import.meta.env.VITE_API_URL}/api/stats/weekly-growth/${user.uid}`),
-        // 오늘의 피드백 수
-        axios.get(`${import.meta.env.VITE_API_URL}/api/feedback/today/${user.uid}`),
+      // 인증 토큰 가져오기
+      const token = await user.getIdToken();
+      if (!token) {
+        toast.error('인증 토큰을 가져올 수 없습니다.');
+        return;
+      }
+
+      const authHeaders = {
+        Authorization: `Bearer ${token}`,
+      };
+
+      const [statsRes, feedbackStatsRes, weeklyGrowthRes, todayFeedbackRes] = await Promise.all([
+        axios.get(`${import.meta.env.VITE_API_URL}/api/stats/${user.uid}`, {
+          headers: authHeaders,
+        }),
+        axios.get(`${import.meta.env.VITE_API_URL}/api/feedback/stats/${user.uid}`, {
+          headers: authHeaders,
+        }),
+        axios.get(`${import.meta.env.VITE_API_URL}/api/stats/weekly-growth/${user.uid}`, {
+          headers: authHeaders,
+        }),
+        axios.get(`${import.meta.env.VITE_API_URL}/api/feedback/today/${user.uid}`, {
+          headers: authHeaders,
+        }),
       ]);
 
-      console.log('📡 [DEBUG] API 응답 데이터:', {
-        stats: statsRes.data,
-        feedbackStats: feedbackStatsRes.data,
-        weeklyGrowth: weeklyRes.data,
-        dailyFeedback: dailyRes.data,
-      });
+      // 개발 환경에서만 로깅 (프로덕션에서는 제거)
+      if (import.meta.env.DEV) {
+        console.log('📡 [DEBUG] API 응답 데이터:', {
+          stats: {
+            mode300: statsRes.data?.mode_300,
+            mode1000: statsRes.data?.mode_1000,
+          },
+          feedbackStats: {
+            totalSubmissions: feedbackStatsRes.data?.totalSubmissions,
+            unlockedSubmissions: feedbackStatsRes.data?.unlockedSubmissions,
+            feedbackGiven: feedbackStatsRes.data?.feedbackGiven,
+            feedbackReceived: feedbackStatsRes.data?.feedbackReceived,
+          },
+          weeklyGrowth: {
+            submissions: weeklyGrowthRes.data?.submissions,
+            thisWeek: weeklyGrowthRes.data?.thisWeek,
+            lastWeek: weeklyGrowthRes.data?.lastWeek,
+          },
+          dailyFeedback: {
+            mode300: todayFeedbackRes.data?.count?.mode_300 || 0,
+            mode1000: todayFeedbackRes.data?.count?.mode_1000 || 0,
+            total: todayFeedbackRes.data?.count?.total || 0,
+          },
+        });
+      }
 
       // 각 상태 업데이트
       setStats(statsRes.data);
       setFeedbackStats(feedbackStatsRes.data);
-      setWeeklyGrowth(weeklyRes.data);
+      setWeeklyGrowth(weeklyGrowthRes.data);
 
+      // 안전한 접근을 위한 null 체크
+      const countData = todayFeedbackRes.data?.count || {};
       const newDailyFeedbackCount = {
-        mode300: dailyRes.data.count.mode300 || 0,
-        mode1000: dailyRes.data.count.mode1000 || 0,
-        total: (dailyRes.data.count.mode300 || 0) + (dailyRes.data.count.mode1000 || 0),
+        mode300: countData.mode300 || 0,
+        mode1000: countData.mode1000 || 0,
+        total: (countData.mode300 || 0) + (countData.mode1000 || 0),
       };
 
-      console.log('🔄 [DEBUG] 상태 업데이트:', {
-        before: dailyFeedbackCount,
-        after: newDailyFeedbackCount,
-        rawData: dailyRes.data,
-      });
+      // 개발 환경에서만 로깅 (프로덕션에서는 제거)
+      if (import.meta.env.DEV) {
+        console.log('🔄 [DEBUG] 상태 업데이트:', {
+          before: {
+            mode300: dailyFeedbackCount.mode300,
+            mode1000: dailyFeedbackCount.mode1000,
+            total: dailyFeedbackCount.total,
+          },
+          after: {
+            mode300: newDailyFeedbackCount.mode300,
+            mode1000: newDailyFeedbackCount.mode1000,
+            total: newDailyFeedbackCount.total,
+          },
+          rawData: {
+            mode300: todayFeedbackRes.data?.count?.mode_300 || 0,
+            mode1000: todayFeedbackRes.data?.count?.mode_1000 || 0,
+            total: todayFeedbackRes.data?.count?.total || 0,
+          },
+        });
+      }
 
       setDailyFeedbackCount(newDailyFeedbackCount);
     } catch (err: any) {
@@ -375,11 +462,32 @@ const MySubmissions = () => {
     }
   };
 
-  // 컴포넌트 마운트 시 데이터 로드
+  // 알림 설정을 가져오는 함수
+  const fetchNotificationSettings = async () => {
+    if (!user) return;
+
+    try {
+      const token = await user.getIdToken();
+      if (!token) return;
+
+      const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/user/notification`, {
+        params: { uid: user.uid },
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      setNotificationEnabled(response.data.feedbackNotification);
+    } catch (error) {
+      console.warn('알림 설정 조회 실패, 기본값 사용:', error);
+      setNotificationEnabled(true);
+    }
+  };
+
+  // 컴포넌트 마운트 시 데이터 로드 (중복 호출 방지)
   useEffect(() => {
     if (user) {
       fetchData();
       fetchAllStats();
+      fetchNotificationSettings();
     }
   }, [user]);
 
@@ -421,12 +529,21 @@ const MySubmissions = () => {
     if (!user || !selectedSubmission) return;
 
     try {
+      const token = await user.getIdToken();
+      if (!token) {
+        alert('인증 토큰을 가져올 수 없습니다. 다시 로그인해주세요.');
+        return;
+      }
+
       const response = await axios.post(
         `${import.meta.env.VITE_API_URL}/api/feedback/unlock-feedback`,
         {
           uid: user.uid,
           unlockType,
           submissionId: selectedSubmission._id,
+        },
+        {
+          headers: { Authorization: `Bearer ${token}` },
         }
       );
 
@@ -446,32 +563,36 @@ const MySubmissions = () => {
 
   const [notificationEnabled, setNotificationEnabled] = useState(true);
 
-  useEffect(() => {
-    if (!user) return;
-    axios
-      .get(`${import.meta.env.VITE_API_URL}/api/user/notification`, {
-        params: { uid: user.uid },
-        withCredentials: true,
-      })
-      .then(res => setNotificationEnabled(res.data.feedbackNotification))
-      .catch(() => setNotificationEnabled(true));
-  }, [user]);
-
   const toggleNotification = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!user) return;
+
     const checked = e.target.checked;
     setNotificationEnabled(checked);
+
     try {
+      const token = await user.getIdToken();
+      if (!token) {
+        alert('인증 토큰을 가져올 수 없습니다.');
+        setNotificationEnabled(!checked);
+        return;
+      }
+
       await axios.patch(
         `${import.meta.env.VITE_API_URL}/api/user/notification`,
         { uid: user.uid, feedbackNotification: checked },
-        { withCredentials: true }
+        {
+          headers: { Authorization: `Bearer ${token}` },
+          withCredentials: true,
+        }
       );
+
       if (checked) {
         alert('피드백 이메일 알림이 켜졌습니다.');
       } else {
         alert('피드백 이메일 알림이 꺼졌습니다.');
       }
-    } catch {
+    } catch (error) {
+      console.error('알림 설정 변경 실패:', error);
       alert('알림 설정 변경에 실패했습니다.');
       setNotificationEnabled(!checked);
     }

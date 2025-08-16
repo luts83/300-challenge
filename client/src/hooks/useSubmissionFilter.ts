@@ -13,7 +13,7 @@ interface Submission {
 }
 
 export const useSubmissionFilter = (
-  submissions: Submission[],
+  submissions: any[],
   activeTab: 'all' | 'mode_300' | 'mode_1000',
   searchQuery: string,
   sortBy: 'date' | 'score' | 'feedback' | 'likes',

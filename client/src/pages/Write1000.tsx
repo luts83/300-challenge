@@ -264,7 +264,16 @@ const Write1000 = () => {
   const deleteDraft = async () => {
     if (!user) return;
     try {
-      await axios.delete(`${import.meta.env.VITE_API_URL}/api/drafts/${user.uid}`);
+      // 인증 토큰 가져오기
+      const token = await user.getIdToken();
+      if (!token) {
+        logger.error('인증 토큰을 가져올 수 없습니다.');
+        return;
+      }
+
+      await axios.delete(`${import.meta.env.VITE_API_URL}/api/drafts/${user.uid}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       // localStorage의 모든 관련 데이터 삭제
       clearLocalDraft();
       resetWritingState(
@@ -294,10 +303,25 @@ const Write1000 = () => {
   const updateTokens = async (change: number) => {
     if (!user) return;
     try {
-      const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/tokens/update`, {
-        uid: user.uid,
-        change,
-      });
+      // 인증 토큰 가져오기
+      const token = await user.getIdToken();
+      if (!token) {
+        logger.error('인증 토큰을 가져올 수 없습니다.');
+        setTokens(0);
+        setIsTokensLoading(false);
+        return;
+      }
+
+      const res = await axios.post(
+        `${import.meta.env.VITE_API_URL}/api/tokens/update`,
+        {
+          uid: user.uid,
+          change,
+        },
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
       setTokens(res.data.tokens);
       setIsTokensLoading(false);
     } catch (err) {
@@ -453,24 +477,40 @@ const Write1000 = () => {
       const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
       const userOffset = new Date().getTimezoneOffset();
 
-      const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/submit`, {
-        title,
-        text,
-        topic: dailyTopic || null,
-        mode: 'mode_1000',
-        timezone: userTimezone,
-        offset: userOffset,
-        user: {
-          uid: user.uid,
-          email: user.email,
-          displayName: user.displayName || '익명',
+      // 인증 토큰 가져오기
+      const token = await user.getIdToken();
+      if (!token) {
+        alert('인증 토큰을 가져올 수 없습니다. 다시 로그인해주세요.');
+        setSubmissionState('idle');
+        setSubmissionProgress('');
+        setIsSubmitting(false);
+        return;
+      }
+
+      const res = await axios.post(
+        `${import.meta.env.VITE_API_URL}/api/submit`,
+        {
+          title,
+          text,
+          topic: dailyTopic || null,
+          mode: 'mode_1000',
+          timezone: userTimezone,
+          offset: userOffset,
+          user: {
+            uid: user.uid,
+            email: user.email,
+            displayName: user.displayName || '익명',
+          },
+          sessionCount,
+          duration: finalDuration,
+          forceSubmit: false,
+          isMinLengthMet: text.trim().length >= MIN_LENGTH, // ✅ 실시간 검증
+          charCount: text.trim().length, // ✅ 실시간 글자 수
         },
-        sessionCount,
-        duration: finalDuration,
-        forceSubmit: false,
-        isMinLengthMet: text.trim().length >= MIN_LENGTH, // ✅ 실시간 검증
-        charCount: text.trim().length, // ✅ 실시간 글자 수
-      });
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
 
       let { score, feedback } = res.data.data;
       if (feedback && typeof feedback === 'object') {
@@ -517,14 +557,24 @@ const Write1000 = () => {
   };
 
   const fetchTopic = async () => {
-    if (!CONFIG.TOPIC.SHOW_ON_HOME_1000) return;
+    if (!CONFIG.TOPIC.SHOW_ON_HOME_1000 || !user) return;
     try {
+      // 인증 토큰 가져오기
+      const token = await user.getIdToken();
+      if (!token) {
+        logger.error('인증 토큰을 가져올 수 없습니다.');
+        return;
+      }
+
       // 사용자의 시간대 정보 가져오기
       const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
       const userOffset = new Date().getTimezoneOffset();
 
       const res = await axios.get(
-        `${import.meta.env.VITE_API_URL}/api/topic/today?mode=mode_1000&timezone=${encodeURIComponent(userTimezone)}&offset=${userOffset}`
+        `${import.meta.env.VITE_API_URL}/api/topic/today?mode=mode_1000&timezone=${encodeURIComponent(userTimezone)}&offset=${userOffset}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
       );
       setDailyTopic(res.data.topic);
     } catch (err) {
@@ -535,12 +585,23 @@ const Write1000 = () => {
   const fetchTokens = async () => {
     if (!user) return;
     try {
+      // 인증 토큰 가져오기
+      const token = await user.getIdToken();
+      if (!token) {
+        logger.error('인증 토큰을 가져올 수 없습니다.');
+        setIsTokensLoading(false);
+        return;
+      }
+
       // 사용자의 시간대 정보 가져오기
       const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
       const userOffset = new Date().getTimezoneOffset();
 
       const res = await axios.get(
-        `${import.meta.env.VITE_API_URL}/api/tokens/${user.uid}?mode=mode_1000&timezone=${encodeURIComponent(userTimezone)}&offset=${userOffset}`
+        `${import.meta.env.VITE_API_URL}/api/tokens/${user.uid}?mode=mode_1000&timezone=${encodeURIComponent(userTimezone)}&offset=${userOffset}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
       );
       const tokenValue = res.data.tokens_1000;
 

@@ -12,6 +12,11 @@ const {
 } = require("../utils/cache");
 const getManualTopicByDate = require("../utils/getManualTopicByDate");
 const getTodayAIBasedTopic = require("../utils/getTodayAIBasedTopic");
+const fetchAllowedEmailsFromSheet = require("../utils/fetchAllowedEmails");
+const { authenticateToken } = require("../middleware/auth");
+
+// 모든 Dashboard 라우트에 인증 미들웨어 적용
+router.use(authenticateToken);
 
 // 모든 사용자 목록 조회 (페이지네이션 지원)
 router.get("/stats/users", async (req, res) => {
@@ -244,7 +249,9 @@ router.get("/all-submissions/:uid", async (req, res) => {
     const allFeedbacks = await Feedback.find({
       toSubmissionId: { $in: submissionIds },
     })
-      .select("_id toSubmissionId content createdAt fromUid fromUser")
+      .select(
+        "_id toSubmissionId content createdAt fromUid fromUser fromUserTimezone fromUserOffset"
+      )
       .lean();
 
     // 3. 피드백 작성자 정보 조회 (fallback 로직 포함)
@@ -266,60 +273,137 @@ router.get("/all-submissions/:uid", async (req, res) => {
     });
 
     // 4. 데이터 조합 (메모리 효율적으로)
-    const submissionsWithFeedback = submissions.map((sub) => {
-      const feedbacks = allFeedbacks
-        .filter((fb) => fb.toSubmissionId.toString() === sub._id.toString())
-        .map((fb) => {
-          // 피드백 작성자 정보는 항상 최신 User 모델에서 가져오기
-          let fromUserInfo;
-
-          if (writerMap[fb.fromUid]) {
-            // User 모델에서 조회한 최신 정보 사용 (우선순위 1)
-            fromUserInfo = writerMap[fb.fromUid];
-          } else {
-            // User 모델에서 정보를 찾을 수 없는 경우 (계정 삭제 등)
-            // 이 경우에만 Feedback.fromUser 사용
-            if (fb.fromUser && fb.fromUser.displayName) {
-              fromUserInfo = {
-                displayName: fb.fromUser.displayName,
-                email: fb.fromUser.email || "알 수 없음",
-              };
-            } else {
-              // 모든 정보가 없는 경우
-              fromUserInfo = { displayName: "익명", email: "알 수 없음" };
-            }
-          }
-
-          return {
-            _id: fb._id,
-            content: fb.content,
-            createdAt: fb.createdAt,
-            fromUser: fromUserInfo,
-          };
-        });
-
-      return {
-        ...sub,
-        feedbacks,
-        feedbackCount: feedbacks.length,
-      };
+    const feedbackMap = {};
+    allFeedbacks.forEach((fb) => {
+      const key = String(fb.toSubmissionId);
+      if (!feedbackMap[key]) feedbackMap[key] = [];
+      feedbackMap[key].push({
+        _id: fb._id,
+        content: fb.content,
+        createdAt: fb.createdAt,
+        fromUid: fb.fromUid,
+        fromUser: writerMap[fb.fromUid] || {
+          displayName: "익명",
+          email: "알 수 없음",
+        },
+        fromUserTimezone: fb.fromUserTimezone,
+        fromUserOffset: fb.fromUserOffset,
+      });
     });
 
-    // 5. 총 개수 조회 (페이지네이션용)
+    const submissionsWithFeedback = submissions.map((sub) => ({
+      ...sub,
+      feedbacks: feedbackMap[String(sub._id)] || [],
+    }));
+
+    // 총 개수 계산 (페이지네이션 정보 제공)
     const totalCount = await Submission.countDocuments(match);
+    const totalPages = Math.ceil(totalCount / parseInt(limit));
 
     res.json({
       submissions: submissionsWithFeedback,
       pagination: {
-        currentPage: parseInt(page),
-        totalPages: Math.ceil(totalCount / parseInt(limit)),
-        totalCount,
-        hasMore: parseInt(page) * parseInt(limit) < totalCount,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total: totalCount,
+        totalPages,
+        hasNext: parseInt(page) < totalPages,
+        hasPrev: parseInt(page) > 1,
       },
     });
   } catch (error) {
     console.error("Error fetching submissions:", error);
-    res.status(500).json({ error: "제출물 목록을 불러오는데 실패했습니다." });
+    res.status(500).json({ error: "데이터를 불러오는데 실패했습니다." });
+  }
+});
+
+// 화이트리스트 유저의 이번달 작성 현황 조회
+router.get("/whitelist/monthly", async (req, res) => {
+  try {
+    const timezone = req.query.timezone || "Asia/Seoul";
+
+    // 이번달(사용자 타임존 기준) YYYY-MM 구하기
+    const todayStr = new Intl.DateTimeFormat("en-CA", {
+      timeZone: timezone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
+    const yearMonth = todayStr.slice(0, 7); // YYYY-MM
+
+    // 실시간 화이트리스트 이메일 로딩
+    const allowedEmails = await fetchAllowedEmailsFromSheet();
+
+    // 이번달 데이터 집계 (submissionDate가 YYYY-MM- 로 시작하는 항목)
+    const aggregated = await Submission.aggregate([
+      {
+        $match: {
+          "user.email": { $in: allowedEmails },
+          submissionDate: { $regex: `^${yearMonth}-` },
+        },
+      },
+      {
+        $group: {
+          _id: "$user.email",
+          uid: { $first: "$user.uid" },
+          displayName: { $first: "$user.displayName" },
+          total: { $sum: 1 },
+          mode300: {
+            $sum: { $cond: [{ $eq: ["$mode", "mode_300"] }, 1, 0] },
+          },
+          mode1000: {
+            $sum: { $cond: [{ $eq: ["$mode", "mode_1000"] }, 1, 0] },
+          },
+          lastSubmission: { $max: "$createdAt" },
+          days: { $addToSet: "$submissionDate" },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          email: "$_id",
+          uid: 1,
+          displayName: 1,
+          total: 1,
+          mode300: 1,
+          mode1000: 1,
+          lastSubmission: 1,
+          days: 1,
+          wroteDays: { $size: "$days" },
+        },
+      },
+      { $sort: { total: -1, lastSubmission: -1 } },
+    ]);
+
+    // 화이트리스트 전체에 대해 0건 사용자도 포함
+    const resultMap = new Map(aggregated.map((r) => [r.email, r]));
+    const fullList = allowedEmails.map((email) => {
+      const found = resultMap.get(email);
+      if (found) return found;
+      return {
+        email,
+        uid: null,
+        displayName: null,
+        total: 0,
+        mode300: 0,
+        mode1000: 0,
+        lastSubmission: null,
+        days: [],
+        wroteDays: 0,
+      };
+    });
+
+    res.json({
+      month: yearMonth,
+      timezone,
+      totalWhitelisted: allowedEmails.length,
+      summary: fullList,
+    });
+  } catch (error) {
+    console.error("❌ 화이트리스트 월간 집계 실패:", error);
+    res
+      .status(500)
+      .json({ error: "화이트리스트 월간 집계를 불러오지 못했습니다." });
   }
 });
 

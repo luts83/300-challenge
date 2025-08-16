@@ -3,16 +3,10 @@
 const express = require("express");
 const router = express.Router();
 const User = require("../models/User");
+const { authenticateToken } = require("../middleware/auth");
 
-// 임시 인증 미들웨어: 항상 DB의 첫 번째 유저로 인증
-const authMiddleware = async (req, res, next) => {
-  const testUser = await User.findOne();
-  if (!testUser) {
-    return res.status(401).json({ message: "테스트 유저가 없습니다." });
-  }
-  req.user = testUser; // 유저 전체를 req.user에 저장
-  next();
-};
+// 모든 user 라우트에 인증 미들웨어 적용
+router.use(authenticateToken);
 
 // 프로필 정보 조회 (GET /profile?uid=xxx)
 router.get("/profile", async (req, res) => {

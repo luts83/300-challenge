@@ -70,7 +70,7 @@ async function generatePersonalizedPrompt(userId, text, title, mode, topic) {
     // 1. 사용자 프로필 가져오기
     const profile = await userProfileService.getUserProfile(userId);
 
-    if (!profile || profile.writingHistory[mode].length < 3) {
+    if (!profile || profile.writingHistory[mode].length < 2) {
       // 히스토리가 부족하면 기본 프롬프트 사용
       return generateDefaultPrompt(text, title, mode, topic);
     }
@@ -110,6 +110,11 @@ function extractPersonalizationData(profile, mode) {
     preferredTopics: stats.preferredTopics || [],
     commonMistakes: stats.commonMistakes || [],
     writingFrequency: stats.writingFrequency || 0,
+    recentMeta: recentHistory.slice(-2).map((h) => ({
+      title: h.title,
+      topic: h.topic,
+    })),
+    userStyleProfile: stats.userStyleProfile || null,
   };
 }
 
@@ -124,7 +129,20 @@ function generateCustomizedPrompt(text, title, mode, topic, personalData) {
   const randomPerspective =
     randomPerspectives[Math.floor(Math.random() * randomPerspectives.length)];
 
-  return `
+  const prompt = `
+[⚠️ **중요: 원본 텍스트 정확한 이해 및 보존 필수** ⚠️]
+
+**원본 텍스트 (절대 변경 금지):**
+제목: ${title}
+주제: ${topic || "자유주제"}
+내용: ${text}
+
+**원본 분석 요구사항:**
+1. 위 원본 텍스트를 정확히 읽고 이해하세요
+2. 원본의 모든 구체적 세부사항을 파악하세요
+3. 원본의 핵심 메시지와 경험을 정확히 파악하세요
+4. 원본에 없는 내용은 절대 추가하지 마세요
+
 [사전 검토 및 평가 스탠스 설정]
 1. **글의 완성도 및 성의 분석:**
    * 제출된 글이 최소한의 완성도(적정 분량, 명확한 문단 구분 등)를 갖추었는가?
@@ -176,6 +194,31 @@ function generateCustomizedPrompt(text, title, mode, topic, personalData) {
 - 선호 주제: ${personalData.preferredTopics.join(", ") || "없음"}
 - 자주 하는 실수: ${personalData.commonMistakes.join(", ") || "없음"}
 - 글쓰기 빈도: 주 ${personalData.writingFrequency}회
+${
+  personalData.userStyleProfile
+    ? `- 개인 글쓰기 성향: ${
+        personalData.userStyleProfile.dominantStyle
+      } (분포: ${Object.entries(
+        personalData.userStyleProfile.styleDistribution || {}
+      )
+        .map(([k, v]) => `${k}:${v}`)
+        .join(", ")})`
+    : ""
+}
+
+[최근 글 맥락]
+${
+  personalData.recentMeta && personalData.recentMeta.length
+    ? personalData.recentMeta
+        .map(
+          (m, i) =>
+            `- (${i + 1}) 제목: ${m.title || "제목 없음"} / 주제: ${
+              m.topic || "자유주제"
+            }`
+        )
+        .join("\\n")
+    : "최근 맥락 정보 없음"
+}
 
 **개인화 평가 필수 지침:**
 1. **점수 일관성 유지**: 이 사용자의 평균 점수(${
@@ -183,7 +226,6 @@ function generateCustomizedPrompt(text, title, mode, topic, personalData) {
   }점)를 기준으로 ±${
     mode === "mode_300" ? "8" : "10"
   }점 범위 내에서 평가하세요. 급격한 점수 변동은 피하세요.
-
 2. **강점 영역 활용**: ${
     personalData.strengthAreas.length > 0
       ? `이 사용자의 강점 영역(${personalData.strengthAreas.join(
@@ -191,7 +233,6 @@ function generateCustomizedPrompt(text, title, mode, topic, personalData) {
         )})을 살려 더욱 발전시킬 수 있는 구체적인 방안을 제시하세요.`
       : "이 사용자의 새로운 강점을 발견하고 발전시킬 수 있는 방안을 제시하세요."
   }
-
 3. **약점 영역 집중 개선**: ${
     personalData.weaknessAreas.length > 0
       ? `이 사용자의 개선 필요 영역(${personalData.weaknessAreas.join(
@@ -199,11 +240,9 @@ function generateCustomizedPrompt(text, title, mode, topic, personalData) {
         )})에 특별히 집중하여 구체적이고 실천 가능한 개선 방안을 제시하세요.`
       : "전반적인 글쓰기 능력 향상을 위한 구체적인 방안을 제시하세요."
   }
-
 4. **이전 피드백과 차별화**: 이 사용자의 최근 점수(${personalData.recentScores.join(
     ", "
   )})를 참고하여, 이전에 받지 못한 새로운 관점의 피드백을 제공하세요.
-
 5. **개인적 성장 추세 고려**: ${
     personalData.scoreTrend === "improving"
       ? "이 사용자는 점수 개선 추세를 보이고 있습니다. 이러한 성장을 더욱 가속화할 수 있는 방안을 제시하세요."
@@ -211,78 +250,58 @@ function generateCustomizedPrompt(text, title, mode, topic, personalData) {
       ? "이 사용자는 점수 하락 추세를 보이고 있습니다. 이러한 추세를 반전시킬 수 있는 구체적인 방안을 제시하세요."
       : "이 사용자는 안정적인 점수를 유지하고 있습니다. 다음 단계로 도약할 수 있는 방안을 제시하세요."
   }
-
-${
-  mode === "mode_1000"
-    ? `
-[1000자 모드 글쓰기 스타일]
-- 문장 길이: 평균 ${personalData.writingStyle.sentenceLength || 0}단어
-- 문단 구조: ${personalData.writingStyle.paragraphStructure || "unknown"}
-- 어휘 수준: ${personalData.writingStyle.vocabularyLevel || "unknown"}
-- 논리적 흐름: ${personalData.writingStyle.logicalFlow || "unknown"}
-`
-    : ""
-}
-
-[글 스타일 분석 결과]
-시스템이 분석한 글의 스타일은 '${style}' 입니다.
-${styleInstruction[style]}
-**단, 만약 분석된 스타일이 글의 실제 내용과 맞지 않다고 판단되면, 시스템 분석 결과를 무시하고 가장 적절하다고 생각하는 스타일의 평가 기준을 적용하거나 'general' 기준으로 평가해주세요.**
-
-[평가 대상 글]
-제목: ${title}
-주제: ${topic || "자유주제"}
-내용: ${text}
-
-[개인화 평가 가이드라인 - 반드시 준수하세요]
-1. **점수 일관성**: 사용자 평균 점수(${personalData.averageScore}점) ± ${
-    mode === "mode_300" ? "8" : "10"
-  }점 범위 내에서 평가하세요. 급격한 변동은 피하세요.
-
-2. **개인 맞춤 조언**: ${
-    personalData.weaknessAreas.length > 0
-      ? `약점 영역(${personalData.weaknessAreas.join(
-          ", "
-        )})에 집중한 구체적 개선 방안을 반드시 제시하세요.`
-      : "전반적인 글쓰기 능력 향상을 위한 구체적 방안을 제시하세요."
-  }
-
-3. **강점 활용**: ${
-    personalData.strengthAreas.length > 0
-      ? `강점 영역(${personalData.strengthAreas.join(
-          ", "
-        )})을 더욱 발전시킬 수 있는 방향을 제안하세요.`
-      : "새로운 강점을 발견하고 발전시킬 수 있는 방향을 제안하세요."
-  }
-
-4. **차별화된 피드백**: 이전 점수(${personalData.recentScores.join(
-    ", "
-  )})를 참고하여 새로운 관점의 피드백을 제공하세요.
-
-5. **성장 추세 반영**: ${
-    personalData.scoreTrend === "improving"
-      ? "개선 추세를 가속화할 수 있는 방안을 제시하세요."
-      : personalData.scoreTrend === "declining"
-      ? "하락 추세를 반전시킬 수 있는 구체적 방안을 제시하세요."
-      : "안정적 수준에서 다음 단계로 도약할 수 있는 방안을 제시하세요."
-  }
+6. **개인화 근거 명시**: 반드시 아래 항목 중 최소 2개 이상을 'personalization_evidence'에 명시하세요.
+   - 최근 글의 제목 또는 주제 1개 이상 인용
+   - 최근 5개 점수 흐름 중 특징 1개 (예: 정체, 상승, 하락)
+   - 반복 지적된 약점 영역 1개 이상
+   - 사용자 스타일 프로필(예: dominant=emotive, dist={...}; 현재 글과의 부합/불일치 한줄 설명)
+7. **피어 러닝 제안**: 다른 사용자들의 장점에서 배울 수 있는 1가지 구체적 습관/기법을 제시하고, 현재 글에 적용 예시를 함께 제시하세요.
 
 [평가 지침]
 ${isAssigned ? getAssignedTopicGuidelines(mode) : getFreeTopicGuidelines(mode)}
 
 [추가 지시]
 ${randomPerspective}
-이전에 자주 등장하는 피드백 문구(예: "감각적 묘사 추가", "문장 간결화", "구체적 예시 추가")는 피하고, 이 글에 고유한 피드백을 제공해주세요.
+이 글에 고유한 피드백을 제공하되, 위의 개인화 근거와 피어 러닝 제안을 반드시 포함하세요.
 
 **개선된 버전 작성 시 주의사항:**
-- **원본의 핵심 내용과 경험을 그대로 유지하세요** - 새로운 내용을 창작하지 말고 원본의 실제 경험과 상황을 그대로 보존하세요
-- **절대 사실을 왜곡하지 마세요** - 원본에 명시된 구체적인 내용, 순서, 관계를 그대로 유지하세요
-- 지적된 개선점들을 실제로 반영하여 더 완성도 높은 글로 재작성하세요
-- 원본과 동일한 분량(${
+⚠️ **원본 보존 필수 규칙 (절대 위반 금지):**
+1. **원본의 모든 구체적 세부사항을 그대로 유지하세요**
+   - 원본에 명시된 모든 브랜드명, 장소, 연령, 상황을 그대로 보존
+   - 원본에 없는 내용은 절대 추가하지 마세요
+   - 원본의 경험 순서와 흐름을 그대로 유지하세요
+
+2. **원본의 핵심 메시지와 경험을 그대로 보존하세요**
+   - 새로운 내용을 창작하지 말고 원본의 실제 경험과 상황을 그대로 보존
+   - 절대 사실을 왜곡하지 마세요
+   - 원본의 감정과 의도를 그대로 유지하세요
+   - **원본의 톤과 어조를 최대한 보존하세요** - 글쓴이의 개성과 진정성을 나타내는 중요한 요소입니다
+
+3. **표현력과 구조만 개선하세요:**
+   - 문장을 더 자연스럽고 읽기 쉽게 다듬기
+   - 문단 구조를 더 논리적으로 정리하기
+   - 반복되는 표현이나 어색한 문장 수정하기
+   - 구체적인 세부사항은 그대로 유지하기
+   - **한글 문법에 맞는 쉼표 사용하기** - 쉼표를 남발하지 말고 필요한 곳에만 사용하기
+
+4. **킥이 되는 한 문장 추가:**
+   - 원본의 경험을 바탕으로 독자들이 공감하거나 감동을 느낄 수 있는 한 문장
+   - **중요: 이 문장도 원본의 경험과 완전히 일치해야 합니다**
+
+5. **원본 검증 체크리스트:**
+   - [ ] 원본의 모든 구체적 세부사항이 포함되었는가?
+   - [ ] 원본에 없는 내용이 추가되지 않았는가?
+   - [ ] 원본의 경험 순서가 유지되었는가?
+   - [ ] 원본의 핵심 메시지가 보존되었는가?
+   - [ ] 원본의 톤과 어조가 보존되었는가?
+
+지적된 개선점들을 실제로 반영하여 더 완성도 높은 글로 재작성하세요.
+원본과 동일한 분량(${
     mode === "mode_300" ? "250~500자" : "800~1000자"
-  })으로 작성하세요
-- 제목도 함께 개선하여 글의 내용과 더 잘 맞도록 하세요
-- **중요: 원본의 핵심 메시지와 경험을 훼손하지 마세요**
+  })으로 작성하세요.
+제목도 함께 개선하여 글의 내용과 더 잘 맞도록 하세요.
+
+**중요: 원본의 핵심 메시지와 경험을 훼손하지 마세요**
 - **표현력과 구조만 개선하세요:**
   - 문장을 더 자연스럽고 읽기 쉽게 다듬기
   - 문단 구조를 더 논리적으로 정리하기
@@ -324,9 +343,37 @@ ${randomPerspective}
   "writing_tips": "다음 글쓰기를 위한 매우 구체적인 조언. '이렇게 써보세요' 형식으로, 실제 글의 문장을 활용한 'Before -> After' 예시를 최소 1개 이상 포함하여 제시할 것.",
   "improved_version": {
     "title": "개선된 제목 (원본 제목의 문제점을 수정한 버전)",
-    "content": "원본의 핵심 내용과 경험을 그대로 유지하면서 표현력과 구조만 개선한 글. 원본에 명시된 구체적인 내용, 순서, 관계를 절대 왜곡하지 않고, 한글 문법에 맞는 쉼표 사용을 하며, 지적된 문제점들을 수정하고, 원본의 경험을 바탕으로 독자들이 공감하거나 감동을 느낄 수 있는 킥이 되는 한 문장을 추가하여 더 생생하고 매력적인 글로 재작성. 원본과 동일한 분량(${
+    "content": "⚠️ **원본 보존 필수**: 원본의 핵심 내용과 경험을 그대로 유지하면서 표현력과 구조만 개선한 글. 원본에 명시된 구체적인 내용(브랜드명, 장소, 연령, 상황, 경험 순서), 순서, 관계를 절대 왜곡하지 않고, 원본의 톤과 어조를 최대한 보존하며, 한글 문법에 맞는 쉼표 사용을 하며, 지적된 문제점들을 수정하고, 원본의 경험을 바탕으로 독자들이 공감하거나 감동을 느낄 수 있는 킥이 되는 한 문장을 추가하여 더 생생하고 매력적인 글로 재작성. 원본과 동일한 분량(${
       mode === "mode_300" ? "250~500자" : "800~1000자"
-    })으로 작성할 것."
+    })으로 작성할 것. **중요: 원본에 없는 내용 추가 금지, 원본의 모든 구체적 세부사항 보존 필수, 원본의 톤과 어조 보존 필수**"
+  },
+  "personalization_evidence": {
+    "recent_titles_or_topics": ${
+      personalData.recentMeta && personalData.recentMeta.length
+        ? JSON.stringify(personalData.recentMeta.map((m) => m.title || m.topic))
+        : "[]"
+    },
+    "score_trend_note": ${
+      personalData.scoreTrend === "improving"
+        ? `"상승 중 (점수 개선 추세)"`
+        : personalData.scoreTrend === "declining"
+        ? `"하락 중 (점수 감소 추세)"`
+        : `"안정적 (점수 유지 추세)"`
+    },
+    "repeated_weaknesses": ${
+      personalData.weaknessAreas.length > 0
+        ? JSON.stringify(personalData.weaknessAreas)
+        : "[]"
+    },
+    "user_style_profile": ${
+      personalData.userStyleProfile
+        ? JSON.stringify(personalData.userStyleProfile)
+        : "null"
+    }
+  },
+  "peer_learning": {
+    "technique": "다른 사용자들의 강점에서 배울 수 있는 한 가지 구체적 기법",
+    "apply_to_current_text": "현재 글에 적용하는 간단 예시"
   }
 }
 
@@ -335,6 +382,8 @@ ${randomPerspective}
 모든 항목을 반드시 빠짐없이 JSON으로 반환해주세요.
 **중요: critical_flaw가 존재한다면, overall_score는 반드시 70점 미만이어야 합니다.**
 `;
+
+  return prompt;
 }
 
 // 기존 지침과 기준 함수들
@@ -621,6 +670,19 @@ function generateDefaultPrompt(text, title, mode, topic) {
     randomPerspectives[Math.floor(Math.random() * randomPerspectives.length)];
 
   return `
+[⚠️ **중요: 원본 텍스트 정확한 이해 및 보존 필수** ⚠️]
+
+**원본 텍스트 (절대 변경 금지):**
+제목: ${title}
+주제: ${topic || "자유주제"}
+내용: ${text}
+
+**원본 분석 요구사항:**
+1. 위 원본 텍스트를 정확히 읽고 이해하세요
+2. 원본의 모든 구체적 세부사항을 파악하세요
+3. 원본의 핵심 메시지와 경험을 정확히 파악하세요
+4. 원본에 없는 내용은 절대 추가하지 마세요
+
 [사전 검토 및 평가 스탠스 설정]
 1. **글의 완성도 및 성의 분석:**
    * 제출된 글이 최소한의 완성도(적정 분량, 명확한 문단 구분 등)를 갖추었는가?
@@ -669,9 +731,18 @@ ${styleInstruction[style]}
 **단, 만약 분석된 스타일이 글의 실제 내용과 맞지 않다고 판단되면, 시스템 분석 결과를 무시하고 가장 적절하다고 생각하는 스타일의 평가 기준을 적용하거나 'general' 기준으로 평가해주세요.**
 
 [평가 대상 글]
+⚠️ **중요: 원본 텍스트 정확한 이해 및 보존 필수** ⚠️
+
+**원본 텍스트 (절대 변경 금지):**
 제목: ${title}
 주제: ${topic || "자유주제"}
 내용: ${text}
+
+**원본 분석 요구사항:**
+1. 위 원본 텍스트를 정확히 읽고 이해하세요
+2. 원본의 모든 구체적 세부사항을 파악하세요
+3. 원본의 핵심 메시지와 경험을 정확히 파악하세요
+4. 원본에 없는 내용은 절대 추가하지 마세요
 
 [평가 지침]
 ${isAssigned ? getAssignedTopicGuidelines(mode) : getFreeTopicGuidelines(mode)}
@@ -681,14 +752,43 @@ ${randomPerspective}
 이전에 자주 등장하는 피드백 문구(예: "감각적 묘사 추가", "문장 간결화", "구체적 예시 추가")는 피하고, 이 글에 고유한 피드백을 제공해주세요.
 
 **개선된 버전 작성 시 주의사항:**
-- **원본의 핵심 내용과 경험을 그대로 유지하세요** - 새로운 내용을 창작하지 말고 원본의 실제 경험과 상황을 그대로 보존하세요
-- **절대 사실을 왜곡하지 마세요** - 원본에 명시된 구체적인 내용, 순서, 관계를 그대로 유지하세요
-- 지적된 개선점들을 실제로 반영하여 더 완성도 높은 글로 재작성하세요
-- 원본과 동일한 분량(${
+⚠️ **원본 보존 필수 규칙 (절대 위반 금지):**
+1. **원본의 모든 구체적 세부사항을 그대로 유지하세요**
+   - 원본에 명시된 모든 브랜드명, 장소, 연령, 상황을 그대로 보존
+   - 원본에 없는 내용은 절대 추가하지 마세요
+   - 원본의 경험 순서와 흐름을 그대로 유지하세요
+
+2. **원본의 핵심 메시지와 경험을 그대로 보존하세요**
+   - 새로운 내용을 창작하지 말고 원본의 실제 경험과 상황을 그대로 보존
+   - 절대 사실을 왜곡하지 마세요
+   - 원본의 감정과 의도를 그대로 유지하세요
+   - **원본의 톤과 어조를 최대한 보존하세요** - 글쓴이의 개성과 진정성을 나타내는 중요한 요소입니다
+
+3. **표현력과 구조만 개선하세요:**
+   - 문장을 더 자연스럽고 읽기 쉽게 다듬기
+   - 문단 구조를 더 논리적으로 정리하기
+   - 반복되는 표현이나 어색한 문장 수정하기
+   - 구체적인 세부사항은 그대로 유지하기
+   - **한글 문법에 맞는 쉼표 사용하기** - 쉼표를 남발하지 말고 필요한 곳에만 사용하기
+
+4. **킥이 되는 한 문장 추가:**
+   - 원본의 경험을 바탕으로 독자들이 공감하거나 감동을 느낄 수 있는 한 문장
+   - **중요: 이 문장도 원본의 경험과 완전히 일치해야 합니다**
+
+5. **원본 검증 체크리스트:**
+   - [ ] 원본의 모든 구체적 세부사항이 포함되었는가?
+   - [ ] 원본에 없는 내용이 추가되지 않았는가?
+   - [ ] 원본의 경험 순서가 유지되었는가?
+   - [ ] 원본의 핵심 메시지가 보존되었는가?
+   - [ ] 원본의 톤과 어조가 보존되었는가?
+
+지적된 개선점들을 실제로 반영하여 더 완성도 높은 글로 재작성하세요.
+원본과 동일한 분량(${
     mode === "mode_300" ? "250~500자" : "800~1000자"
-  })으로 작성하세요
-- 제목도 함께 개선하여 글의 내용과 더 잘 맞도록 하세요
-- **중요: 원본의 핵심 메시지와 경험을 훼손하지 마세요**
+  })으로 작성하세요.
+제목도 함께 개선하여 글의 내용과 더 잘 맞도록 하세요.
+
+**중요: 원본의 핵심 메시지와 경험을 훼손하지 마세요**
 - **표현력과 구조만 개선하세요:**
   - 문장을 더 자연스럽고 읽기 쉽게 다듬기
   - 문단 구조를 더 논리적으로 정리하기
@@ -702,6 +802,13 @@ ${randomPerspective}
   - 예시: "이번 경험을 통해 진정한 성공이 무엇인지 알게 되었다"
 - 사용자가 "이렇게 표현하면 더 좋겠구나!"라고 느낄 수 있는 실용적이면서도 영감을 주는 예시가 되도록 해주세요
 - 원본의 개성과 감정은 유지하되, 표현력만 한 단계 끌어올린 버전을 만들어주세요
+
+**중요: 위의 개인화 정보를 반드시 활용하여 이 사용자에게만 해당하는 맞춤형 피드백을 제공해주세요.**
+특히 ${
+    personalData.weaknessAreas.length > 0
+      ? personalData.weaknessAreas.join(", ") + " 영역의 개선점"
+      : "전반적인 글쓰기 능력 향상"
+  }에 집중해서 조언해주세요.
 
 [응답 형식]
 {
@@ -723,9 +830,37 @@ ${randomPerspective}
   "writing_tips": "다음 글쓰기를 위한 매우 구체적인 조언. '이렇게 써보세요' 형식으로, 실제 글의 문장을 활용한 'Before -> After' 예시를 최소 1개 이상 포함하여 제시할 것.",
   "improved_version": {
     "title": "개선된 제목 (원본 제목의 문제점을 수정한 버전)",
-    "content": "원본의 핵심 내용과 경험을 그대로 유지하면서 표현력과 구조만 개선한 글. 원본에 명시된 구체적인 내용, 순서, 관계를 절대 왜곡하지 않고, 한글 문법에 맞는 쉼표 사용을 하며, 지적된 문제점들을 수정하고, 원본의 경험을 바탕으로 독자들이 공감하거나 감동을 느낄 수 있는 킥이 되는 한 문장을 추가하여 더 생생하고 매력적인 글로 재작성. 원본과 동일한 분량(${
+    "content": "⚠️ **원본 보존 필수**: 원본의 핵심 내용과 경험을 그대로 유지하면서 표현력과 구조만 개선한 글. 원본에 명시된 구체적인 내용(브랜드명, 장소, 연령, 상황, 경험 순서), 순서, 관계를 절대 왜곡하지 않고, 원본의 톤과 어조를 최대한 보존하며, 한글 문법에 맞는 쉼표 사용을 하며, 지적된 문제점들을 수정하고, 원본의 경험을 바탕으로 독자들이 공감하거나 감동을 느낄 수 있는 킥이 되는 한 문장을 추가하여 더 생생하고 매력적인 글로 재작성. 원본과 동일한 분량(${
       mode === "mode_300" ? "250~500자" : "800~1000자"
-    })으로 작성할 것."
+    })으로 작성할 것. **중요: 원본에 없는 내용 추가 금지, 원본의 모든 구체적 세부사항 보존 필수, 원본의 톤과 어조 보존 필수**"
+  },
+  "personalization_evidence": {
+    "recent_titles_or_topics": ${
+      personalData.recentMeta && personalData.recentMeta.length
+        ? JSON.stringify(personalData.recentMeta.map((m) => m.title || m.topic))
+        : "[]"
+    },
+    "score_trend_note": ${
+      personalData.scoreTrend === "improving"
+        ? `"상승 중 (점수 개선 추세)"`
+        : personalData.scoreTrend === "declining"
+        ? `"하락 중 (점수 감소 추세)"`
+        : `"안정적 (점수 유지 추세)"`
+    },
+    "repeated_weaknesses": ${
+      personalData.weaknessAreas.length > 0
+        ? JSON.stringify(personalData.weaknessAreas)
+        : "[]"
+    },
+    "user_style_profile": ${
+      personalData.userStyleProfile
+        ? JSON.stringify(personalData.userStyleProfile)
+        : "null"
+    }
+  },
+  "peer_learning": {
+    "technique": "다른 사용자들의 강점에서 배울 수 있는 한 가지 구체적 기법",
+    "apply_to_current_text": "현재 글에 적용하는 간단 예시"
   }
 }
 
@@ -734,6 +869,8 @@ ${randomPerspective}
 모든 항목을 반드시 빠짐없이 JSON으로 반환해주세요.
 **중요: critical_flaw가 존재한다면, overall_score는 반드시 70점 미만이어야 합니다.**
 `;
+
+  return prompt;
 }
 
 module.exports = {

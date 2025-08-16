@@ -2,6 +2,10 @@
 const express = require("express");
 const router = express.Router();
 const Submission = require("../models/Submission");
+const { authenticateToken } = require("../middleware/auth");
+
+// 모든 stats 라우트에 인증 미들웨어 적용
+router.use(authenticateToken);
 
 router.get("/:uid", async (req, res) => {
   const { uid } = req.params;

@@ -300,13 +300,13 @@ const Write300 = () => {
       // ✅ 디버깅: 전송할 데이터 로그
       const submitData = {
         title: title || '', // title이 undefined인 경우 빈 문자열로 처리
-        text: finalText, // ✅ 실시간 텍스트 사용
+        text: finalText, // ✅ trim된 텍스트 사용
         topic: dailyTopic || null,
         mode: 'mode_300',
         duration: finalDuration,
         forceSubmit: forceSubmit,
         isMinLengthMet: finalIsMinLengthMet, // ✅ 실시간 검증 결과 사용
-        charCount: finalCharCount, // ✅ 실시간 글자 수 사용
+        charCount: finalCharCount, // ✅ trim된 텍스트의 글자 수 사용
         timezone: userTimezone,
         offset: userOffset,
         user: {
@@ -319,7 +319,19 @@ const Write300 = () => {
       console.log('🚀 제출 데이터:', submitData);
       console.log('👤 사용자 정보:', user);
 
-      const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/submit`, submitData);
+      // 인증 토큰 가져오기
+      const token = await user.getIdToken();
+      if (!token) {
+        alert('인증 토큰을 가져올 수 없습니다. 다시 로그인해주세요.');
+        setSubmissionState('idle');
+        setSubmissionProgress('');
+        submissionInProgress.current = false;
+        return;
+      }
+
+      const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/submit`, submitData, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
       const submissionId = res.data.data.submissionId;
 
@@ -370,12 +382,19 @@ const Write300 = () => {
 
     const fetchTokens = async () => {
       try {
+        // 인증 토큰 가져오기
+        const token = await user.getIdToken();
+        if (!token) return;
+
         // 사용자의 시간대 정보 가져오기
         const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
         const userOffset = new Date().getTimezoneOffset();
 
         const res = await axios.get(
-          `${import.meta.env.VITE_API_URL}/api/tokens/${user.uid}?mode=mode_300&timezone=${encodeURIComponent(userTimezone)}&offset=${userOffset}`
+          `${import.meta.env.VITE_API_URL}/api/tokens/${user.uid}?mode=mode_300&timezone=${encodeURIComponent(userTimezone)}&offset=${userOffset}`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
         );
         setTokens(res.data.tokens_300);
         setIsWhitelisted(res.data.isWhitelisted ?? null);
@@ -393,12 +412,19 @@ const Write300 = () => {
     const fetchTopic = async () => {
       if (!CONFIG.TOPIC.SHOW_ON_HOME_300) return;
       try {
+        // 인증 토큰 가져오기
+        const token = await user.getIdToken();
+        if (!token) return;
+
         // 사용자의 시간대 정보 가져오기
         const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
         const userOffset = new Date().getTimezoneOffset();
 
         const res = await axios.get(
-          `${import.meta.env.VITE_API_URL}/api/topic/today?mode=mode_300&timezone=${encodeURIComponent(userTimezone)}&offset=${userOffset}`
+          `${import.meta.env.VITE_API_URL}/api/topic/today?mode=mode_300&timezone=${encodeURIComponent(userTimezone)}&offset=${userOffset}`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
         );
         setDailyTopic(res.data.topic);
       } catch (err) {

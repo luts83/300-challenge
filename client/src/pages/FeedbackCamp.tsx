@@ -129,8 +129,14 @@ const FeedbackCamp = () => {
     if (!user?.uid) return;
 
     try {
+      const token = await user.getIdToken();
+      if (!token) return;
+
       const { data } = await axios.get(
-        `${import.meta.env.VITE_API_URL}/api/feedback/today/${user.uid}`
+        `${import.meta.env.VITE_API_URL}/api/feedback/today/${user.uid}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
       );
 
       const newTodayFeedbackCount = {
@@ -156,8 +162,14 @@ const FeedbackCamp = () => {
     if (!user?.uid) return;
 
     try {
+      const token = await user.getIdToken();
+      if (!token) return;
+
       const { data } = await axios.get(
-        `${import.meta.env.VITE_API_URL}/api/feedback/given/${user.uid}`
+        `${import.meta.env.VITE_API_URL}/api/feedback/given/${user.uid}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
       );
 
       setGivenFeedbacks(data.feedbacks || []);
@@ -227,16 +239,34 @@ const FeedbackCamp = () => {
   const checkAndApplyRetroactiveFeedback = useCallback(async () => {
     if (!user) return;
 
+    // 이미 실행되었는지 확인
+    const hasCheckedRetroactive = localStorage.getItem(
+      `retroactive_checked_${user.uid}_${new Date().toISOString().slice(0, 10)}`
+    );
+    if (hasCheckedRetroactive === 'true') {
+      console.log('🔍 피드백 소급 적용 이미 확인됨');
+      return;
+    }
+
     try {
+      const token = await user.getIdToken();
+      if (!token) return;
+
       // 현재 피드백 상태 확인
       const feedbackRes = await axios.get(
-        `${import.meta.env.VITE_API_URL}/api/feedback/given-today/${user.uid}`
+        `${import.meta.env.VITE_API_URL}/api/feedback/given-today/${user.uid}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
       );
       const { mode_300, mode_1000, total } = feedbackRes.data;
 
       // 현재 글 작성 모드 확인
       const submissionRes = await axios.get(
-        `${import.meta.env.VITE_API_URL}/api/submit/user/${user.uid}`
+        `${import.meta.env.VITE_API_URL}/api/submit/user/${user.uid}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
       );
       const submissions = Array.isArray(submissionRes.data)
         ? submissionRes.data
@@ -255,7 +285,7 @@ const FeedbackCamp = () => {
       // 300자 모드 소급 적용 체크
       if (
         currentModes.has('mode_300') &&
-        total >= CONFIG.FEEDBACK.REQUIRED_COUNT &&
+        mode_300 >= CONFIG.FEEDBACK.REQUIRED_COUNT &&
         mode_300 === 0
       ) {
         // 기존 피드백이 3개 이상이고 300자 글을 썼지만 300자 모드 카운트가 0인 경우
@@ -281,9 +311,17 @@ const FeedbackCamp = () => {
         updateTodayFeedbackCount(updatedCount);
         setDailyFeedbackCount({ mode300: newMode300, mode1000: newMode1000 });
 
-        // 사용자에게 알림
+        // 사용자에게 알림 (한 번만)
         if (newMode300 > 0 || newMode1000 > 0) {
           let message = '🎉 피드백 미션 완료 후 추가로 글을 작성하셨네요!\n\n';
+
+          // 황금열쇠 사용 여부 확인
+          const unlockStatus = await checkFeedbackUnlockStatus();
+
+          if (unlockStatus.hasUnlocked && unlockStatus.unlockMethod === 'golden_key') {
+            message += `🔑 이미 황금열쇠로 피드백을 언락하셨지만, 피드백 미션도 완료하셨네요!\n\n`;
+          }
+
           if (newMode300 > 0) {
             message += `✅ 300자 모드: ${newMode300}/${CONFIG.FEEDBACK.REQUIRED_COUNT} 완료 (피드백 열람 권한 언락됨)\n`;
           }
@@ -295,6 +333,10 @@ const FeedbackCamp = () => {
           alert(message);
         }
       }
+
+      // 실행 완료 표시 (오늘 날짜로)
+      localStorage.setItem(`retroactive_checked_${user.uid}_${today}`, 'true');
+      console.log('🔍 피드백 소급 적용 확인 완료');
     } catch (error) {
       console.error('❌ 피드백 소급 적용 확인 실패:', error);
     }
@@ -319,10 +361,15 @@ const FeedbackCamp = () => {
       if (!isStateRestored) {
         fetchGivenFeedbacks(); // 내가 쓴 피드백 불러오기
       } else {
-        // localStorage에서 복원된 상태라도 소급 적용 확인 필요
-        setTimeout(() => {
-          checkAndApplyRetroactiveFeedback();
-        }, 1000); // 1초 후 소급 적용 확인
+        // localStorage에서 복원된 상태라도 소급 적용 확인 필요 (한 번만)
+        const today = new Date().toISOString().slice(0, 10);
+        const hasCheckedToday = localStorage.getItem(`retroactive_checked_${user.uid}_${today}`);
+
+        if (hasCheckedToday !== 'true') {
+          setTimeout(() => {
+            checkAndApplyRetroactiveFeedback();
+          }, 1000); // 1초 후 소급 적용 확인
+        }
       }
 
       // ✅ localStorage 상태와 관계없이 피드백 목록은 항상 가져오기 (한 번만)
@@ -333,12 +380,19 @@ const FeedbackCamp = () => {
       // 오늘의 피드백 현황 API 호출
       fetchTodayFeedbackStatus();
     }
-  }, [user, isStateRestored, fetchGivenFeedbacks, fetchTodayFeedbackStatus]); // checkAndApplyRetroactiveFeedback 의존성도 제거
+  }, [user, isStateRestored, fetchGivenFeedbacks, fetchTodayFeedbackStatus]); // checkAndApplyRetroactiveFeedback 의존성 제거
 
   useEffect(() => {
     const fetchPopularSubmissions = async () => {
+      if (!user) return;
+
       try {
-        const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/submit/popular?limit=10`);
+        const token = await user.getIdToken();
+        if (!token) return;
+
+        const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/submit/popular?limit=10`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
         const shuffled = res.data.sort(() => 0.5 - Math.random());
         setHighlightedSubmissions(shuffled.slice(0, 3));
       } catch (err) {
@@ -347,7 +401,7 @@ const FeedbackCamp = () => {
     };
 
     fetchPopularSubmissions();
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -472,9 +526,14 @@ const FeedbackCamp = () => {
     if (!user) return;
     try {
       if (pageNum > 1) setIsLoadingMore(true);
+
+      const token = await user.getIdToken();
+      if (!token) return;
+
       const res = await axios.get(
         `${import.meta.env.VITE_API_URL}/api/feedback/all-submissions/${user.uid}`,
         {
+          headers: { Authorization: `Bearer ${token}` },
           params: {
             page: pageNum,
             limit: ITEMS_PER_PAGE,
@@ -556,13 +615,25 @@ const FeedbackCamp = () => {
 
   useEffect(() => {
     if (!user) return;
-    // 전체 날짜 리스트 받아오기
-    axios
-      .get(`${import.meta.env.VITE_API_URL}/api/feedback/all-dates/${user.uid}`)
-      .then(res => {
+
+    const fetchAllDates = async () => {
+      try {
+        const token = await user.getIdToken();
+        if (!token) return;
+
+        const res = await axios.get(
+          `${import.meta.env.VITE_API_URL}/api/feedback/all-dates/${user.uid}`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
         setAllSubmissionDates(res.data.dates || []);
-      })
-      .catch(() => setAllSubmissionDates([]));
+      } catch (error) {
+        setAllSubmissionDates([]);
+      }
+    };
+
+    fetchAllDates();
   }, [user]);
 
   // 이 useEffect는 localStorage에서 복원된 상태를 덮어쓰므로 제거
@@ -579,8 +650,14 @@ const FeedbackCamp = () => {
     const fetchWeeklyGrowth = async () => {
       if (!user) return;
       try {
+        const token = await user.getIdToken();
+        if (!token) return;
+
         const res = await axios.get(
-          `${import.meta.env.VITE_API_URL}/api/dashboard/stats/${user.uid}`
+          `${import.meta.env.VITE_API_URL}/api/dashboard/stats/${user.uid}`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
         );
         setWeeklyGrowth({
           submissions: res.data.submissionsToday || 0,
@@ -658,7 +735,17 @@ const FeedbackCamp = () => {
 
       // API 직접 호출
       console.log('📡 [디버그] API 직접 호출 시작');
-      const response = await fetch(`/api/feedback/today/${user.uid}`);
+
+      // 인증 토큰 가져오기
+      const token = await user.getIdToken();
+      if (!token) {
+        console.error('❌ [디버그] 인증 토큰을 가져올 수 없습니다.');
+        return;
+      }
+
+      const response = await fetch(`/api/feedback/today/${user.uid}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       const apiData = await response.json();
 
       console.log('📡 [디버그] API 응답:', {
@@ -778,7 +865,12 @@ localStorage: ${JSON.stringify(info.localStorage)}`);
   const fetchMySubmissionStatus = async () => {
     if (!user) return;
     try {
-      const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/submit/user/${user.uid}`);
+      const token = await user.getIdToken();
+      if (!token) return;
+
+      const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/submit/user/${user.uid}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       const submissions = Array.isArray(res.data) ? res.data : res.data.submissions || [];
 
       const today = new Date();
@@ -795,7 +887,13 @@ localStorage: ${JSON.stringify(info.localStorage)}`);
 
       // 피드백 소급 적용 확인 (글 작성 후 호출되는 경우)
       if (todaySubmissions.length > 0) {
-        await checkAndApplyRetroactiveFeedback();
+        // 이미 오늘 확인했는지 체크
+        const today = new Date().toISOString().slice(0, 10);
+        const hasCheckedToday = localStorage.getItem(`retroactive_checked_${user.uid}_${today}`);
+
+        if (hasCheckedToday !== 'true') {
+          await checkAndApplyRetroactiveFeedback();
+        }
       }
     } catch (err) {
       console.error('❌ [글 작성 상태] 내 글 존재 여부 확인 실패:', err);
@@ -836,13 +934,26 @@ localStorage: ${JSON.stringify(info.localStorage)}`);
                 : `UTC${userOffset > 0 ? '-' : '+'}${Math.abs(userOffset / 60)}`,
       });
 
-      const response = await axios.post(`${import.meta.env.VITE_API_URL}/api/feedback`, {
-        toSubmissionId: submissionId,
-        fromUid: user.uid,
-        content: feedbackContent,
-        userTimezone: userTimezone,
-        userOffset: userOffset,
-      });
+      // 인증 토큰 가져오기
+      const token = await user.getIdToken();
+      if (!token) {
+        alert('인증 토큰을 가져올 수 없습니다. 다시 로그인해주세요.');
+        return;
+      }
+
+      const response = await axios.post(
+        `${import.meta.env.VITE_API_URL}/api/feedback`,
+        {
+          toSubmissionId: submissionId,
+          fromUid: user.uid,
+          content: feedbackContent,
+          userTimezone: userTimezone,
+          userOffset: userOffset,
+        },
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
 
       // 기존 진행률 바 갱신 (서버 응답 데이터 구조에 맞게 수정)
       const { mode_300, mode_1000, total } = response.data.todayFeedbackCount || {
@@ -863,19 +974,36 @@ localStorage: ${JSON.stringify(info.localStorage)}`);
       const hasMode1000 = todaySubmissionModes.has('mode_1000');
       const hasMode300 = todaySubmissionModes.has('mode_300');
 
-      // 이미 미션을 완료했는지 확인
-      const isMissionCompleted =
-        hasMode1000 && mode_1000 >= 1 && hasMode300 && total >= CONFIG.FEEDBACK.REQUIRED_COUNT;
+      // 각 모드별로 개별적으로 완료 여부 확인
+      const isMode300Completed = hasMode300 && mode_300 >= CONFIG.FEEDBACK.REQUIRED_COUNT;
+      const isMode1000Completed = hasMode1000 && mode_1000 >= 1;
+
+      // 전체 미션 완료 여부
+      const isMissionCompleted = isMode300Completed && isMode1000Completed;
+
+      // 현재 제출한 글의 피드백 언락 상태 확인
+      const unlockStatus = await checkFeedbackUnlockStatus(submissionId);
 
       let message = '✅ 피드백이 제출되었습니다.\n\n';
 
-      if (isMissionCompleted) {
-        // 이미 미션을 완료한 경우 격려 메시지
-        message = `🎉 이미 오늘의 피드백 미션을 완료하셨지만, 추가 피드백을 남겨주셔서 감사합니다!\n\n`;
-        message += `💝 다른 사용자들의 글쓰기 성장에 기여하고 계시는군요.\n`;
-        message += `✨ 지속적인 피드백은 커뮤니티 전체의 발전을 이끌어냅니다.`;
+      if (unlockStatus.hasUnlocked) {
+        // 이미 언락된 경우
+        if (unlockStatus.unlockMethod === 'golden_key') {
+          message = `🔑 이미 황금열쇠로 피드백을 언락하셨습니다.\n\n`;
+          message += `💝 추가 피드백을 남겨주셔서 감사합니다!\n`;
+          message += `✨ 다른 사용자들의 글쓰기 성장에 기여하고 계시는군요.`;
+        } else if (unlockStatus.unlockMethod === 'feedback_mission') {
+          message = `🎉 이미 오늘의 피드백 미션을 완료하셨지만, 추가 피드백을 남겨주셔서 감사합니다!\n\n`;
+          message += `💝 다른 사용자들의 글쓰기 성장에 기여하고 계시는군요.\n`;
+          message += `✨ 지속적인 피드백은 커뮤니티 전체의 발전을 이끌어냅니다.`;
+        }
+      } else if (isMissionCompleted) {
+        // 방금 미션을 완료한 경우
+        message = `🎉 축하합니다! 오늘의 피드백 미션을 완료하셨습니다!\n\n`;
+        message += `🔓 모든 글에 대한 피드백 열람 권한이 언락되었습니다!\n`;
+        message += `💝 앞으로도 다른 사용자들의 글쓰기 성장에 기여해주세요.`;
       } else {
-        // 아직 미션을 완료하지 않은 경우 기존 메시지
+        // 아직 미션을 완료하지 않은 경우 진행 상황 표시
         // 1000자 모드 언락 체크
         if (hasMode1000 && mode_1000 >= 1) {
           message += `🎉 축하합니다! 1000자 글에 대한 피드백 열람 권한이 언락되었습니다!\n`;
@@ -883,20 +1011,15 @@ localStorage: ${JSON.stringify(info.localStorage)}`);
           message += `1000자 글 언락까지: ${mode_1000}/1\n`;
         }
 
-        // 300자 모드 언락 체크
-        if (hasMode300 && total >= CONFIG.FEEDBACK.REQUIRED_COUNT) {
+        // 300자 모드 언락 체크 (mode_300 사용)
+        if (hasMode300 && mode_300 >= CONFIG.FEEDBACK.REQUIRED_COUNT) {
           message += `🎉 축하합니다! 300자 글에 대한 피드백 열람 권한이 언락되었습니다!\n`;
         } else if (hasMode300) {
-          message += `300자 글 언락까지: ${total}/${CONFIG.FEEDBACK.REQUIRED_COUNT}\n`;
+          message += `300자 글 언락까지: ${mode_300}/${CONFIG.FEEDBACK.REQUIRED_COUNT}\n`;
         }
 
         // 모든 언락이 완료된 경우
-        if (
-          hasMode1000 &&
-          mode_1000 >= 1 &&
-          hasMode300 &&
-          total >= CONFIG.FEEDBACK.REQUIRED_COUNT
-        ) {
+        if (isMode300Completed && isMode1000Completed) {
           message = `🎉 축하합니다!\n오늘 작성하신 모든 글에 대한 피드백 열람 권한이 모두 언락되었습니다!`;
         }
       }
@@ -1043,9 +1166,19 @@ localStorage: ${JSON.stringify(info.localStorage)}`);
         userOffset: new Date().getTimezoneOffset(),
       };
 
+      // 인증 토큰 가져오기
+      const token = await user.getIdToken();
+      if (!token) {
+        alert('인증 토큰을 가져올 수 없습니다. 다시 로그인해주세요.');
+        return;
+      }
+
       const response = await axios.post(
         `${import.meta.env.VITE_API_URL}/api/feedback`,
-        feedbackData
+        feedbackData,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
       );
 
       // 기존 진행률 바 갱신 (서버 응답 데이터 구조에 맞게 수정)
@@ -1070,9 +1203,12 @@ localStorage: ${JSON.stringify(info.localStorage)}`);
       const hasMode1000 = todaySubmissionModes.has('mode_1000');
       const hasMode300 = todaySubmissionModes.has('mode_300');
 
-      // 이미 미션을 완료했는지 확인
-      const isMissionCompleted =
-        hasMode1000 && mode_1000 >= 1 && hasMode300 && total >= CONFIG.FEEDBACK.REQUIRED_COUNT;
+      // 각 모드별로 개별적으로 완료 여부 확인
+      const isMode300Completed = hasMode300 && mode_300 >= CONFIG.FEEDBACK.REQUIRED_COUNT;
+      const isMode1000Completed = hasMode1000 && mode_1000 >= 1;
+
+      // 전체 미션 완료 여부
+      const isMissionCompleted = isMode300Completed && isMode1000Completed;
 
       let message = '✅ 피드백이 제출되었습니다.\n\n';
 
@@ -1090,20 +1226,15 @@ localStorage: ${JSON.stringify(info.localStorage)}`);
           message += `1000자 글 언락까지: ${mode_1000}/1\n`;
         }
 
-        // 300자 모드 언락 체크
-        if (hasMode300 && total >= CONFIG.FEEDBACK.REQUIRED_COUNT) {
+        // 300자 모드 언락 체크 (mode_300 사용)
+        if (hasMode300 && mode_300 >= CONFIG.FEEDBACK.REQUIRED_COUNT) {
           message += `🎉 축하합니다! 300자 글에 대한 피드백 열람 권한이 언락되었습니다!\n`;
         } else if (hasMode300) {
-          message += `300자 글 언락까지: ${total}/${CONFIG.FEEDBACK.REQUIRED_COUNT}\n`;
+          message += `300자 글 언락까지: ${mode_300}/${CONFIG.FEEDBACK.REQUIRED_COUNT}\n`;
         }
 
         // 모든 언락이 완료된 경우
-        if (
-          hasMode1000 &&
-          mode_1000 >= 1 &&
-          hasMode300 &&
-          total >= CONFIG.FEEDBACK.REQUIRED_COUNT
-        ) {
+        if (isMode300Completed && isMode1000Completed) {
           message = `🎉 축하합니다!\n오늘 작성하신 모든 글에 대한 피드백 열람 권한이 모두 언락되었습니다!`;
         }
       }
@@ -1199,6 +1330,53 @@ localStorage: ${JSON.stringify(info.localStorage)}`);
       setLoading(false);
     }
   };
+
+  // 피드백 열람 권한 상태 확인 함수
+  const checkFeedbackUnlockStatus = useCallback(
+    async (submissionId?: string) => {
+      if (!user) return { hasUnlocked: false, unlockMethod: null };
+
+      try {
+        const token = await user.getIdToken();
+        if (!token) return { hasUnlocked: false, unlockMethod: null };
+
+        // 1. 황금열쇠로 언락했는지 확인
+        if (submissionId) {
+          const submissionRes = await axios.get(
+            `${import.meta.env.VITE_API_URL}/api/submit/${submissionId}`,
+            { headers: { Authorization: `Bearer ${token}` } }
+          );
+
+          if (submissionRes.data.feedbackUnlocked) {
+            return { hasUnlocked: true, unlockMethod: 'golden_key' };
+          }
+        }
+
+        // 2. 피드백 미션으로 언락했는지 확인
+        const feedbackRes = await axios.get(
+          `${import.meta.env.VITE_API_URL}/api/feedback/given-today/${user.uid}`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+
+        const { mode_300, mode_1000 } = feedbackRes.data;
+        const hasMode1000 = todaySubmissionModes.has('mode_1000');
+        const hasMode300 = todaySubmissionModes.has('mode_300');
+
+        const isMode300Completed = hasMode300 && mode_300 >= CONFIG.FEEDBACK.REQUIRED_COUNT;
+        const isMode1000Completed = hasMode1000 && mode_1000 >= 1;
+
+        if (isMode300Completed && isMode1000Completed) {
+          return { hasUnlocked: true, unlockMethod: 'feedback_mission' };
+        }
+
+        return { hasUnlocked: false, unlockMethod: null };
+      } catch (error) {
+        console.error('❌ 피드백 언락 상태 확인 실패:', error);
+        return { hasUnlocked: false, unlockMethod: null };
+      }
+    },
+    [user, todaySubmissionModes]
+  );
 
   if (!user)
     return (

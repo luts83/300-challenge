@@ -202,46 +202,51 @@ exports.submitFeedback = async (req, res) => {
       return res.status(403).json({ message: err.message });
     }
 
-    // 구조화된 피드백 데이터 생성
-    const newFeedback = new Feedback({
-      // 피드백 대상 글 정보
-      toSubmissionId: targetSubmission._id,
-      submissionTitle: targetSubmission.title,
-      submissionText: targetSubmission.text,
-      submissionMode: targetSubmission.mode,
-
-      // 원글 작성자 정보
-      toUser: {
-        uid: targetSubmission.user.uid,
-        displayName: targetSubmission.user.displayName,
-        email: targetSubmission.user.email,
-      },
-
-      // 피드백 작성자 정보
-      fromUid,
-      fromUser: {
-        displayName: fromUser.user.displayName,
-        email: fromUser.user.email,
-      },
-
-      // 구조화된 피드백 내용
-      strengths,
-      improvements,
-      overall: overall || null,
-      content: `좋았던 점:\n${strengths}\n\n개선점:\n${improvements}${
-        overall ? `\n\n전체적인 느낌:\n${overall}` : ""
-      }`, // 하위 호환성
-
-      // 피드백 작성 날짜 - 사용자 시간대 기준
-      writtenDate: todayString, // canGiveFeedback에서 계산된 날짜 사용
-
-      // 피드백 상태
-      isRead: false,
-      isHelpful: null,
-    });
-
     // 5. 피드백 저장
-    const savedFeedback = await newFeedback.save();
+    const savedFeedback = await (async () => {
+      const newFeedback = new Feedback({
+        // 피드백 대상 글 정보
+        toSubmissionId: targetSubmission._id,
+        submissionTitle: targetSubmission.title,
+        submissionText: targetSubmission.text,
+        submissionMode: targetSubmission.mode,
+
+        // 원글 작성자 정보
+        toUser: {
+          uid: targetSubmission.user.uid,
+          displayName: targetSubmission.user.displayName,
+          email: targetSubmission.user.email,
+        },
+
+        // 피드백 작성자 정보
+        fromUid,
+        fromUser: {
+          displayName: fromUser.user.displayName,
+          email: fromUser.user.email,
+        },
+
+        // 피드백 작성자 시간대 정보
+        fromUserTimezone: userTimezone || "Asia/Seoul",
+        fromUserOffset: typeof userOffset === "number" ? userOffset : -540,
+
+        // 구조화된 피드백 내용
+        strengths,
+        improvements,
+        overall: overall || null,
+        content: `좋았던 점:\n${strengths}\n\n개선점:\n${improvements}${
+          overall ? `\n\n전체적인 느낌:\n${overall}` : ""
+        }`, // 하위 호환성
+
+        // 피드백 작성 날짜 - 사용자 시간대 기준
+        writtenDate: todayString, // canGiveFeedback에서 계산된 날짜 사용
+
+        // 피드백 상태
+        isRead: false,
+        isHelpful: null,
+      });
+
+      return await newFeedback.save();
+    })();
 
     // 이메일 알림 설정에 따라 전송
     try {

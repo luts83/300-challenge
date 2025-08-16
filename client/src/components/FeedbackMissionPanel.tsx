@@ -20,9 +20,20 @@ const FeedbackMissionPanel: React.FC<FeedbackMissionPanelProps> = ({
     const fetchTodayFeedbackCount = async () => {
       if (!user) return;
       try {
+        // 인증 토큰 가져오기
+        const token = await user.getIdToken();
+        if (!token) {
+          console.error('인증 토큰을 가져올 수 없습니다.');
+          setLoading(false);
+          return;
+        }
+
         // 오늘 작성한 피드백 수만 가져오기
         const res = await axios.get(
-          `${import.meta.env.VITE_API_URL}/api/feedback/today/${user.uid}`
+          `${import.meta.env.VITE_API_URL}/api/feedback/today/${user.uid}`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
         );
         setTodayFeedbackCount(res.data.count);
       } catch (err) {

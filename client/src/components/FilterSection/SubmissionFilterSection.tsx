@@ -4,10 +4,10 @@ import { useState, useEffect } from 'react';
 interface SubmissionFilterSectionProps {
   activeTab: 'all' | 'mode_300' | 'mode_1000';
   setActiveTab: (tab: 'all' | 'mode_300' | 'mode_1000') => void;
-  feedbackFilter: string | null;
-  setFeedbackFilter: (filter: string | null) => void;
-  sortBy: string;
-  setSortBy: (sort: string) => void;
+  feedbackFilter: 'has_feedback' | 'open_feedback' | 'locked_feedback' | null;
+  setFeedbackFilter: (filter: 'has_feedback' | 'open_feedback' | 'locked_feedback' | null) => void;
+  sortBy: 'date' | 'score' | 'feedback' | 'likes';
+  setSortBy: (sort: 'date' | 'score' | 'feedback' | 'likes') => void;
   sortOrder: 'asc' | 'desc';
   setSortOrder: (order: 'asc' | 'desc') => void;
   searchQuery: string;
@@ -38,7 +38,9 @@ export const SubmissionFilterSection: React.FC<SubmissionFilterSectionProps> = (
   const [isMobileFilterExpanded, setIsMobileFilterExpanded] = useState(false);
 
   // handleFeedbackFilterToggle 함수 활성화
-  const handleFeedbackFilterToggle = (filter: string) => {
+  const handleFeedbackFilterToggle = (
+    filter: 'has_feedback' | 'open_feedback' | 'locked_feedback'
+  ) => {
     setFeedbackFilter(feedbackFilter === filter ? null : filter);
   };
 
@@ -144,7 +146,7 @@ export const SubmissionFilterSection: React.FC<SubmissionFilterSectionProps> = (
         <div className="flex-[2] sm:w-[160px]">
           <select
             value={sortBy}
-            onChange={e => setSortBy(e.target.value)}
+            onChange={e => setSortBy(e.target.value as 'date' | 'score' | 'feedback' | 'likes')}
             className="w-full h-full px-3 py-2 border rounded-lg text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-300 dark:text-gray-700 dark:border-gray-600"
           >
             <option value="date">작성일순</option>

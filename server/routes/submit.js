@@ -8,6 +8,10 @@ const {
 const Submission = require("../models/Submission");
 const UserToken = require("../models/Token");
 const Feedback = require("../models/Feedback");
+const { authenticateToken } = require("../middleware/auth");
+
+// 모든 submit 라우트에 인증 미들웨어 적용
+router.use(authenticateToken);
 
 // ✍ 글 제출
 router.post("/", handleSubmit);
