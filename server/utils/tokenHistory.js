@@ -1,4 +1,5 @@
 const UserTokenHistory = require("../models/UserTokenHistory");
+const User = require("../models/User");
 
 async function handleTokenChange(uid, change, options = {}) {
   const now = new Date();
@@ -8,16 +9,36 @@ async function handleTokenChange(uid, change, options = {}) {
   const month = now.getMonth() + 1;
 
   try {
-    // 1. 유저의 토큰 히스토리가 있는지 확인
+    // 1. 최신 사용자 정보 가져오기
+    let currentUserInfo = options.user;
+    if (
+      !currentUserInfo ||
+      !currentUserInfo.email ||
+      currentUserInfo.email === "unknown@email.com"
+    ) {
+      try {
+        const userDoc = await User.findOne({ uid });
+        if (userDoc) {
+          currentUserInfo = {
+            email: userDoc.email,
+            displayName: userDoc.displayName || userDoc.email.split("@")[0],
+          };
+        }
+      } catch (userError) {
+        console.warn(`사용자 정보 조회 실패 (uid: ${uid}):`, userError.message);
+      }
+    }
+
+    // 2. 유저의 토큰 히스토리가 있는지 확인
     let userHistory = await UserTokenHistory.findOne({ uid });
 
-    // 2. 없다면 새로 생성
+    // 3. 없다면 새로 생성, 있다면 사용자 정보 업데이트
     if (!userHistory) {
       userHistory = await UserTokenHistory.create({
         uid,
         user: {
-          email: options.user?.email || "unknown@email.com", // 기본값 설정
-          displayName: options.user?.displayName || "익명",
+          email: currentUserInfo?.email || "사용자 정보 없음",
+          displayName: currentUserInfo?.displayName || "사용자",
         },
         dailySummary: {
           date: new Date(today),
@@ -32,6 +53,12 @@ async function handleTokenChange(uid, change, options = {}) {
           goldenKeys: 0,
         },
       });
+    } else {
+      // 기존 히스토리가 있으면 사용자 정보 업데이트
+      if (currentUserInfo && currentUserInfo.email !== "사용자 정보 없음") {
+        userHistory.user.email = currentUserInfo.email;
+        userHistory.user.displayName = currentUserInfo.displayName;
+      }
     }
 
     // 3. 토큰 변경 기록 추가

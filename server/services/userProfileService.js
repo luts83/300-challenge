@@ -80,6 +80,28 @@ class UserProfileService {
       );
 
       await profile.save();
+
+      // 5. UserTokenHistory의 사용자 정보도 함께 업데이트
+      try {
+        const UserTokenHistory = require("../models/UserTokenHistory");
+        await UserTokenHistory.updateMany(
+          { uid: userId },
+          {
+            "user.email": newSubmission.user.email,
+            "user.displayName":
+              newSubmission.user.displayName ||
+              newSubmission.user.email.split("@")[0],
+          }
+        );
+        console.log(`✅ UserTokenHistory 사용자 정보 업데이트 완료: ${userId}`);
+      } catch (tokenHistoryError) {
+        console.warn(
+          `⚠️ UserTokenHistory 업데이트 실패 (${userId}):`,
+          tokenHistoryError.message
+        );
+        // UserTokenHistory 업데이트 실패는 프로필 업데이트를 실패시키지 않음
+      }
+
       return profile;
     } catch (error) {
       console.error("❌ 사용자 프로필 업데이트 실패:", error);
