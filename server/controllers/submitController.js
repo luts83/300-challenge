@@ -239,10 +239,10 @@ const evaluateSubmission = async (
       });
     }
 
-    // 더 강화된 응답 정제
+    // 더 강화된 응답 정제 (마크다운 코드 블록 완전 제거)
     let cleaned = evaluation
-      .replace(/```json|```/g, "")
-      .replace(/```/g, "")
+      .replace(/```json\s*/gi, "") // ```json 제거
+      .replace(/```\s*/g, "") // ``` 제거
       .replace(/\\n/g, " ")
       .replace(/\n/g, " ")
       .replace(/[<>]/g, "")
@@ -250,6 +250,10 @@ const evaluateSubmission = async (
       .replace(/\r/g, " ")
       .replace(/\t/g, " ")
       .trim();
+
+    // JSON 시작과 끝 부분 정리
+    cleaned = cleaned.replace(/^[^{]*/, ""); // { 이전의 모든 문자 제거
+    cleaned = cleaned.replace(/[^}]*$/, ""); // } 이후의 모든 문자 제거
 
     // JSON 파싱 시도
     let parsed;
@@ -670,6 +674,24 @@ async function handleSubmit(req, res) {
       );
       return res.status(400).json({
         message: "글자 수가 일치하지 않습니다. 다시 시도해주세요.",
+      });
+    }
+
+    // 🚨 중복 제출 방지 (동일 내용, 동일 사용자, 최근 1시간 내)
+    const recentSubmission = await Submission.findOne({
+      "user.uid": user.uid,
+      mode: mode,
+      createdAt: { $gte: new Date(Date.now() - 60 * 60 * 1000) }, // 1시간 내
+      text: { $regex: `^${text.trim()}$`, $options: "i" }, // 정확히 동일한 내용
+    });
+
+    if (recentSubmission) {
+      console.warn(
+        `[중복 제출 방지] ${user.email}: 동일 내용의 ${mode} 글을 최근 1시간 내에 이미 제출함`
+      );
+      return res.status(400).json({
+        message:
+          "동일한 내용의 글을 이미 제출했습니다. 잠시 후 다시 시도해주세요.",
       });
     }
 
@@ -1166,6 +1188,16 @@ async function handleSubmit(req, res) {
     } catch (profileError) {
       console.error("❌ 사용자 프로필 업데이트 실패:", profileError);
       // 프로필 업데이트 실패는 전체 제출을 실패시키지 않음
+    }
+
+    // 제출 완료 후 draft 삭제
+    try {
+      const Draft = require("../models/Draft");
+      await Draft.findOneAndDelete({ uid: user.uid });
+      console.log(`[Draft 삭제] ${user.email}: 제출 완료 후 draft 삭제됨`);
+    } catch (draftError) {
+      console.warn(`[Draft 삭제 실패] ${user.email}:`, draftError.message);
+      // draft 삭제 실패는 제출 성공에 영향을 주지 않음
     }
 
     // 응답 수정 - streak 상태를 더 명확하게 전달

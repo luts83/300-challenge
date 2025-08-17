@@ -54,6 +54,13 @@ const Write300 = () => {
   const handleSubmitComplete = (res: any) => {
     setSubmissionState('complete');
 
+    // 제출 완료 후 draft 상태 완전 초기화
+    setText('');
+    setTitle('');
+    setSubmitted(true);
+    setScore(res.data.data.score || null);
+    setFeedback(res.data.data.feedback || null);
+
     // 연속 작성 챌린지 성공 여부 확인
     const isStreakCompleted = res.data.data.streak?.completed;
     const streakProgress = res.data.data.streak?.progress || [];
@@ -95,6 +102,12 @@ const Write300 = () => {
     if (submissionInProgress.current) return;
 
     if (!user) return alert('로그인이 필요합니다!');
+
+    // 🚨 중복 제출 방지 강화
+    if (submitted) {
+      alert('이미 제출된 글입니다.');
+      return;
+    }
 
     // 👉 제출 시작할 때 타이머 멈추기
     setStartTime(null); // 타이머 중지
@@ -578,8 +591,15 @@ const Write300 = () => {
                   setScore(null);
                   setFeedback(null);
                   setText('');
+                  setTitle('');
                   setStartTime(null);
                   setRemainingTime(CONFIG.TIMER.DURATION_MINUTES * 60);
+                  setSubmissionState('idle');
+                  setSubStep('loading');
+                  setSubmissionProgress('');
+
+                  // 새로운 글쓰기 시작 시 draft 상태 완전 초기화
+                  console.log('새로운 글쓰기 시작: draft 상태 초기화됨');
                 }}
                 className={`px-3 py-1.5 text-sm rounded-lg ${
                   tokens === 0
