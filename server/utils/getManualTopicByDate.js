@@ -45,21 +45,35 @@ function getManualTopicByDate(
   // 기준 날짜 (UTC 표시된 한국 기준일 고정)
   const base = new Date(config.TOPIC.BASE_DATE + "T00:00:00.000Z");
 
-  // 주차 계산을 위해 로컬 시작 시각 기준으로 날짜 차이를 계산
-  const diffDays = Math.floor(
-    (todayLocalStartUtc - base) / (1000 * 60 * 60 * 24)
-  );
-  const weekDiff = Math.floor(diffDays / 7);
+  // [수정] 정확한 주차 계산 로직으로 변경
+  // 기준 날짜부터 오늘까지의 실제 평일과 주말 개수를 정확하게 계산
+  let weekdayIndex = 0;
+  let cursor = new Date(base);
+  while (cursor < todayLocalStartUtc) {
+    const d = cursor.getUTCDay();
+    if (d >= 1 && d <= 5) {
+      // 월~금
+      weekdayIndex++;
+    }
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+
+  // 주말 인덱스 계산: 기준 날짜부터 오늘까지의 실제 주말 날짜 개수
+  let weekendCount = 0;
+  cursor = new Date(base);
+  while (cursor < todayLocalStartUtc) {
+    const d = cursor.getUTCDay();
+    if (d === 0 || d === 6) {
+      // 일~토
+      weekendCount++;
+    }
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
 
   const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
 
-  // 평일 인덱스: 주차별 5개 (월~금)
-  const weekdayIndex =
-    weekDiff * 5 + (dayOfWeek >= 1 && dayOfWeek <= 5 ? dayOfWeek - 1 : 0);
-
   if (mode === "300") {
     if (isWeekend) {
-      const weekendCount = weekDiff * 2;
       const topic = weekendTopics300[weekendCount % weekendTopics300.length];
       return topic
         ? { topic, isManualTopic: true }
@@ -74,13 +88,23 @@ function getManualTopicByDate(
 
   if (mode === "1000") {
     if (isWeekend) {
-      const weekendCount = weekDiff * 2;
       const topic = weekendTopics1000[weekendCount % weekendTopics1000.length];
       return topic
         ? { topic, isManualTopic: true }
         : { topic: null, isManualTopic: false };
     } else {
-      // 1000자: 주 단위 주제
+      // 1000자: 주 단위 주제 - 정확한 주차 계산
+      const todayMonday = new Date(todayLocalStartUtc);
+      todayMonday.setUTCDate(
+        todayLocalStartUtc.getUTCDate() - todayLocalStartUtc.getUTCDay() + 1
+      );
+      const baseMonday = new Date(base);
+      baseMonday.setUTCDate(base.getUTCDate() - base.getUTCDay() + 1);
+
+      const weekDiff = Math.floor(
+        (todayMonday - baseMonday) / (1000 * 60 * 60 * 24 * 7)
+      );
+
       const topic = topics1000[weekDiff % topics1000.length];
       return topic
         ? { topic, isManualTopic: true }
