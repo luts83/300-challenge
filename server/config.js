@@ -46,11 +46,16 @@ module.exports = {
     STRUCTURED: {
       ENABLED: true,
       MIN_LENGTH: {
-        STRENGTHS: 20,
-        IMPROVEMENTS: 20,
-        OVERALL: 10,
+        OVERALL: 15, // 전체적인 느낌을 필수로 변경, 최소 15자
+        STRENGTHS: 0, // 마음에 드는 부분을 선택사항으로 변경, 제한 없음
+        IMPROVEMENTS: 0, // 더 멋진 방향을 선택사항으로 변경, 제한 없음
       },
       EXAMPLES: {
+        OVERALL: [
+          "전체적으로 읽기 편하고 이해하기 쉬웠어요",
+          "글쓴이님의 생각이 잘 드러나는 글이었어요",
+          "흥미로운 주제를 다룬 글이었어요",
+        ],
         STRENGTHS: [
           "구체적인 예시를 들어 설명한 부분이 인상적이었어요",
           "문단 구성이 체계적이고 읽기 쉬웠어요",

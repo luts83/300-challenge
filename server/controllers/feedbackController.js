@@ -119,26 +119,16 @@ exports.submitFeedback = async (req, res) => {
 
   // 구조화된 피드백 검증
   if (
-    !strengths ||
-    !improvements ||
-    strengths.trim().length < CONFIG.FEEDBACK.STRUCTURED.MIN_LENGTH.STRENGTHS ||
-    improvements.trim().length <
-      CONFIG.FEEDBACK.STRUCTURED.MIN_LENGTH.IMPROVEMENTS
-  ) {
-    return res.status(400).json({
-      message: "좋았던 점과 개선점을 각각 20자 이상 작성해주세요.",
-    });
-  }
-
-  // 전체적인 느낌이 있는 경우 길이 검증
-  if (
-    overall &&
+    !overall ||
     overall.trim().length < CONFIG.FEEDBACK.STRUCTURED.MIN_LENGTH.OVERALL
   ) {
     return res.status(400).json({
-      message: "전체적인 느낌은 10자 이상 작성해주세요.",
+      message: "전체적인 느낌을 15자 이상 작성해주세요.",
     });
   }
+
+  // strengths와 improvements는 선택사항이므로 검증 로직 완전 제거
+  // 현재 설정에서 최소 길이가 0이므로 검증이 의미가 없음
 
   try {
     // 사용자 시간대 기준으로 오늘 날짜 계산 (함수 시작 부분에서 미리 계산)
@@ -230,11 +220,21 @@ exports.submitFeedback = async (req, res) => {
         fromUserOffset: typeof userOffset === "number" ? userOffset : -540,
 
         // 구조화된 피드백 내용
-        strengths,
-        improvements,
+        strengths:
+          strengths && strengths.trim().length > 0 ? strengths.trim() : null,
+        improvements:
+          improvements && improvements.trim().length > 0
+            ? improvements.trim()
+            : null,
         overall: overall || null,
-        content: `좋았던 점:\n${strengths}\n\n개선점:\n${improvements}${
-          overall ? `\n\n전체적인 느낌:\n${overall}` : ""
+        content: `전체적인 느낌:\n${overall}${
+          strengths && strengths.trim().length > 0
+            ? `\n\n마음에 드는 부분:\n${strengths.trim()}`
+            : ""
+        }${
+          improvements && improvements.trim().length > 0
+            ? `\n\n더 멋진 방향:\n${improvements.trim()}`
+            : ""
         }`, // 하위 호환성
 
         // 피드백 작성 날짜 - 사용자 시간대 기준

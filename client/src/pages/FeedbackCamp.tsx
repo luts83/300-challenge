@@ -1123,34 +1123,18 @@ localStorage: ${JSON.stringify(info.localStorage)}`);
   ) => {
     if (!user) return;
 
-    // 피드백 최소 길이 검증
+    // 전체적인 느낌만 필수로 검증 (최소 15자)
     if (
-      !feedback.strengths ||
-      feedback.strengths.trim().length < CONFIG.FEEDBACK.STRUCTURED.MIN_LENGTH.STRENGTHS
-    ) {
-      alert(
-        `장점은 최소 ${CONFIG.FEEDBACK.STRUCTURED.MIN_LENGTH.STRENGTHS}자 이상 작성해야 합니다.`
-      );
-      return;
-    }
-    if (
-      !feedback.improvements ||
-      feedback.improvements.trim().length < CONFIG.FEEDBACK.STRUCTURED.MIN_LENGTH.IMPROVEMENTS
-    ) {
-      alert(
-        `개선점은 최소 ${CONFIG.FEEDBACK.STRUCTURED.MIN_LENGTH.IMPROVEMENTS}자 이상 작성해야 합니다.`
-      );
-      return;
-    }
-    if (
-      feedback.overall &&
+      !feedback.overall ||
       feedback.overall.trim().length < CONFIG.FEEDBACK.STRUCTURED.MIN_LENGTH.OVERALL
     ) {
       alert(
-        `전체 의견은 최소 ${CONFIG.FEEDBACK.STRUCTURED.MIN_LENGTH.OVERALL}자 이상 작성해야 합니다.`
+        `전체적인 느낌은 최소 ${CONFIG.FEEDBACK.STRUCTURED.MIN_LENGTH.OVERALL}자 이상 작성해야 합니다.`
       );
       return;
     }
+
+    // strengths와 improvements는 선택사항이므로 검증하지 않음
 
     try {
       setLoading(true);

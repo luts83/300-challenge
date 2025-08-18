@@ -49,3 +49,9 @@ export interface MyFeedbacksProps {
   onLoadMore: () => void;
   totalCount: number;
 }
+
+export interface StructuredFeedback {
+  overall: string; // 필수
+  strengths?: string | undefined; // 선택사항으로 변경, undefined 허용
+  improvements?: string | undefined; // 선택사항으로 변경, undefined 허용
+}

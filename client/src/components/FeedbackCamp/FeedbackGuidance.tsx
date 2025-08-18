@@ -172,13 +172,12 @@ export const FeedbackGuidance: React.FC<FeedbackGuidanceProps> = ({
                 <>
                   <li className="flex items-center gap-1">
                     <span className="text-green-500">•</span>
-                    구조화된 피드백: 장점과 개선점은 각각 최소{' '}
-                    {CONFIG.FEEDBACK.STRUCTURED.MIN_LENGTH.STRENGTHS}자 이상 작성해주세요.
+                    전체적인 느낌은 필수이며, 최소 {CONFIG.FEEDBACK.STRUCTURED.MIN_LENGTH.OVERALL}자
+                    이상 작성해주세요.
                   </li>
                   <li className="flex items-center gap-1">
                     <span className="text-green-500">•</span>
-                    전체 의견은 선택사항이며, 작성 시 최소{' '}
-                    {CONFIG.FEEDBACK.STRUCTURED.MIN_LENGTH.OVERALL}자 이상 작성해주세요.
+                    마음에 드는 부분과 더 멋진 방향은 선택사항이며, 자유롭게 작성하실 수 있습니다.
                   </li>
                 </>
               )}

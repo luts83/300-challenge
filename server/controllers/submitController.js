@@ -195,50 +195,6 @@ const evaluateSubmission = async (
     const evaluation = response.data.choices[0].message.content;
     logger.debug("원본 AI 응답:", evaluation);
 
-    // AI 응답 구조 상세 로깅 (디버깅용)
-    try {
-      const parsedEvaluation = JSON.parse(evaluation);
-      logger.debug("🔍 [AI 응답 구조 분석]:", {
-        hasOverallScore: "overall_score" in parsedEvaluation,
-        overallScoreValue: parsedEvaluation.overall_score,
-        hasCriteriaScores: "criteria_scores" in parsedEvaluation,
-        criteriaScoresKeys: parsedEvaluation.criteria_scores
-          ? Object.keys(parsedEvaluation.criteria_scores)
-          : [],
-        hasStrengths: "strengths" in parsedEvaluation,
-        strengthsLength: parsedEvaluation.strengths
-          ? parsedEvaluation.strengths.length
-          : 0,
-        hasImprovements: "improvements" in parsedEvaluation,
-        improvementsLength: parsedEvaluation.improvements
-          ? parsedEvaluation.improvements.length
-          : 0,
-        allKeys: Object.keys(parsedEvaluation),
-      });
-    } catch (parseError) {
-      logger.warn("⚠️ AI 응답 JSON 파싱 실패:", parseError.message);
-    }
-
-    // AI 평가 품질 검증 추가
-    const ImprovedEvaluationSystem = require("../utils/evaluationSystem");
-    const qualityValidation = ImprovedEvaluationSystem.validateAIEvaluation(
-      evaluation,
-      mode
-    );
-
-    if (!qualityValidation.isValid) {
-      logger.warn("⚠️ AI 평가 품질 문제 감지:", {
-        mode,
-        qualityScore: qualityValidation.qualityScore,
-        issues: qualityValidation.issues,
-        recommendation: qualityValidation.recommendation,
-        debugInfo: qualityValidation.debugInfo,
-        text: text.substring(0, 100) + "...",
-        title,
-        topic,
-      });
-    }
-
     // 더 강화된 응답 정제 (마크다운 코드 블록 완전 제거)
     let cleaned = evaluation
       .replace(/```json\s*/gi, "") // ```json 제거
@@ -312,6 +268,26 @@ const evaluateSubmission = async (
           improved_version: { title: title, content: text },
         }),
       };
+    }
+
+    // AI 평가 품질 검증 (정제된 JSON으로 검증)
+    const ImprovedEvaluationSystem = require("../utils/evaluationSystem");
+    const qualityValidation = ImprovedEvaluationSystem.validateAIEvaluation(
+      parsed,
+      mode
+    );
+
+    if (!qualityValidation.isValid) {
+      logger.warn("⚠️ AI 평가 품질 문제 감지:", {
+        mode,
+        qualityScore: qualityValidation.qualityScore,
+        issues: qualityValidation.issues,
+        recommendation: qualityValidation.recommendation,
+        debugInfo: qualityValidation.debugInfo,
+        text: text.substring(0, 100) + "...",
+        title,
+        topic,
+      });
     }
 
     // 약점 앵커 포함 여부 검증 및 보강 재요청
@@ -548,6 +524,28 @@ async function handleSubmit(req, res) {
   try {
     session = await mongoose.startSession();
     session.startTransaction();
+
+    // 🛡️ 중복 제출 방지 - 같은 내용의 글을 5분 이내에 제출하는 것 방지
+    if (user && user.uid) {
+      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+
+      // 같은 사용자가 같은 내용의 글을 최근에 제출했는지 확인
+      const recentDuplicate = await Submission.findOne({
+        "user.uid": user.uid,
+        title: title?.trim(),
+        text: text?.trim(),
+        createdAt: { $gte: fiveMinutesAgo },
+      });
+
+      if (recentDuplicate) {
+        logger.warn(`🚫 중복 제출 시도 감지: ${user.email} (${user.uid})`);
+        return res.status(400).json({
+          message:
+            "같은 내용의 글을 너무 빠르게 다시 제출할 수 없습니다. 잠시 후 다시 시도해주세요.",
+          code: "DUPLICATE_SUBMISSION",
+        });
+      }
+    }
 
     // 사용자 시간대 정보 파싱
     const userTimezone = timezone || "Asia/Seoul";

@@ -155,6 +155,30 @@ const Write1000 = () => {
   const [subStep, setSubStep] = useState<'loading' | 'evaluating'>('loading');
   const submissionInProgress = useRef(false);
 
+  // 🛡️ 중복 제출 방지 강화
+  const lastSubmissionRef = useRef<{ title: string; text: string; timestamp: number } | null>(null);
+
+  // 제출 데이터의 해시값 생성 (중복 감지용)
+  const generateSubmissionHash = (title: string, text: string) => {
+    const content = `${title.trim()}:${text.trim()}`;
+    return btoa(content).slice(0, 16); // 간단한 해시
+  };
+
+  // 중복 제출 감지
+  const isDuplicateSubmission = (title: string, text: string) => {
+    if (!lastSubmissionRef.current) return false;
+
+    const currentHash = generateSubmissionHash(title, text);
+    const lastHash =
+      lastSubmissionRef.current.title && lastSubmissionRef.current.text
+        ? generateSubmissionHash(lastSubmissionRef.current.title, lastSubmissionRef.current.text)
+        : '';
+
+    // 같은 내용이고 5분 이내에 제출 시도한 경우 중복으로 간주
+    const timeDiff = Date.now() - lastSubmissionRef.current.timestamp;
+    return currentHash === lastHash && timeDiff < 5 * 60 * 1000; // 5분
+  };
+
   useEffect(() => {
     // 로딩이 완료되고 user가 없을 때만 리다이렉션
     if (!loading && !user) {
@@ -430,7 +454,19 @@ const Write1000 = () => {
   };
 
   const submitFinal = async () => {
+    // 🛡️ 중복 제출 방지 강화
+    if (submissionInProgress.current || isSubmitting) {
+      console.log('🚫 이미 제출 중입니다. 중복 요청 무시됨');
+      return;
+    }
+
     if (!user) return;
+
+    // 🚨 같은 내용 중복 제출 방지
+    if (isDuplicateSubmission(title, text)) {
+      alert('❌ 같은 내용을 너무 빠르게 다시 제출할 수 없습니다.\n\n잠시 후 다시 시도해주세요.');
+      return;
+    }
 
     // ✅ 제목 검증 추가 (Config 값 사용)
     if (!title.trim() || title.trim().length < CONFIG.SUBMISSION.TITLE.MIN_LENGTH) {
@@ -458,11 +494,19 @@ const Write1000 = () => {
       return;
     }
 
-    // 제출 시작
+    // 🛡️ 제출 시작 - 모든 방어 로직 활성화
     submissionInProgress.current = true;
+    setIsSubmitting(true);
     setSubmissionState('submitting');
     setSubStep('loading'); // 초기엔 로딩 스피너
     setSubmissionProgress('글을 제출하고 있습니다...');
+
+    // 현재 제출 정보 기록 (중복 방지용)
+    lastSubmissionRef.current = {
+      title: title.trim(),
+      text: text.trim(),
+      timestamp: Date.now(),
+    };
 
     setTimeout(() => {
       setSubStep('evaluating');
@@ -545,14 +589,27 @@ const Write1000 = () => {
 
       // 3. 제출 완료 처리
       handleSubmitComplete(res, score, feedback);
+
+      // 🛡️ 제출 완료 - 모든 방어 로직 해제
+      submissionInProgress.current = false;
+      setIsSubmitting(false);
     } catch (error) {
-      const errorMessage = error.response?.data?.message || '알 수 없는 오류가 발생했습니다.';
+      let errorMessage = error.response?.data?.message || '알 수 없는 오류가 발생했습니다.';
       logger.error('제출 실패:', errorMessage);
+
+      // 🛡️ 에러 발생 시에도 모든 방어 로직 해제
+      submissionInProgress.current = false;
+      setIsSubmitting(false);
       setSubmissionState('idle');
       setSubmissionProgress('');
+
+      // 🛡️ 중복 제출 에러 특별 처리
+      if (error.response?.data?.code === 'DUPLICATE_SUBMISSION') {
+        errorMessage =
+          '❌ 중복 제출 방지\n\n같은 내용의 글을 너무 빠르게 다시 제출할 수 없습니다.\n\n잠시 후 다시 시도해주세요.';
+      }
+
       alert(`제출 실패: ${errorMessage}`);
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
@@ -887,12 +944,13 @@ const Write1000 = () => {
                 className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 dark:bg-blue-700 dark:hover:bg-blue-800"
                 disabled={
                   isSubmitting ||
+                  submissionInProgress.current ||
                   isTokenDepleted ||
                   text.trim().length < MIN_LENGTH ||
                   !title.trim()
                 }
               >
-                {isSubmitting ? '제출 중...' : '제출하기'}
+                {isSubmitting || submissionInProgress.current ? '제출 중...' : '제출하기'}
               </button>
             </div>
           </div>

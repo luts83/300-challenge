@@ -39,16 +39,19 @@ export const CONFIG = {
     STRUCTURED: {
       ENABLED: true,
       MIN_LENGTH: {
-        STRENGTHS: 20,
-        IMPROVEMENTS: 20,
-        OVERALL: 10,
+        OVERALL: 15, // 전체적인 느낌을 필수로 변경, 최소 15자
+        STRENGTHS: 0, // 마음에 드는 부분을 선택사항으로 변경, 제한 없음
+        IMPROVEMENTS: 0, // 더 멋진 방향을 선택사항으로 변경, 제한 없음
       },
       PLACEHOLDERS: {
-        STRENGTHS: '이 글의 좋았던 점을 구체적으로 작성해주세요 (최소 20자)',
+        OVERALL: '이 글에 대한 전체적인 느낌이나 생각을 자유롭게 작성해주세요 (최소 15자)',
+        STRENGTHS: '이 글의 마음에 드는 부분이나 인상적인 점을 자유롭게 작성해주세요 (선택사항)',
         IMPROVEMENTS:
-          '이 글이 더 좋아질 수 있는 아이디어나 가능성을 자유롭게 제안해주세요 (최소 20자)',
-        OVERALL: '전체적인 느낌이나 추가 의견을 자유롭게 작성해주세요 (선택사항)',
+          '더 멋진 글이 될 수 있는 방향이나 아이디어를 자유롭게 제안해주세요 (선택사항)',
       },
+      // 필수/선택 구분을 위한 설정 추가
+      REQUIRED_FIELDS: ['overall'],
+      OPTIONAL_FIELDS: ['strengths', 'improvements'],
     },
   },
 
