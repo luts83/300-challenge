@@ -70,6 +70,8 @@ const submissionSchema = new mongoose.Schema(
       },
     ],
     feedbackCount: { type: Number, default: 0 },
+    // 중복 제출 방지를 위한 해시 필드 (업계 표준)
+    textHash: { type: String, index: true },
     // 사용자 시간대 정보 추가
     userTimezone: { type: String, default: "Asia/Seoul" },
     userTimezoneOffset: { type: Number, default: -540 }, // 분 단위 (getTimezoneOffset 값)

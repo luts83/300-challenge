@@ -12,88 +12,152 @@ const { getUserTodayDate } = require("../utils/timezoneUtils");
 const { getTodayDateKoreaFinal } = require("../utils/timezoneUtils");
 
 // 피드백 가능 여부 확인 함수
-const canGiveFeedback = async (
-  userUid,
-  targetSubmission,
-  userTimezone = "Asia/Seoul",
-  userOffset = -540
-) => {
-  // 사용자 시간대 기준으로 오늘 날짜 계산
-  const today = getTodayDateKoreaFinal();
-  const todayString = today.toISOString().slice(0, 10); // YYYY-MM-DD 형식으로 변환
-
-  const userSubmission = await Submission.findOne({
-    "user.uid": userUid,
-    submissionDate: todayString,
-  });
-
-  if (!userSubmission) {
-    throw new Error(
-      "오늘은 아직 글을 작성하지 않으셨네요. 먼저 글을 작성한 후 피드백을 남길 수 있어요!"
-    );
-  }
-
-  // 교차 피드백이 비활성화된 경우
-  if (!CONFIG.FEEDBACK.CROSS_MODE_FEEDBACK.ENABLED) {
-    return userSubmission.mode === targetSubmission.mode;
-  }
-
-  // 교차 피드백이 활성화된 경우 - 제한 설정 확인
-  return CONFIG.FEEDBACK.CROSS_MODE_FEEDBACK.RESTRICTIONS[
-    userSubmission.mode
-  ].includes(targetSubmission.mode);
-};
-
-// 피드백 대상 글 조회 API
-exports.getAvailableSubmissions = async (req, res) => {
-  const { uid } = req.params;
-  const { userTimezone, userOffset } = req.query;
-
+const canGiveFeedback = async (uid, userTimezone = null, userOffset = null) => {
   try {
     // 사용자 시간대 기준으로 오늘 날짜 계산
-    const today = getTodayDateKoreaFinal();
-    const todayString = today.toISOString().slice(0, 10); // YYYY-MM-DD 형식으로 변환
-
-    const userSubmission = await Submission.findOne({
-      "user.uid": uid,
-      submissionDate: todayString,
-    });
-
-    if (!userSubmission) {
-      return res.status(403).json({
-        message: "오늘 작성한 글이 없습니다.",
-      });
+    let todayString;
+    if (userTimezone && userOffset !== null) {
+      todayString = getUserTodayDate(userOffset, userTimezone);
+      console.log(
+        `🌍 [canGiveFeedback] 사용자 시간대 기준 날짜: ${userTimezone} (offset: ${userOffset}) -> ${todayString}`
+      );
+    } else {
+      todayString = getTodayDateKoreaFinal();
+      console.log(
+        `🇰🇷 [canGiveFeedback] 한국 시간 기준 날짜 (기본값): ${todayString}`
+      );
     }
 
-    // 이미 피드백한 글 ID 목록
-    const givenFeedbacks = await Feedback.find({ fromUid: uid });
-    const givenIds = givenFeedbacks.map((fb) => fb.toSubmissionId.toString());
+    // 1. 오늘 글을 썼는지 확인 (writtenDate 기준)
+    const todaySubmission = await Submission.findOne({
+      "user.uid": uid,
+      submissionDate: todayString, // writtenDate 기준으로 확인
+    });
 
-    // 피드백 가능한 글 필터링
-    let query = {
-      "user.uid": { $ne: uid },
-      _id: { $nin: givenIds },
-    };
-
-    // 교차 피드백 설정에 따른 필터링
-    if (!CONFIG.FEEDBACK.CROSS_MODE_FEEDBACK.ENABLED) {
-      query.mode = userSubmission.mode;
-    } else {
-      query.mode = {
-        $in: CONFIG.FEEDBACK.CROSS_MODE_FEEDBACK.RESTRICTIONS[
-          userSubmission.mode
-        ],
+    if (!todaySubmission) {
+      console.log(`❌ [canGiveFeedback] 오늘 글을 쓰지 않음: ${todayString}`);
+      return {
+        canGive: false,
+        reason: "오늘 글을 작성해야 피드백을 남길 수 있습니다.",
+        todayString,
       };
     }
 
-    const submissions = await Submission.find(query)
-      .select("text user mode createdAt")
-      .sort({ createdAt: -1 });
+    // 2. 오늘 피드백을 몇 개 남겼는지 확인 (writtenDate 기준)
+    const todayFeedbackCount = await Feedback.countDocuments({
+      fromUid: uid,
+      writtenDate: todayString, // writtenDate 기준으로 확인
+    });
 
-    res.json(submissions);
-  } catch (err) {
-    logger.error("피드백 대상 조회 실패:", err);
-    res.status(500).json({ message: "서버 오류" });
+    console.log(
+      `📊 [canGiveFeedback] 오늘 피드백 수: ${todayFeedbackCount}개 (${todayString})`
+    );
+
+    // 3. 피드백 제한 확인 (하루 최대 5개)
+    if (todayFeedbackCount >= 5) {
+      return {
+        canGive: false,
+        reason: "하루 최대 5개의 피드백을 작성할 수 있습니다.",
+        todayString,
+        todayFeedbackCount,
+      };
+    }
+
+    return {
+      canGive: true,
+      reason: "피드백 작성 가능",
+      todayString,
+      todayFeedbackCount,
+    };
+  } catch (error) {
+    console.error("❌ [canGiveFeedback] 오류:", error);
+    throw error;
+  }
+};
+
+// 피드백 대상 글 조회 API
+const getAvailableSubmissions = async (req, res) => {
+  try {
+    const { uid } = req.params;
+    const { timezone, offset } = req.query;
+
+    // 사용자 시간대 기준으로 오늘 날짜 계산
+    let todayString;
+    if (timezone && offset !== undefined) {
+      todayString = getUserTodayDate(parseInt(offset), timezone);
+      console.log(
+        `🌍 [getAvailableSubmissions] 사용자 시간대 기준 날짜: ${timezone} (offset: ${offset}) -> ${todayString}`
+      );
+    } else {
+      todayString = getTodayDateKoreaFinal();
+      console.log(
+        `🇰🇷 [getAvailableSubmissions] 한국 시간 기준 날짜 (기본값): ${todayString}`
+      );
+    }
+
+    // 1. 사용자가 오늘 글을 썼는지 확인 (writtenDate 기준)
+    const userTodaySubmission = await Submission.findOne({
+      "user.uid": uid,
+      submissionDate: todayString, // writtenDate 기준으로 확인
+    });
+
+    if (!userTodaySubmission) {
+      return res.status(403).json({
+        message: "오늘 글을 작성해야 피드백을 남길 수 있습니다.",
+        todayString,
+      });
+    }
+
+    // 2. 오늘 이미 피드백을 몇 개 남겼는지 확인 (writtenDate 기준)
+    const todayFeedbackCount = await Feedback.countDocuments({
+      fromUid: uid,
+      writtenDate: todayString, // writtenDate 기준으로 확인
+    });
+
+    console.log(
+      `📊 [getAvailableSubmissions] 오늘 피드백 수: ${todayFeedbackCount}개 (${todayString})`
+    );
+
+    // 3. 피드백 제한 확인 (하루 최대 5개)
+    if (todayFeedbackCount >= 5) {
+      return res.status(403).json({
+        message: "하루 최대 5개의 피드백을 작성할 수 있습니다.",
+        todayString,
+        todayFeedbackCount,
+      });
+    }
+
+    // 4. 피드백 가능한 글 찾기 (writtenDate 기준으로 필터링)
+    const availableSubmissions = await Submission.find({
+      submissionDate: todayString, // writtenDate 기준으로 확인
+      "user.uid": { $ne: uid }, // 자신의 글 제외
+      feedbackUnlocked: true, // 피드백이 언락된 글만
+    }).populate("user", "displayName email");
+
+    console.log(
+      `📝 [getAvailableSubmissions] 피드백 가능한 글: ${availableSubmissions.length}개`
+    );
+
+    // 사용자 정보 조회
+    const User = require("../models/User");
+    const user = await User.findOne({ uid }).select("email displayName").lean();
+
+    res.json({
+      user: user
+        ? {
+            uid: uid,
+            email: user.email,
+            displayName: user.displayName,
+          }
+        : null,
+      submissions: availableSubmissions,
+      todayString,
+      todayFeedbackCount,
+      maxFeedbackCount: 5,
+    });
+  } catch (error) {
+    console.error("❌ [getAvailableSubmissions] 오류:", error);
+    res.status(500).json({ message: "서버 오류가 발생했습니다." });
   }
 };
 
@@ -131,10 +195,22 @@ exports.submitFeedback = async (req, res) => {
   // 현재 설정에서 최소 길이가 0이므로 검증이 의미가 없음
 
   try {
-    // 사용자 시간대 기준으로 오늘 날짜 계산 (함수 시작 부분에서 미리 계산)
-    // getTodayDateKoreaFinal을 사용하여 일관된 시간대 처리
-    const today = getTodayDateKoreaFinal();
-    const todayString = today.toISOString().slice(0, 10);
+    // 사용자 시간대 기준으로 오늘 날짜 계산
+    let todayString;
+    if (userOffset !== undefined && userTimezone) {
+      // 사용자 시간대 정보가 있으면 사용자 기준으로 계산
+      const { getUserTodayDate } = require("../utils/timezoneUtils");
+      const userToday = getUserTodayDate(userOffset);
+      todayString = userToday; // getUserTodayDate는 이미 문자열 반환
+      console.log(
+        `🌍 사용자 시간대 기준 날짜 계산: ${userTimezone} (offset: ${userOffset}) -> ${todayString}`
+      );
+    } else {
+      // 기본값: 한국 시간 기준
+      const today = getTodayDateKoreaFinal();
+      todayString = today.toISOString().slice(0, 10);
+      console.log(`🇰🇷 한국 시간 기준 날짜 계산 (기본값): ${todayString}`);
+    }
 
     // 중복 피드백 체크 추가
     const existingFeedback = await Feedback.findOne({
@@ -177,16 +253,9 @@ exports.submitFeedback = async (req, res) => {
 
     // 3. 피드백 작성 가능 여부 확인
     try {
-      const canGive = await canGiveFeedback(
-        fromUid,
-        targetSubmission,
-        userTimezone,
-        userOffset
-      );
-      if (!canGive) {
-        return res
-          .status(403)
-          .json({ message: "피드백을 작성할 수 없습니다." });
+      const canGive = await canGiveFeedback(fromUid, userTimezone, userOffset);
+      if (!canGive.canGive) {
+        return res.status(403).json({ message: canGive.reason });
       }
     } catch (err) {
       return res.status(403).json({ message: err.message });
@@ -300,9 +369,11 @@ exports.submitFeedback = async (req, res) => {
 
       if (submission.mode === "mode_300") {
         // 300자 모드: 300자 또는 1000자 피드백을 포함한 총 3개 이상의 피드백 작성
+        // writtenDate 기준으로 판단 (사용자 경험과 일치)
         shouldUnlock = totalFeedbackCount >= CONFIG.FEEDBACK.REQUIRED_COUNT;
       } else if (submission.mode === "mode_1000") {
         // 1000자 모드: 1000자 피드백 1개 이상 작성
+        // writtenDate 기준으로 판단 (사용자 경험과 일치)
         shouldUnlock = mode1000FeedbackCount >= 1;
       }
 
@@ -321,6 +392,33 @@ exports.submitFeedback = async (req, res) => {
         mode_1000: mode1000FeedbackCount,
         total: totalFeedbackCount, // 총 피드백 수도 응답에 포함
       },
+      // 교차 피드백 정보 추가
+      crossModeInfo: {
+        mode300Unlocked: userSubmissions.some(
+          (sub) =>
+            sub.mode === "mode_300" &&
+            mode300FeedbackCount + mode1000FeedbackCount >=
+              CONFIG.FEEDBACK.REQUIRED_COUNT
+        ),
+        mode1000Unlocked: userSubmissions.some(
+          (sub) => sub.mode === "mode_1000" && mode1000FeedbackCount >= 1
+        ),
+        mode300Progress: {
+          direct: mode300FeedbackCount,
+          crossMode: mode1000FeedbackCount,
+          total: totalFeedbackCount,
+          required: CONFIG.FEEDBACK.REQUIRED_COUNT,
+          remaining: Math.max(
+            0,
+            CONFIG.FEEDBACK.REQUIRED_COUNT - totalFeedbackCount
+          ),
+        },
+        mode1000Progress: {
+          direct: mode1000FeedbackCount,
+          required: 1,
+          remaining: Math.max(0, 1 - mode1000FeedbackCount),
+        },
+      },
     });
   } catch (error) {
     console.error("피드백 저장 중 오류 발생:", error);
@@ -329,42 +427,104 @@ exports.submitFeedback = async (req, res) => {
 };
 
 // 피드백 미션 할당 API도 수정
-exports.assignFeedbackMissions = async (req, res) => {
-  const { uid } = req.params;
-  const { userOffset } = req.body; // 사용자 시간대 오프셋 받기
-
+const assignFeedbackMissions = async (req, res) => {
   try {
-    // 사용자 시간대 기준으로 오늘 날짜 계산 (기본값: 한국 시간)
-    const today = getTodayDateKoreaFinal();
+    const { uid } = req.body;
+    const { timezone, offset } = req.body;
 
-    const userSubmission = await Submission.findOne({
+    // 사용자 시간대 기준으로 오늘 날짜 계산
+    let todayString;
+    if (offset !== undefined && timezone) {
+      todayString = getUserTodayDate(offset, timezone);
+      console.log(
+        `🌍 [assignFeedbackMissions] 사용자 시간대 기준 날짜: ${timezone} (offset: ${offset}) -> ${todayString}`
+      );
+    } else {
+      todayString = getTodayDateKoreaFinal();
+      console.log(
+        `🇰🇷 [assignFeedbackMissions] 한국 시간 기준 날짜 (기본값): ${todayString}`
+      );
+    }
+
+    // 1. 사용자가 오늘 글을 썼는지 확인 (writtenDate 기준)
+    const userTodaySubmission = await Submission.findOne({
       "user.uid": uid,
-      submissionDate: today.toISOString().split("T")[0],
+      submissionDate: todayString, // writtenDate 기준으로 확인
     });
 
-    if (!userSubmission) {
+    if (!userTodaySubmission) {
       return res.status(403).json({
-        message: "오늘 작성한 글이 없습니다.",
+        message: "오늘 글을 작성해야 피드백 미션을 받을 수 있습니다.",
+        todayString,
       });
     }
 
-    // 교차 피드백 설정에 따른 미션 대상 필터링
-    let modeFilter = {};
-    if (!CONFIG.FEEDBACK.CROSS_MODE_FEEDBACK.ENABLED) {
-      modeFilter.mode = userSubmission.mode;
-    } else {
-      modeFilter.mode = {
-        $in: CONFIG.FEEDBACK.CROSS_MODE_FEEDBACK.RESTRICTIONS[
-          userSubmission.mode
-        ],
-      };
+    // 2. 오늘 이미 피드백을 몇 개 남겼는지 확인 (writtenDate 기준)
+    const todayFeedbackCount = await Feedback.countDocuments({
+      fromUid: uid,
+      writtenDate: todayString, // writtenDate 기준으로 확인
+    });
+
+    console.log(
+      `📊 [assignFeedbackMissions] 오늘 피드백 수: ${todayFeedbackCount}개 (${todayString})`
+    );
+
+    // 3. 피드백 미션 할당 (writtenDate 기준으로 계산)
+    const missions = [];
+
+    // 300자 모드 미션
+    if (userTodaySubmission.mode === "mode_300") {
+      missions.push({
+        type: "mode_300",
+        target: 3,
+        current: todayFeedbackCount,
+        remaining: Math.max(0, 3 - todayFeedbackCount),
+        description: "300자 모드 글에 피드백 3개 작성",
+      });
     }
 
-    // 미션 할당 로직...
+    // 1000자 모드 미션
+    if (userTodaySubmission.mode === "mode_1000") {
+      missions.push({
+        type: "mode_1000",
+        target: 1,
+        current: todayFeedbackCount,
+        remaining: Math.max(0, 1 - todayFeedbackCount),
+        description: "1000자 모드 글에 피드백 1개 작성",
+      });
+    }
 
-    res.json(missions);
-  } catch (err) {
-    logger.error("미션 할당 실패:", err);
-    res.status(500).json({ message: "서버 오류" });
+    // 사용자 정보 조회
+    const User = require("../models/User");
+    const user = await User.findOne({ uid }).select("email displayName").lean();
+
+    res.json({
+      user: user
+        ? {
+            uid: uid,
+            email: user.email,
+            displayName: user.displayName,
+          }
+        : null,
+      missions,
+      todayString,
+      todayFeedbackCount,
+      userMode: userTodaySubmission.mode,
+    });
+  } catch (error) {
+    console.error("❌ [assignFeedbackMissions] 오류:", error);
+    res.status(500).json({ message: "서버 오류가 발생했습니다." });
   }
+};
+
+// 함수들을 export
+module.exports = {
+  submitFeedback: exports.submitFeedback,
+  getFeedbackStatus: exports.getFeedbackStatus,
+  getTodayFeedbacks: exports.getTodayFeedbacks,
+  getGivenTodayFeedbacks: exports.getGivenTodayFeedbacks,
+  getSystemTodayFeedbacks: exports.getSystemTodayFeedbacks,
+  getAvailableSubmissions,
+  assignFeedbackMissions,
+  canGiveFeedback,
 };

@@ -213,18 +213,7 @@ class ImprovedEvaluationSystem {
       }
     }
 
-    // 6. 추가 디버깅 정보
-    const debugInfo = {
-      mode,
-      feedbackType: typeof feedback,
-      parsedType: typeof parsedFeedback,
-      hasOverallScore: "overall_score" in parsedFeedback,
-      overallScoreValue: parsedFeedback.overall_score,
-      criteriaScoresKeys: parsedFeedback.criteria_scores
-        ? Object.keys(parsedFeedback.criteria_scores)
-        : [],
-      allKeys: Object.keys(parsedFeedback),
-    };
+    // 디버그 정보 제거
 
     // 7. 모드별 품질 기준 조정
     const qualityThreshold = mode === "mode_300" ? 50 : 60; // 300자 모드는 더 관대하게
@@ -243,7 +232,7 @@ class ImprovedEvaluationSystem {
           : qualityScore >= qualityThreshold
           ? "poor"
           : "very_poor",
-      debugInfo,
+      // debugInfo 제거
     };
   }
 
@@ -406,14 +395,7 @@ class ImprovedEvaluationSystem {
       modeKey
     );
 
-    // 로깅 (디버깅용)
-    console.log(`🔍 [적응형 점수 제한] ${modeKey}:`, {
-      absoluteScore,
-      finalScore: adaptiveResult.finalScore,
-      method: adaptiveResult.method,
-      adjustment: adaptiveResult.adjustment,
-      statistics: adaptiveResult.statistics,
-    });
+    // 디버그 로그 제거
 
     return adaptiveResult.finalScore;
   }

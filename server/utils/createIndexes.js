@@ -82,6 +82,48 @@ const createIndexes = async () => {
       );
     }
 
+    // 중복 제출 방지를 위한 textHash 인덱스 (업계 표준)
+    try {
+      await Submission.collection.createIndex(
+        { textHash: 1 },
+        { name: "text_hash_index" }
+      );
+      console.log("✅ text_hash_index 인덱스 생성 완료");
+    } catch (error) {
+      console.log("⚠️ text_hash_index 인덱스 이미 존재:", error.message);
+    }
+
+    // 사용자별 중복 제출 방지를 위한 복합 인덱스
+    try {
+      await Submission.collection.createIndex(
+        { "user.uid": 1, textHash: 1, createdAt: -1 },
+        { name: "user_text_hash_created" }
+      );
+      console.log("✅ user_text_hash_created 인덱스 생성 완료");
+    } catch (error) {
+      console.log("⚠️ user_text_hash_created 인덱스 이미 존재:", error.message);
+    }
+
+    // 텍스트 검색을 위한 text 인덱스 (업계 표준)
+    try {
+      await Submission.collection.createIndex(
+        { title: "text", text: "text" },
+        {
+          name: "title_text_search_index",
+          weights: {
+            title: 10, // 제목에 더 높은 가중치
+            text: 1, // 내용에 기본 가중치
+          },
+        }
+      );
+      console.log("✅ title_text_search_index 인덱스 생성 완료");
+    } catch (error) {
+      console.log(
+        "⚠️ title_text_search_index 인덱스 이미 존재:",
+        error.message
+      );
+    }
+
     // Feedback 모델 인덱스
     try {
       await Feedback.collection.createIndex(

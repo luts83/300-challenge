@@ -7,7 +7,8 @@
     "start": "node index.js",
     "dev": "nodemon index.js",
     "build": "echo '✅ No build step needed for server.'",
-    "fix-token-history": "node scripts/fixUserTokenHistory.js"
+    "fix-token-history": "node scripts/fixUserTokenHistory.js",
+    "migrate-text-hash": "node scripts/migrateTextHash.js"
   },
   "dependencies": {
     "axios": "^1.8.4",

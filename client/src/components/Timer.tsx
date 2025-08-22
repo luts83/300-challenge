@@ -5,6 +5,7 @@ interface TimerProps {
   onTimeUp?: () => void;
   isActive?: boolean;
   mode?: '300' | '1000'; // 타이머 모드 추가
+  forceStop?: boolean; // 강제 정지 플래그 추가
 }
 
 const Timer: React.FC<TimerProps> = ({
@@ -12,6 +13,7 @@ const Timer: React.FC<TimerProps> = ({
   onTimeUp,
   isActive = true,
   mode = '300',
+  forceStop = false,
 }) => {
   const timeRef = useRef(remainingTime);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -66,7 +68,7 @@ const Timer: React.FC<TimerProps> = ({
   }, [remainingTime]);
 
   useEffect(() => {
-    if (!isActive) {
+    if (!isActive || forceStop) {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;

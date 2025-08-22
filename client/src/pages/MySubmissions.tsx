@@ -305,7 +305,7 @@ const MySubmissions = () => {
         }),
       ]);
 
-      // console.log('🔍 요청 params', {
+      // 요청 params (디버그 로그 제거)
       //   page: pageNum,
       //   limit: ITEMS_PER_PAGE,
       //   search: searchQuery || undefined,

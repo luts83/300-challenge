@@ -78,7 +78,7 @@ const getUserTodayDate = (userOffset = 0) => {
       expectedDate: "Tue Aug 12 2025",
     });
 
-    return utcDateStart;
+    return utcDateStart.toISOString().split("T")[0];
   } catch (error) {
     console.error(
       `❌ Error in getUserTodayDate with userOffset: ${userOffset}`,

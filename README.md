@@ -85,6 +85,29 @@ The application can be configured through the `config.ts` file in the client dir
 - AI feedback settings
 - Topic display settings
 
+## 🚀 최근 업데이트 (2025-01-20)
+
+### 🔒 중복 제출 방지 시스템 개선 (업계 표준 적용)
+
+**문제 해결:**
+
+- MongoDB 정규표현식 에러 "quantifier does not follow a repeatable item" 완전 해결
+- 정규표현식 대신 해시 기반 비교 + 단순 문자열 비교로 이중 안전장치 구현
+
+**적용된 업계 표준:**
+
+- **Google/Facebook 방식**: 해시 기반 빠른 중복 감지
+- **Amazon/Netflix 방식**: 인덱스 활용 가능한 단순 쿼리
+- **성능 최적화**: MongoDB 인덱스 자동 생성
+
+**사용법:**
+
+```bash
+# 마이그레이션 실행 (기존 데이터에 textHash 추가)
+cd server
+npm run migrate-text-hash
+```
+
 ## 향후 개발 계획
 
 ### 🚀 스마트 글쓰기 가이드 시스템 (개발 중)

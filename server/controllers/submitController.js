@@ -283,7 +283,6 @@ const evaluateSubmission = async (
         qualityScore: qualityValidation.qualityScore,
         issues: qualityValidation.issues,
         recommendation: qualityValidation.recommendation,
-        debugInfo: qualityValidation.debugInfo,
         text: text.substring(0, 100) + "...",
         title,
         topic,
@@ -489,14 +488,7 @@ async function validateScoreConsistency(userId, feedback, mode) {
     // 점수 업데이트
     feedback.overall_score = finalScore;
 
-    // 적응형 점수 제한 결과 로깅
-    logger.info("🔍 [점수 일관성 검증] 완료:", {
-      userId,
-      mode,
-      originalScore,
-      finalScore,
-      adjustment: finalScore - originalScore,
-    });
+    // 점수 일관성 검증 완료 (디버그 로그 제거)
 
     return feedback;
   } catch (error) {
@@ -676,11 +668,22 @@ async function handleSubmit(req, res) {
     }
 
     // 🚨 중복 제출 방지 (동일 내용, 동일 사용자, 최근 1시간 내)
+    // 업계 표준: 해시 기반 비교 + 단순 문자열 비교 (이중 안전장치)
+    const trimmedText = text.trim();
+    const crypto = require("crypto");
+    const textHash = crypto
+      .createHash("sha256")
+      .update(trimmedText)
+      .digest("hex");
+
     const recentSubmission = await Submission.findOne({
       "user.uid": user.uid,
       mode: mode,
       createdAt: { $gte: new Date(Date.now() - 60 * 60 * 1000) }, // 1시간 내
-      text: { $regex: `^${text.trim()}$`, $options: "i" }, // 정확히 동일한 내용
+      $or: [
+        { text: trimmedText }, // 정확한 문자열 매칭
+        { textHash: textHash }, // 해시 기반 빠른 비교 (백업)
+      ],
     });
 
     if (recentSubmission) {
@@ -715,6 +718,7 @@ async function handleSubmit(req, res) {
     // 새로운 시간대 유틸리티 사용
     const {
       getTodayDateKoreaFinal,
+      getUserTodayDate,
       getUserMonday,
     } = require("../utils/timezoneUtils");
 
@@ -724,9 +728,20 @@ async function handleSubmit(req, res) {
 
     let today, monday;
     try {
-      // 한국 시간 기준으로 오늘 날짜 계산
-      const todayDate = getTodayDateKoreaFinal();
-      today = todayDate.toISOString().split("T")[0];
+      // 사용자 시간대 기준으로 오늘 날짜 계산 (수정됨)
+      if (timezone && offset !== undefined) {
+        // 사용자 시간대 정보가 있으면 사용자 기준으로 계산
+        const todayDate = getUserTodayDate(parseInt(offset));
+        today = todayDate.toISOString().split("T")[0];
+        console.log(
+          `🌍 사용자 시간대 기준 날짜 계산: ${timezone} (offset: ${offset}) -> ${today}`
+        );
+      } else {
+        // 기본값: 한국 시간 기준
+        const todayDate = getTodayDateKoreaFinal();
+        today = todayDate.toISOString().split("T")[0];
+        console.log(`🇰🇷 한국 시간 기준 날짜 계산 (기본값): ${today}`);
+      }
       monday = getUserMonday(safeUserOffset);
 
       // 디버깅: 시간대 정보 로깅
@@ -1013,6 +1028,7 @@ async function handleSubmit(req, res) {
       submissionDate: today, // 사용자 시간대 기준으로 수정
       score,
       aiFeedback: feedback, // JSON 문자열로 저장
+      textHash: textHash, // 중복 제출 방지를 위한 해시
       userTimezone: timezone || "Asia/Seoul",
       userTimezoneOffset: parseInt(offset) || -540,
     });

@@ -42,8 +42,18 @@ router.get("/stats/users", async (req, res) => {
     const matchCondition = search
       ? {
           $or: [
-            { "user.email": { $regex: search, $options: "i" } },
-            { "user.displayName": { $regex: search, $options: "i" } },
+            {
+              "user.email": {
+                $regex: search,
+                $options: "i",
+              },
+            },
+            {
+              "user.displayName": {
+                $regex: search,
+                $options: "i",
+              },
+            },
           ],
         }
       : {};
@@ -294,6 +304,7 @@ router.get("/all-submissions/:uid", async (req, res) => {
     const submissionsWithFeedback = submissions.map((sub) => ({
       ...sub,
       feedbacks: feedbackMap[String(sub._id)] || [],
+      feedbackCount: (feedbackMap[String(sub._id)] || []).length, // 피드백 개수 추가
     }));
 
     // 총 개수 계산 (페이지네이션 정보 제공)
@@ -339,7 +350,7 @@ router.get("/whitelist/monthly", async (req, res) => {
       {
         $match: {
           "user.email": { $in: allowedEmails },
-          submissionDate: { $regex: `^${yearMonth}-` },
+          submissionDate: { $regex: `^${yearMonth}-`, $options: "i" },
         },
       },
       {
@@ -685,7 +696,10 @@ router.get("/rankings/topics", async (req, res) => {
 
     // 검색 조건 추가
     if (search) {
-      matchCondition.topic = { $regex: search, $options: "i" };
+      matchCondition.topic = {
+        $regex: search,
+        $options: "i",
+      };
     }
 
     // 모드 필터 추가

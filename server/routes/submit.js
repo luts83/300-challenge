@@ -28,10 +28,9 @@ router.get("/user/:uid", async (req, res) => {
     const query = { "user.uid": uid };
 
     if (search) {
-      query.$or = [
-        { title: { $regex: search, $options: "i" } },
-        { text: { $regex: search, $options: "i" } },
-      ];
+      // 업계 표준: 정규표현식 완전 제거, MongoDB $text 검색 사용 (성능 향상 + 안전성)
+      // MongoDB $text 검색을 사용하려면 text 인덱스가 필요합니다
+      query.$text = { $search: search };
     }
 
     let submissions;

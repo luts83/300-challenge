@@ -3,6 +3,7 @@ const express = require("express");
 const router = express.Router();
 const Submission = require("../models/Submission");
 const Feedback = require("../models/Feedback");
+const User = require("../models/User");
 const mongoose = require("mongoose");
 const config = require("../config");
 const { submitFeedback } = require("../controllers/feedbackController");
@@ -124,6 +125,9 @@ router.get("/assignments/:uid", async (req, res) => {
     }
 
     // 미션 생성
+    // 사용자 정보 조회
+    const user = await User.findOne({ uid }).select("email displayName").lean();
+
     const missions = selectedMissions.map((target) => ({
       fromUid: uid,
       toSubmissionId: target._id,
@@ -131,7 +135,16 @@ router.get("/assignments/:uid", async (req, res) => {
       isDone: false,
     }));
 
-    res.json(missions);
+    res.json({
+      user: user
+        ? {
+            uid: uid,
+            email: user.email,
+            displayName: user.displayName,
+          }
+        : null,
+      missions: missions,
+    });
   } catch (err) {
     console.error("❌ 피드백 대상 조회 실패:", err);
     res.status(500).json({ message: `서버 오류: ${err.message}` });
@@ -209,7 +222,17 @@ router.get("/received/:uid", async (req, res) => {
       return acc;
     }, []);
 
+    // 사용자 정보 조회
+    const user = await User.findOne({ uid }).select("email displayName").lean();
+
     res.json({
+      user: user
+        ? {
+            uid: uid,
+            email: user.email,
+            displayName: user.displayName,
+          }
+        : null,
       totalWritten: todayFeedbackCount,
       groupedBySubmission: groupedFeedbacks,
     });
@@ -289,7 +312,17 @@ router.get("/given/:uid", async (req, res) => {
       total: todayFeedbacks.length,
     };
 
+    // 사용자 정보 조회
+    const user = await User.findOne({ uid }).select("email displayName").lean();
+
     res.json({
+      user: user
+        ? {
+            uid: uid,
+            email: user.email,
+            displayName: user.displayName,
+          }
+        : null,
       total: enhancedFeedbacks.length,
       feedbacks: enhancedFeedbacks,
       todaySummary,
@@ -374,12 +407,27 @@ router.get("/stats/:uid", async (req, res) => {
 // 피드백 상태 조회 라우트 추가
 router.get("/status/:uid", async (req, res) => {
   const { uid } = req.params;
-  // 사용자 시간대 기준으로 오늘 날짜 계산 (기본값: 한국 시간)
-  const today = getTodayDateKoreaFinal();
+  const { timezone, offset } = req.query; // 사용자 시간대 정보 받기
 
   try {
-    // writtenDate는 String 타입이므로 날짜 문자열로 비교
-    const todayString = today.toISOString().slice(0, 10); // YYYY-MM-DD 형식
+    // 사용자 시간대 기준으로 오늘 날짜 계산
+    let todayString;
+    if (offset !== undefined && timezone) {
+      // 사용자 시간대 정보가 있으면 사용자 기준으로 계산
+      const { getUserTodayDate } = require("../utils/timezoneUtils");
+      const userToday = getUserTodayDate(parseInt(offset));
+      todayString = userToday.toISOString().slice(0, 10);
+      console.log(
+        `🌍 [피드백 상태] 사용자 시간대 기준 날짜: ${timezone} (offset: ${offset}) -> ${todayString}`
+      );
+    } else {
+      // 기본값: 한국 시간 기준
+      const today = getTodayDateKoreaFinal();
+      todayString = today.toISOString().slice(0, 10);
+      console.log(
+        `🇰🇷 [피드백 상태] 한국 시간 기준 날짜 (기본값): ${todayString}`
+      );
+    }
 
     const feedbackCount = await Feedback.countDocuments({
       fromUid: uid,
@@ -388,7 +436,7 @@ router.get("/status/:uid", async (req, res) => {
 
     const submissions = await Submission.find({
       "user.uid": uid,
-      submissionDate: today,
+      submissionDate: todayString,
     });
 
     res.json({
@@ -403,18 +451,103 @@ router.get("/status/:uid", async (req, res) => {
   }
 });
 
-// 오늘의 피드백 현황 조회
+// 오늘의 피드백 현황 조회 (특정 유저가 작성한 피드백)
 router.get("/today/:uid", async (req, res) => {
   try {
     const { uid } = req.params;
+    const { timezone, offset } = req.query; // 사용자 시간대 정보 받기
 
-    const today = getTodayDateKoreaFinal();
-    const todayString = today.toISOString().split("T")[0];
+    // 사용자 정보 조회
+    const user = await User.findOne({ uid }).select("email displayName").lean();
+    if (!user) {
+      return res.status(404).json({ error: "사용자를 찾을 수 없습니다." });
+    }
 
-    // 전체 피드백 수 조회
-    const totalFeedbacks = await Feedback.countDocuments({});
+    // 사용자 시간대 기준으로 오늘 날짜 계산
+    let todayString;
+    if (offset !== undefined && timezone) {
+      // 사용자 시간대 정보가 있으면 사용자 기준으로 계산
+      const { getUserTodayDate } = require("../utils/timezoneUtils");
+      const userToday = getUserTodayDate(parseInt(offset));
+      todayString = userToday.toISOString().slice(0, 10);
+      console.log(
+        `🌍 [피드백 현황] 사용자 시간대 기준 날짜: ${timezone} (offset: ${offset}) -> ${todayString}`
+      );
+    } else {
+      // 기본값: 한국 시간 기준
+      const today = getTodayDateKoreaFinal();
+      todayString = today.toISOString().slice(0, 10);
+      console.log(
+        `🇰🇷 [피드백 현황] 한국 시간 기준 날짜 (기본값): ${todayString}`
+      );
+    }
 
-    // 오늘 작성된 피드백 조회
+    // 특정 유저가 오늘 작성한 피드백만 조회
+    const todayFeedbacks = await Feedback.find({
+      fromUid: uid, // 피드백 작성자
+      writtenDate: todayString,
+    })
+      .populate({
+        path: "toSubmissionId",
+        select: "mode title content",
+        model: "Submission",
+      })
+      .lean();
+
+    // 모드별 피드백 수 계산
+    const mode300Count = todayFeedbacks.filter(
+      (fb) => fb.toSubmissionId?.mode === "mode_300"
+    ).length;
+    const mode1000Count = todayFeedbacks.filter(
+      (fb) => fb.toSubmissionId?.mode === "mode_1000"
+    ).length;
+    const totalTodayCount = mode300Count + mode1000Count;
+
+    console.log(
+      `📊 [피드백 현황] 유저 ${user.email}(${uid})의 오늘 피드백: 300자 ${mode300Count}개, 1000자 ${mode1000Count}개, 총 ${totalTodayCount}개`
+    );
+
+    res.json({
+      user: {
+        uid: uid,
+        email: user.email,
+        displayName: user.displayName,
+      },
+      mode_300: mode300Count,
+      mode_1000: mode1000Count,
+      total: totalTodayCount,
+    });
+  } catch (error) {
+    console.error("❌ [피드백 현황] API 오류:", error);
+    res.status(500).json({ error: "피드백 현황 조회 실패" });
+  }
+});
+
+// 전체 시스템의 오늘 피드백 현황 조회 (관리자용)
+router.get("/system/today", async (req, res) => {
+  try {
+    const { timezone, offset } = req.query; // 사용자 시간대 정보 받기
+
+    // 사용자 시간대 기준으로 오늘 날짜 계산
+    let todayString;
+    if (offset !== undefined && timezone) {
+      // 사용자 시간대 정보가 있으면 사용자 기준으로 계산
+      const { getUserTodayDate } = require("../utils/timezoneUtils");
+      const userToday = getUserTodayDate(parseInt(offset));
+      todayString = userToday.toISOString().slice(0, 10);
+      console.log(
+        `🌍 [시스템 피드백 현황] 사용자 시간대 기준 날짜: ${timezone} (offset: ${offset}) -> ${todayString}`
+      );
+    } else {
+      // 기본값: 한국 시간 기준
+      const today = getTodayDateKoreaFinal();
+      todayString = today.toISOString().slice(0, 10);
+      console.log(
+        `🇰🇷 [시스템 피드백 현황] 한국 시간 기준 날짜 (기본값): ${todayString}`
+      );
+    }
+
+    // 전체 시스템의 오늘 작성된 피드백 조회
     const todayFeedbacks = await Feedback.find({
       writtenDate: todayString,
     })
@@ -434,14 +567,20 @@ router.get("/today/:uid", async (req, res) => {
     ).length;
     const totalTodayCount = mode300Count + mode1000Count;
 
+    console.log(
+      `📊 [시스템 피드백 현황] 전체 시스템 오늘 피드백: 300자 ${mode300Count}개, 1000자 ${mode1000Count}개, 총 ${totalTodayCount}개`
+    );
+
     res.json({
       mode_300: mode300Count,
       mode_1000: mode1000Count,
       total: totalTodayCount,
+      date: todayString,
+      summary: `전체 시스템에서 오늘 ${totalTodayCount}개의 피드백이 작성되었습니다.`,
     });
   } catch (error) {
-    console.error("❌ [피드백 현황] API 오류:", error);
-    res.status(500).json({ error: "피드백 현황 조회 실패" });
+    console.error("❌ [시스템 피드백 현황] API 오류:", error);
+    res.status(500).json({ error: "시스템 피드백 현황 조회 실패" });
   }
 });
 
@@ -460,8 +599,21 @@ router.get("/unlock-status/:uid", async (req, res) => {
       },
     });
 
+    // 사용자 정보 조회
+    const user = await User.findOne({ uid }).select("email displayName").lean();
+
     const isUnlocked = feedbackCount >= config.FEEDBACK.REQUIRED_COUNT;
-    res.json({ isUnlocked, feedbackCount });
+    res.json({
+      user: user
+        ? {
+            uid: uid,
+            email: user.email,
+            displayName: user.displayName,
+          }
+        : null,
+      isUnlocked,
+      feedbackCount,
+    });
   } catch (err) {
     console.error("피드백 언락 상태 조회 실패:", err);
     res.status(500).json({ message: "서버 오류" });
@@ -519,7 +671,17 @@ router.post("/unlock-feedback", async (req, res) => {
       timestamp: new Date(),
     });
 
+    // 사용자 정보 조회
+    const user = await User.findOne({ uid }).select("email displayName").lean();
+
     res.json({
+      user: user
+        ? {
+            uid: uid,
+            email: user.email,
+            displayName: user.displayName,
+          }
+        : null,
       message:
         unlockType === "single"
           ? "피드백이 성공적으로 언락되었습니다."
@@ -561,7 +723,17 @@ router.post("/:submissionId/like", async (req, res) => {
 
     await submission.save();
 
+    // 사용자 정보 조회
+    const user = await User.findOne({ uid }).select("email displayName").lean();
+
     res.json({
+      user: user
+        ? {
+            uid: uid,
+            email: user.email,
+            displayName: user.displayName,
+          }
+        : null,
       liked: !alreadyLiked,
       total: submission.likeCount,
     });
@@ -591,7 +763,17 @@ router.get("/:submissionId/like-status", async (req, res) => {
       (user) => user.displayName
     );
 
+    // 사용자 정보 조회
+    const user = await User.findOne({ uid }).select("email displayName").lean();
+
     res.json({
+      user: user
+        ? {
+            uid: uid,
+            email: user.email,
+            displayName: user.displayName,
+          }
+        : null,
       total: submission.likeCount,
       liked,
       likedUsernames,
@@ -635,10 +817,8 @@ router.get("/all-submissions/:uid", async (req, res) => {
     // 2. 필터링된 쿼리 생성
     const filteredQuery = { ...baseQuery };
     if (search) {
-      filteredQuery.$or = [
-        { title: { $regex: search, $options: "i" } },
-        { text: { $regex: search, $options: "i" } },
-      ];
+      // 업계 표준: 정규표현식 완전 제거, MongoDB $text 검색 사용 (성능 향상 + 안전성)
+      filteredQuery.$text = { $search: search };
     }
     if (mode === "mode_300" || mode === "mode_1000") {
       filteredQuery.mode = mode;
@@ -706,7 +886,17 @@ router.get("/all-submissions/:uid", async (req, res) => {
       hasGivenFeedback: myFeedbackSet.has(sub._id.toString()),
     }));
 
+    // 사용자 정보 조회
+    const user = await User.findOne({ uid }).select("email displayName").lean();
+
     res.json({
+      user: user
+        ? {
+            uid: uid,
+            email: user.email,
+            displayName: user.displayName,
+          }
+        : null,
       submissions: results,
       hasMore,
       totalCount,
@@ -746,7 +936,17 @@ router.get("/given-today/:uid", async (req, res) => {
     (fb) => fb.submissionMode === "mode_1000"
   ).length;
 
+  // 사용자 정보 조회
+  const user = await User.findOne({ uid }).select("email displayName").lean();
+
   res.json({
+    user: user
+      ? {
+          uid: uid,
+          email: user.email,
+          displayName: user.displayName,
+        }
+      : null,
     mode_300: mode300,
     mode_1000: mode1000,
     total: feedbacks.length,
@@ -761,7 +961,19 @@ router.get("/all-dates/:uid", async (req, res) => {
   const dates = submissions.map((sub) =>
     sub.createdAt.toISOString().slice(0, 10)
   );
-  res.json({ dates: Array.from(new Set(dates)) });
+  // 사용자 정보 조회
+  const user = await User.findOne({ uid }).select("email displayName").lean();
+
+  res.json({
+    user: user
+      ? {
+          uid: uid,
+          email: user.email,
+          displayName: user.displayName,
+        }
+      : null,
+    dates: Array.from(new Set(dates)),
+  });
 });
 
 // 황금열쇠로 딜라이팅AI 버전 언락하기
@@ -819,7 +1031,17 @@ router.post("/unlock-dilating", async (req, res) => {
       timestamp: new Date(),
     });
 
+    // 사용자 정보 조회
+    const user = await User.findOne({ uid }).select("email displayName").lean();
+
     res.json({
+      user: user
+        ? {
+            uid: uid,
+            email: user.email,
+            displayName: user.displayName,
+          }
+        : null,
       message: "딜라이팅AI 버전이 성공적으로 구매되었습니다.",
       remainingGoldenKeys: userToken.goldenKeys,
     });

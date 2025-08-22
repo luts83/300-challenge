@@ -35,6 +35,32 @@ const Write300 = () => {
   const [daysSinceJoin, setDaysSinceJoin] = useState<number | null>(null);
   const [nextRefreshDate, setNextRefreshDate] = useState<string | null>(null);
 
+  // 🛡️ 중복 제출 방지 강화
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submissionHash, setSubmissionHash] = useState<string>('');
+  const lastSubmissionRef = useRef<{ title: string; text: string; timestamp: number } | null>(null);
+
+  // 제출 데이터의 해시값 생성 (중복 감지용)
+  const generateSubmissionHash = (title: string, text: string) => {
+    const content = `${title.trim()}:${text.trim()}`;
+    return btoa(content).slice(0, 16); // 간단한 해시
+  };
+
+  // 중복 제출 감지
+  const isDuplicateSubmission = (title: string, text: string) => {
+    if (!lastSubmissionRef.current) return false;
+
+    const currentHash = generateSubmissionHash(title, text);
+    const lastHash =
+      lastSubmissionRef.current.title && lastSubmissionRef.current.text
+        ? generateSubmissionHash(lastSubmissionRef.current.title, lastSubmissionRef.current.text)
+        : '';
+
+    // 같은 내용이고 5분 이내에 제출 시도한 경우 중복으로 간주
+    const timeDiff = Date.now() - lastSubmissionRef.current.timestamp;
+    return currentHash === lastHash && timeDiff < 5 * 60 * 1000; // 5분
+  };
+
   useEffect(() => {
     // 로딩이 완료되고 user가 없을 때만 리다이렉션
     if (!loading && !user) {
@@ -99,7 +125,11 @@ const Write300 = () => {
   };
 
   const handleSubmit = async (forceSubmit = false) => {
-    if (submissionInProgress.current) return;
+    // 🛡️ 중복 제출 방지 강화
+    if (submissionInProgress.current || isSubmitting) {
+      console.log('🚫 이미 제출 중입니다. 중복 요청 무시됨');
+      return;
+    }
 
     if (!user) return alert('로그인이 필요합니다!');
 
@@ -109,16 +139,24 @@ const Write300 = () => {
       return;
     }
 
-    // 👉 제출 시작할 때 타이머 멈추기
-    setStartTime(null); // 타이머 중지
-    setIsStarted(false); // 시작 상태 해제
-
-    const finalDuration = startTime ? Math.floor((Date.now() - startTime) / 1000) : 0;
+    // 🚨 같은 내용 중복 제출 방지
+    if (isDuplicateSubmission(title, text)) {
+      alert('❌ 같은 내용을 너무 빠르게 다시 제출할 수 없습니다.\n\n잠시 후 다시 시도해주세요.');
+      return;
+    }
 
     // ✅ 제출 직전 최종 검증 - 실시간 텍스트 상태 사용
     const finalText = text.trim();
     const finalCharCount = getCharCount(finalText);
     const finalIsMinLengthMet = finalCharCount >= CONFIG.SUBMISSION.MODE_300.MIN_LENGTH;
+
+    // 👉 제출 시작할 때 타이머 멈추기 (시간 계산 후에 중지)
+    const finalDuration = startTime ? Math.floor((Date.now() - startTime) / 1000) : 0;
+
+    // 🛑 타이머 완전 중지
+    setStartTime(null); // 타이머 중지
+    setIsStarted(false); // 시작 상태 해제
+    setRemainingTime(0); // 남은 시간 0으로 설정
 
     if (!forceSubmit) {
       // 제목 검증 강화
@@ -205,6 +243,7 @@ const Write300 = () => {
             // 다시 작성 선택 시 - 타이머 재시작
             setStartTime(Date.now());
             setIsStarted(true);
+            setRemainingTime(CONFIG.TIMER.DURATION_MINUTES * 60);
             return;
           } else {
             // 메인페이지로 이동
@@ -294,11 +333,19 @@ const Write300 = () => {
       return alert('주제를 아직 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');
     }
 
-    // 제출 시작
+    // 🛡️ 제출 시작 - 모든 방어 로직 활성화
     submissionInProgress.current = true;
+    setIsSubmitting(true);
     setSubmissionState('submitting');
     setSubStep('loading'); // 초기엔 로딩 스피너
     setSubmissionProgress('글을 제출하고 있습니다...');
+
+    // 현재 제출 정보 기록 (중복 방지용)
+    lastSubmissionRef.current = {
+      title: title.trim(),
+      text: text.trim(),
+      timestamp: Date.now(),
+    };
 
     setTimeout(() => {
       setSubStep('evaluating');
@@ -316,7 +363,7 @@ const Write300 = () => {
         text: finalText, // ✅ trim된 텍스트 사용
         topic: dailyTopic || null,
         mode: 'mode_300',
-        duration: finalDuration,
+        duration: finalDuration, // ✅ 수정된 시간 사용
         forceSubmit: forceSubmit,
         isMinLengthMet: finalIsMinLengthMet, // ✅ 실시간 검증 결과 사용
         charCount: finalCharCount, // ✅ trim된 텍스트의 글자 수 사용
@@ -329,8 +376,7 @@ const Write300 = () => {
         },
       };
 
-      console.log('🚀 제출 데이터:', submitData);
-      console.log('👤 사용자 정보:', user);
+      console.log('⏱️ 최종 소요 시간:', finalDuration, '초');
 
       // 인증 토큰 가져오기
       const token = await user.getIdToken();
@@ -354,14 +400,40 @@ const Write300 = () => {
       setSubmitted(true);
       setIsStarted(false);
 
+      // 🛡️ 제출 완료 - 모든 방어 로직 해제
+      submissionInProgress.current = false;
+      setIsSubmitting(false);
+      setSubmissionHash(''); // 해시 초기화
+
       // 제출 완료 처리
       handleSubmitComplete(res);
     } catch (err: any) {
       logger.error('제출 중 오류 발생:', err.response?.data || err);
-      alert('제출 중 오류가 발생했습니다. 다시 시도해 주세요.');
+
+      // 🛡️ 에러 발생 시에도 모든 방어 로직 해제
+      submissionInProgress.current = false;
+      setIsSubmitting(false);
       setSubmissionState('idle');
       setSubmissionProgress('');
-      submissionInProgress.current = false;
+
+      // 에러 메시지 개선
+      let errorMessage = '제출 중 오류가 발생했습니다.';
+
+      if (err.response?.data?.message) {
+        errorMessage += `\n\n상세: ${err.response.data.message}`;
+      }
+
+      // 🛡️ 중복 제출 에러 특별 처리
+      if (err.response?.data?.code === 'DUPLICATE_SUBMISSION') {
+        errorMessage =
+          '❌ 중복 제출 방지\n\n같은 내용의 글을 너무 빠르게 다시 제출할 수 없습니다.\n\n잠시 후 다시 시도해주세요.';
+      }
+
+      if (err.code === 'NETWORK_ERROR' || err.message?.includes('timeout')) {
+        errorMessage += '\n\n네트워크 연결을 확인하고 다시 시도해주세요.';
+      }
+
+      alert(errorMessage);
     }
   };
 
@@ -377,13 +449,30 @@ const Write300 = () => {
       // 시간 초과 시 자동 제출
       if (remaining <= 0) {
         clearInterval(interval);
-        setStartTime(null); // 👉 시간 초과 시에도 타이머 멈추기
-        setIsStarted(false); // 👉 시작 상태 해제
+
+        // 🛑 타이머 상태 완전 정리
+        setStartTime(null);
+        setIsStarted(false);
+        setRemainingTime(0);
+
+        // 🛡️ 이미 제출 중이거나 완료된 경우 자동 제출 방지
+        if (submissionInProgress.current || isSubmitting || submitted) {
+          console.log('🚫 자동 제출 차단: 이미 제출 중이거나 완료됨');
+          return;
+        }
+
+        // 🚨 자동 제출 전 최종 상태 확인
+        console.log('⏰ 시간 초과로 자동 제출 시작');
 
         // setTimeout으로 약간의 지연을 주어 상태 업데이트가 완료되도록 함
         setTimeout(() => {
-          handleSubmit(true); // 강제 제출
-        }, 100);
+          // 한 번 더 상태 확인 (이중 안전장치)
+          if (!submissionInProgress.current && !isSubmitting && !submitted) {
+            handleSubmit(true); // 강제 제출
+          } else {
+            console.log('🚫 자동 제출 취소: 제출 상태 변경됨');
+          }
+        }, 200); // 200ms로 증가하여 상태 동기화 보장
       }
     }, 1000);
 
@@ -574,6 +663,7 @@ const Write300 = () => {
               isActive={isStarted}
               mode="300"
               onTimeUp={() => handleSubmit(true)}
+              forceStop={submitted || submissionState === 'complete'}
             />
             <div className="flex flex-wrap gap-2 w-full md:w-auto justify-end">
               <button
@@ -612,14 +702,26 @@ const Write300 = () => {
               </button>
               <button
                 onClick={() => handleSubmit(false)}
-                disabled={tokens === 0 || !isMinLengthMet || submitted}
+                disabled={
+                  tokens === 0 ||
+                  !isMinLengthMet ||
+                  submitted ||
+                  isSubmitting ||
+                  submissionInProgress.current ||
+                  !startTime // 타이머가 시작되지 않은 경우도 비활성화
+                }
                 className={`px-3 py-1.5 text-sm rounded-lg ${
-                  tokens === 0 || !isMinLengthMet || submitted
+                  tokens === 0 ||
+                  !isMinLengthMet ||
+                  submitted ||
+                  isSubmitting ||
+                  submissionInProgress.current ||
+                  !startTime
                     ? 'bg-gray-300 text-gray-500 cursor-not-allowed dark:bg-gray-700 dark:text-gray-400'
                     : 'bg-blue-500 text-white hover:bg-blue-600 dark:bg-blue-800 dark:hover:bg-blue-900'
                 }`}
               >
-                제출하기
+                {isSubmitting || submissionInProgress.current ? '제출 중...' : '제출하기'}
               </button>
             </div>
           </div>

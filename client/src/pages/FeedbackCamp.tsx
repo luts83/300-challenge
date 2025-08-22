@@ -36,6 +36,15 @@ interface StructuredFeedback {
 
 const FeedbackCamp = () => {
   const { user } = useUser();
+
+  // ✅ 사용자 시간대 기준으로 오늘 날짜를 계산하는 유틸리티 함수
+  const getUserTodayDate = () => {
+    const today = new Date();
+    const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const userOffset = new Date().getTimezoneOffset();
+    const userTime = new Date(today.getTime() - userOffset * 60 * 1000);
+    return userTime.toISOString().split('T')[0];
+  };
   const [allSubmissions, setAllSubmissions] = useState<Submission[]>([]);
   const [feedbacks, setFeedbacks] = useState<{ [id: string]: string }>({});
   const [submittedIds, setSubmittedIds] = useState<string[]>([]);
@@ -108,7 +117,7 @@ const FeedbackCamp = () => {
         const dateKey = `todayFeedbackCount_date_${user.uid}`;
         const saved = localStorage.getItem(key);
         const savedDate = localStorage.getItem(dateKey);
-        const today = new Date().toISOString().slice(0, 10);
+        const today = getUserTodayDate();
 
         if (saved && savedDate === today) {
           const parsed = JSON.parse(saved);
@@ -175,10 +184,7 @@ const FeedbackCamp = () => {
       setGivenFeedbacks(data.feedbacks || []);
 
       // 오늘의 피드백 카운트 계산
-      const today = new Date();
-      const koreaOffset = 9 * 60 * 60 * 1000; // KST는 UTC+9
-      const koreaTime = new Date(today.getTime() + koreaOffset);
-      const todayString = koreaTime.toISOString().split('T')[0];
+      const todayString = getUserTodayDate();
 
       const todayFeedbacks =
         data.feedbacks?.filter((fb: any) => fb.writtenDate === todayString) || [];
@@ -217,7 +223,7 @@ const FeedbackCamp = () => {
       if (user?.uid) {
         const key = `todayFeedbackCount_${user.uid}`;
         const dateKey = `todayFeedbackCount_date_${user.uid}`;
-        const today = new Date().toISOString().slice(0, 10);
+        const today = getUserTodayDate();
         try {
           localStorage.setItem(key, JSON.stringify(newCount));
           localStorage.setItem(dateKey, today);
@@ -241,10 +247,10 @@ const FeedbackCamp = () => {
 
     // 이미 실행되었는지 확인
     const hasCheckedRetroactive = localStorage.getItem(
-      `retroactive_checked_${user.uid}_${new Date().toISOString().slice(0, 10)}`
+      `retroactive_checked_${user.uid}_${getUserTodayDate()}`
     );
     if (hasCheckedRetroactive === 'true') {
-      console.log('🔍 피드백 소급 적용 이미 확인됨');
+      // 피드백 소급 적용 이미 확인됨
       return;
     }
 
@@ -272,7 +278,7 @@ const FeedbackCamp = () => {
         ? submissionRes.data
         : submissionRes.data.submissions || [];
 
-      const today = new Date().toISOString().slice(0, 10);
+      const today = getUserTodayDate();
       const todaySubmissions = submissions.filter((sub: any) => sub.submissionDate === today);
       const currentModes = new Set(todaySubmissions.map((sub: any) => sub.mode));
 
@@ -336,7 +342,7 @@ const FeedbackCamp = () => {
 
       // 실행 완료 표시 (오늘 날짜로)
       localStorage.setItem(`retroactive_checked_${user.uid}_${today}`, 'true');
-      console.log('🔍 피드백 소급 적용 확인 완료');
+      // 피드백 소급 적용 확인 완료
     } catch (error) {
       console.error('❌ 피드백 소급 적용 확인 실패:', error);
     }
@@ -362,7 +368,7 @@ const FeedbackCamp = () => {
         fetchGivenFeedbacks(); // 내가 쓴 피드백 불러오기
       } else {
         // localStorage에서 복원된 상태라도 소급 적용 확인 필요 (한 번만)
-        const today = new Date().toISOString().slice(0, 10);
+        const today = getUserTodayDate();
         const hasCheckedToday = localStorage.getItem(`retroactive_checked_${user.uid}_${today}`);
 
         if (hasCheckedToday !== 'true') {
@@ -682,21 +688,9 @@ const FeedbackCamp = () => {
     const dateKey = `todayFeedbackCount_date_${user.uid}`;
     const saved = localStorage.getItem(key);
     const savedDate = localStorage.getItem(dateKey);
-    const today = new Date().toISOString().slice(0, 10);
+    const today = getUserTodayDate();
 
-    console.log('🔍 localStorage 디버깅 정보:', {
-      userUid: user.uid,
-      key,
-      dateKey,
-      saved,
-      savedDate,
-      today,
-      hasSaved: !!saved,
-      hasSavedDate: !!savedDate,
-      isToday: savedDate === today,
-      parsedValue: saved ? JSON.parse(saved) : null,
-      currentState: todayFeedbackCount,
-    });
+    // localStorage 디버깅 정보 제거
   }, [user?.uid, todayFeedbackCount]);
 
   // 오늘의 피드백 현황 디버깅 함수
@@ -707,11 +701,11 @@ const FeedbackCamp = () => {
     }
 
     try {
-      console.log('🔍 [디버그] 오늘의 피드백 현황 디버그 시작');
+      // 오늘의 피드백 현황 디버그 시작
 
       // 클라이언트 시간 정보
       const clientTime = new Date();
-      const clientToday = clientTime.toISOString().split('T')[0];
+      const clientToday = getUserTodayDate();
 
       console.log('🕐 [디버그] 클라이언트 시간 정보:', {
         clientTime: clientTime.toLocaleString(),
@@ -785,6 +779,7 @@ const FeedbackCamp = () => {
           hasTodayFeedback: todayFeedbackCount.total > 0,
           canWriteFeedback: allSubmissions.length > 0,
           feedbackTargets: allSubmissions.filter(sub => !sub.feedbackUnlocked).length,
+          unlockedSubmissions: allSubmissions.filter(sub => sub.feedbackUnlocked).length,
         },
       };
 
@@ -873,10 +868,13 @@ localStorage: ${JSON.stringify(info.localStorage)}`);
       });
       const submissions = Array.isArray(res.data) ? res.data : res.data.submissions || [];
 
-      const today = new Date();
-      const koreaOffset = 9 * 60 * 60 * 1000; // KST는 UTC+9
-      const koreaTime = new Date(today.getTime() + koreaOffset);
-      const todayString = koreaTime.toISOString().split('T')[0];
+      const todayString = getUserTodayDate();
+
+      console.log('🌍 [피드백 미션] 사용자 시간대 기준 날짜 계산:', {
+        todayString,
+        submissionDates: submissions.map((sub: any) => sub.submissionDate),
+      });
+
       const todaySubmissions = submissions.filter((sub: any) => sub.submissionDate === todayString);
 
       const newHasMySubmission = todaySubmissions.length > 0;
@@ -888,7 +886,7 @@ localStorage: ${JSON.stringify(info.localStorage)}`);
       // 피드백 소급 적용 확인 (글 작성 후 호출되는 경우)
       if (todaySubmissions.length > 0) {
         // 이미 오늘 확인했는지 체크
-        const today = new Date().toISOString().slice(0, 10);
+        const today = getUserTodayDate();
         const hasCheckedToday = localStorage.getItem(`retroactive_checked_${user.uid}_${today}`);
 
         if (hasCheckedToday !== 'true') {
@@ -941,138 +939,42 @@ localStorage: ${JSON.stringify(info.localStorage)}`);
         return;
       }
 
-      const response = await axios.post(
-        `${import.meta.env.VITE_API_URL}/api/feedback`,
-        {
+      const response = await fetch(`/api/feedback`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
           toSubmissionId: submissionId,
-          fromUid: user.uid,
           content: feedbackContent,
           userTimezone: userTimezone,
           userOffset: userOffset,
-        },
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
-
-      // 기존 진행률 바 갱신 (서버 응답 데이터 구조에 맞게 수정)
-      const { mode_300, mode_1000, total } = response.data.todayFeedbackCount || {
-        mode_300: 0,
-        mode_1000: 0,
-        total: 0,
-      };
-      setDailyFeedbackCount({ mode300: mode_300, mode1000: mode_1000 });
-
-      // ✅ 추가: 모드별 카운트도 즉시 갱신 (localStorage에 자동 저장)
-      updateTodayFeedbackCount({
-        mode_300: mode_300,
-        mode_1000: mode_1000,
-        total: total,
+        }),
       });
 
-      // 사용자의 모드에 따라 다른 메시지 표시
-      const hasMode1000 = todaySubmissionModes.has('mode_1000');
-      const hasMode300 = todaySubmissionModes.has('mode_300');
+      if (response.ok) {
+        const result = await response.json();
 
-      // 각 모드별로 개별적으로 완료 여부 확인
-      const isMode300Completed = hasMode300 && mode_300 >= CONFIG.FEEDBACK.REQUIRED_COUNT;
-      const isMode1000Completed = hasMode1000 && mode_1000 >= 1;
+        // 교차 피드백 정보를 포함한 상세한 성공 메시지 생성
+        const successMessage = generateFeedbackSuccessMessage(result);
+        alert(successMessage);
 
-      // 전체 미션 완료 여부
-      const isMissionCompleted = isMode300Completed && isMode1000Completed;
-
-      // 현재 제출한 글의 피드백 언락 상태 확인
-      const unlockStatus = await checkFeedbackUnlockStatus(submissionId);
-
-      let message = '✅ 피드백이 제출되었습니다.\n\n';
-
-      if (unlockStatus.hasUnlocked) {
-        // 이미 언락된 경우
-        if (unlockStatus.unlockMethod === 'golden_key') {
-          message = `🔑 이미 황금열쇠로 피드백을 언락하셨습니다.\n\n`;
-          message += `💝 추가 피드백을 남겨주셔서 감사합니다!\n`;
-          message += `✨ 다른 사용자들의 글쓰기 성장에 기여하고 계시는군요.`;
-        } else if (unlockStatus.unlockMethod === 'feedback_mission') {
-          message = `🎉 이미 오늘의 피드백 미션을 완료하셨지만, 추가 피드백을 남겨주셔서 감사합니다!\n\n`;
-          message += `💝 다른 사용자들의 글쓰기 성장에 기여하고 계시는군요.\n`;
-          message += `✨ 지속적인 피드백은 커뮤니티 전체의 발전을 이끌어냅니다.`;
-        }
-      } else if (isMissionCompleted) {
-        // 방금 미션을 완료한 경우
-        message = `🎉 축하합니다! 오늘의 피드백 미션을 완료하셨습니다!\n\n`;
-        message += `🔓 모든 글에 대한 피드백 열람 권한이 언락되었습니다!\n`;
-        message += `💝 앞으로도 다른 사용자들의 글쓰기 성장에 기여해주세요.`;
-      } else {
-        // 아직 미션을 완료하지 않은 경우 진행 상황 표시
-        // 1000자 모드 언락 체크
-        if (hasMode1000 && mode_1000 >= 1) {
-          message += `🎉 축하합니다! 1000자 글에 대한 피드백 열람 권한이 언락되었습니다!\n`;
-        } else if (hasMode1000) {
-          message += `1000자 글 언락까지: ${mode_1000}/1\n`;
-        }
-
-        // 300자 모드 언락 체크 (mode_300 사용)
-        if (hasMode300 && mode_300 >= CONFIG.FEEDBACK.REQUIRED_COUNT) {
-          message += `🎉 축하합니다! 300자 글에 대한 피드백 열람 권한이 언락되었습니다!\n`;
-        } else if (hasMode300) {
-          message += `300자 글 언락까지: ${mode_300}/${CONFIG.FEEDBACK.REQUIRED_COUNT}\n`;
-        }
-
-        // 모든 언락이 완료된 경우
-        if (isMode300Completed && isMode1000Completed) {
-          message = `🎉 축하합니다!\n오늘 작성하신 모든 글에 대한 피드백 열람 권한이 모두 언락되었습니다!`;
-        }
-      }
-
-      alert(message);
-
-      // 상태 업데이트 - 즉시 UI에 반영
-      setSubmittedIds(prev => {
-        const newIds = [...prev, submissionId];
-        return newIds;
-      });
-
-      // 피드백 입력 초기화
-      setFeedbacks(prev => {
-        const newFeedbacks = { ...prev };
-        delete newFeedbacks[submissionId];
-        return newFeedbacks;
-      });
-
-      // 확장된 글 접기
-      setExpanded(null);
-
-      // 페이지 상태 업데이트 - 순차적으로 처리하여 상태 일관성 보장
-      try {
-        // 1. 먼저 내가 쓴 피드백 목록 업데이트
+        // 피드백 현황 새로고침
+        await fetchTodayFeedbackStatus();
         await fetchGivenFeedbacks();
 
-        // 2. 전체 제출물 목록 업데이트
-        await fetchAllSubmissions(1, true); // reset = true로 전체 새로고침
+        // 피드백 입력 초기화
+        setFeedbacks(prev => {
+          const newFeedbacks = { ...prev };
+          delete newFeedbacks[submissionId];
+          return newFeedbacks;
+        });
 
-        // 3. 내 제출 상태 업데이트
-        await fetchMySubmissionStatus();
-
-        // 4. 이미 setTodayFeedbackCount로 업데이트했으므로 중복 API 호출 제거
-        // setTodayFeedbackCount는 서버 응답으로 이미 최신 상태로 업데이트됨
-
-        // 5. 서버 데이터 동기화를 위해 잠시 후 최신 데이터 확인 (선택사항)
-        setTimeout(async () => {
-          try {
-            const latestRes = await axios.get(
-              `${import.meta.env.VITE_API_URL}/api/feedback/given-today/${user.uid}`
-            );
-            // 서버 데이터가 더 최신이면 업데이트
-            if (latestRes.data.total > total) {
-              updateTodayFeedbackCount(latestRes.data);
-            }
-          } catch (syncError) {
-            console.log('서버 동기화 실패 (무시됨):', syncError);
-          }
-        }, 1000); // 1초 후 동기화
-      } catch (updateError) {
-        console.error('❌ 데이터 업데이트 중 오류:', updateError);
-        // 업데이트 실패해도 사용자에게는 성공 메시지가 이미 표시됨
+        setExpanded(null);
+      } else {
+        const errorData = await response.json();
+        alert(`피드백 제출 실패: ${errorData.message}`);
       }
     } catch (err) {
       if (axios.isAxiosError(err)) {
@@ -1165,71 +1067,13 @@ localStorage: ${JSON.stringify(info.localStorage)}`);
         }
       );
 
-      // 기존 진행률 바 갱신 (서버 응답 데이터 구조에 맞게 수정)
-      const { mode_300, mode_1000, total } = response.data.todayFeedbackCount || {
-        mode_300: 0,
-        mode_1000: 0,
-        total: 0,
-      };
-      setDailyFeedbackCount({ mode300: mode_300, mode1000: mode_1000 });
+      // 교차 피드백 정보를 포함한 상세한 성공 메시지 생성
+      const successMessage = generateFeedbackSuccessMessage(response.data);
+      alert(successMessage);
 
-      // ✅ 추가: 모드별 카운트도 즉시 갱신 (localStorage에 자동 저장)
-      updateTodayFeedbackCount({
-        mode_300: mode_300,
-        mode_1000: mode_1000,
-        total: total,
-      });
-
-      // 먼저 내 글 상태를 업데이트하여 todaySubmissionModes를 최신화
-      await fetchMySubmissionStatus();
-
-      // 사용자의 모드에 따라 다른 메시지 표시 (업데이트된 todaySubmissionModes 사용)
-      const hasMode1000 = todaySubmissionModes.has('mode_1000');
-      const hasMode300 = todaySubmissionModes.has('mode_300');
-
-      // 각 모드별로 개별적으로 완료 여부 확인
-      const isMode300Completed = hasMode300 && mode_300 >= CONFIG.FEEDBACK.REQUIRED_COUNT;
-      const isMode1000Completed = hasMode1000 && mode_1000 >= 1;
-
-      // 전체 미션 완료 여부
-      const isMissionCompleted = isMode300Completed && isMode1000Completed;
-
-      let message = '✅ 피드백이 제출되었습니다.\n\n';
-
-      if (isMissionCompleted) {
-        // 이미 미션을 완료한 경우 격려 메시지
-        message = `🎉 이미 오늘의 피드백 미션을 완료하셨지만, 추가 피드백을 남겨주셔서 감사합니다!\n\n`;
-        message += `💝 다른 사용자들의 글쓰기 성장에 기여하고 계시는군요.\n`;
-        message += `✨ 지속적인 피드백은 커뮤니티 전체의 발전을 이끌어냅니다.`;
-      } else {
-        // 아직 미션을 완료하지 않은 경우 기존 메시지
-        // 1000자 모드 언락 체크
-        if (hasMode1000 && mode_1000 >= 1) {
-          message += `🎉 축하합니다! 1000자 글에 대한 피드백 열람 권한이 언락되었습니다!\n`;
-        } else if (hasMode1000) {
-          message += `1000자 글 언락까지: ${mode_1000}/1\n`;
-        }
-
-        // 300자 모드 언락 체크 (mode_300 사용)
-        if (hasMode300 && mode_300 >= CONFIG.FEEDBACK.REQUIRED_COUNT) {
-          message += `🎉 축하합니다! 300자 글에 대한 피드백 열람 권한이 언락되었습니다!\n`;
-        } else if (hasMode300) {
-          message += `300자 글 언락까지: ${mode_300}/${CONFIG.FEEDBACK.REQUIRED_COUNT}\n`;
-        }
-
-        // 모든 언락이 완료된 경우
-        if (isMode300Completed && isMode1000Completed) {
-          message = `🎉 축하합니다!\n오늘 작성하신 모든 글에 대한 피드백 열람 권한이 모두 언락되었습니다!`;
-        }
-      }
-
-      alert(message);
-
-      // 상태 업데이트 - 즉시 UI에 반영
-      setSubmittedIds(prev => {
-        const newIds = [...prev, submissionId];
-        return newIds;
-      });
+      // 피드백 현황 새로고침
+      await fetchTodayFeedbackStatus();
+      await fetchGivenFeedbacks();
 
       // 피드백 입력 초기화
       setFeedbacks(prev => {
@@ -1238,41 +1082,7 @@ localStorage: ${JSON.stringify(info.localStorage)}`);
         return newFeedbacks;
       });
 
-      // 확장된 글 접기
       setExpanded(null);
-
-      // 페이지 상태 업데이트 - 순차적으로 처리하여 상태 일관성 보장
-      try {
-        // 1. 먼저 내가 쓴 피드백 목록 업데이트
-        await fetchGivenFeedbacks();
-
-        // 2. 전체 제출물 목록 업데이트
-        await fetchAllSubmissions(1, true); // reset = true로 전체 새로고침
-
-        // 3. 내 제출 상태 업데이트
-        await fetchMySubmissionStatus();
-
-        // 4. 이미 setTodayFeedbackCount로 업데이트했으므로 중복 API 호출 제거
-        // setTodayFeedbackCount는 서버 응답으로 이미 최신 상태로 업데이트됨
-
-        // 5. 서버 데이터 동기화를 위해 잠시 후 최신 데이터 확인 (선택사항)
-        setTimeout(async () => {
-          try {
-            const latestRes = await axios.get(
-              `${import.meta.env.VITE_API_URL}/api/feedback/given-today/${user.uid}`
-            );
-            // 서버 데이터가 더 최신이면 업데이트
-            if (latestRes.data.total > total) {
-              updateTodayFeedbackCount(latestRes.data);
-            }
-          } catch (syncError) {
-            console.log('서버 동기화 실패 (무시됨):', syncError);
-          }
-        }, 1000); // 1초 후 동기화
-      } catch (updateError) {
-        console.error('❌ 데이터 업데이트 중 오류:', updateError);
-        // 업데이트 실패해도 사용자에게는 성공 메시지가 이미 표시됨
-      }
     } catch (err) {
       if (axios.isAxiosError(err)) {
         const errorMessage = err.response?.data?.message;
@@ -1314,6 +1124,100 @@ localStorage: ${JSON.stringify(info.localStorage)}`);
       setLoading(false);
     }
   };
+
+  // 상세한 언락 상태 계산 함수 (새로 추가)
+  const getDetailedUnlockStatus = useCallback(() => {
+    const hasMode300 = todaySubmissionModes.has('mode_300');
+    const hasMode1000 = todaySubmissionModes.has('mode_1000');
+
+    // 300자 모드 언락 상태
+    const mode300Unlocked =
+      hasMode300 &&
+      todayFeedbackCount.mode_300 + todayFeedbackCount.mode_1000 >= CONFIG.FEEDBACK.REQUIRED_COUNT;
+
+    // 1000자 모드 언락 상태
+    const mode1000Unlocked = hasMode1000 && todayFeedbackCount.mode_1000 >= 1;
+
+    // 교차 피드백 활용 여부
+    const crossModeUsedFor300 =
+      hasMode300 && mode300Unlocked && todayFeedbackCount.mode_300 < CONFIG.FEEDBACK.REQUIRED_COUNT;
+
+    const crossModeUsedFor1000 =
+      hasMode1000 && mode1000Unlocked && todayFeedbackCount.mode_1000 < 1;
+
+    return {
+      mode300: {
+        unlocked: mode300Unlocked,
+        progress: todayFeedbackCount.mode_300,
+        required: CONFIG.FEEDBACK.REQUIRED_COUNT,
+        crossModeUsed: crossModeUsedFor300,
+        crossModeCount: hasMode300
+          ? Math.max(0, CONFIG.FEEDBACK.REQUIRED_COUNT - todayFeedbackCount.mode_300)
+          : 0,
+        hasSubmission: hasMode300,
+      },
+      mode1000: {
+        unlocked: mode1000Unlocked,
+        progress: todayFeedbackCount.mode_1000,
+        required: 1,
+        crossModeUsed: crossModeUsedFor1000,
+        crossModeCount: hasMode1000 ? Math.max(0, 1 - todayFeedbackCount.mode_1000) : 0,
+        hasSubmission: hasMode1000,
+      },
+      total: {
+        unlocked: mode300Unlocked && mode1000Unlocked,
+        progress: todayFeedbackCount.total,
+        required: CONFIG.FEEDBACK.REQUIRED_COUNT,
+      },
+    };
+  }, [todaySubmissionModes, todayFeedbackCount]);
+
+  // 교차 피드백 성공 메시지 생성 함수 (새로 추가)
+  const generateFeedbackSuccessMessage = useCallback((result: any) => {
+    const { crossModeInfo, todayFeedbackCount } = result;
+
+    if (!crossModeInfo) {
+      return '✅ 피드백이 성공적으로 저장되었습니다!';
+    }
+
+    let message = '✅ 피드백이 성공적으로 저장되었습니다!\n\n';
+
+    // 300자 모드 언락 상태
+    if (crossModeInfo.mode300Unlocked) {
+      message += `🎉 300자 모드 언락 완료!\n`;
+      if (crossModeInfo.mode300Progress.crossMode > 0) {
+        message += `💡 교차 피드백으로 언락되었습니다!\n`;
+        message += `   (300자 ${crossModeInfo.mode300Progress.direct}개 + 1000자 ${crossModeInfo.mode300Progress.crossMode}개)\n`;
+      }
+      message += '\n';
+    } else {
+      message += `📊 300자 모드 진행도: ${crossModeInfo.mode300Progress.total}/${crossModeInfo.mode300Progress.required}\n`;
+      if (crossModeInfo.mode300Progress.crossMode > 0) {
+        message += `💡 교차 피드백 활용: 1000자 글에 ${crossModeInfo.mode300Progress.crossMode}개 작성\n`;
+      }
+      message += `언락까지: ${crossModeInfo.mode300Progress.remaining}개 더 필요\n\n`;
+    }
+
+    // 1000자 모드 언락 상태
+    if (crossModeInfo.mode1000Unlocked) {
+      message += `🎉 1000자 모드 언락 완료!\n\n`;
+    } else if (crossModeInfo.mode1000Progress.direct > 0) {
+      message += `📊 1000자 모드 진행도: ${crossModeInfo.mode1000Progress.direct}/${crossModeInfo.mode1000Progress.required}\n`;
+      message += `언락까지: ${crossModeInfo.mode1000Progress.remaining}개 더 필요\n\n`;
+    }
+
+    // 전체 미션 완료 여부
+    if (crossModeInfo.mode300Unlocked && crossModeInfo.mode1000Unlocked) {
+      message += `🏆 모든 피드백 미션 완료!\n`;
+      message += `오늘 작성한 모든 글의 피드백을 볼 수 있습니다!`;
+    } else if (crossModeInfo.mode300Progress.crossMode > 0) {
+      message += `💡 교차 피드백의 장점!\n`;
+      message += `300자 모드의 피드백을 3개 채우지 않아도,\n`;
+      message += `1000자 모드 피드백과 함께 총 3개가 되면 언락됩니다!`;
+    }
+
+    return message;
+  }, []);
 
   // 피드백 열람 권한 상태 확인 함수
   const checkFeedbackUnlockStatus = useCallback(
@@ -1470,20 +1374,26 @@ localStorage: ${JSON.stringify(info.localStorage)}`);
         <FeedbackNotice />
 
         <FeedbackStats
+          feedbackStats={{
+            totalSubmissions: totalSubmissionsCount,
+            unlockedSubmissions: 0, // TODO: 실제 값으로 업데이트
+            feedbackGiven: todayFeedbackCount.total,
+            feedbackReceived: 0, // TODO: 실제 값으로 업데이트
+            unlockRate: 0, // TODO: 실제 값으로 업데이트
+          }}
           todayFeedbackCount={todayFeedbackCount}
           dailyFeedbackCount={todayFeedbackCount.total}
           weeklyGrowth={weeklyGrowth}
+          detailedUnlockStatus={getDetailedUnlockStatus()}
         />
 
         <FeedbackGuidance
-          dailyFeedbackCount={{
-            mode300: todayFeedbackCount.mode_300,
-            mode1000: todayFeedbackCount.mode_1000,
-          }}
+          dailyFeedbackCount={todayFeedbackCount.total}
           todayFeedbackCount={todayFeedbackCount}
           availableModes={todaySubmissionModes}
           isExpanded={isGuideExpanded}
           onToggleExpand={() => setIsGuideExpanded(!isGuideExpanded)}
+          detailedUnlockStatus={getDetailedUnlockStatus()}
         />
 
         <FeedbackFilterSection
