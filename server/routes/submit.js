@@ -10,7 +10,100 @@ const UserToken = require("../models/Token");
 const Feedback = require("../models/Feedback");
 const { authenticateToken } = require("../middleware/auth");
 
-// 모든 submit 라우트에 인증 미들웨어 적용
+// 🏠 랜딩페이지용 공개 엔드포인트 (인증 불필요)
+// 랜딩페이지 최근 글 조회
+router.get("/recent", async (req, res) => {
+  try {
+    const submissions = await Submission.find()
+      .sort({ createdAt: -1 })
+      .limit(50)
+      .select("title text user mode likeCount createdAt topic") // topic 필드 포함
+      .lean();
+
+    res.setHeader("Content-Type", "application/json");
+    res.json({
+      success: true,
+      data: submissions.map((sub) => ({
+        _id: sub._id,
+        title: sub.title,
+        text: sub.text,
+        topic: sub.topic,
+        mode: sub.mode,
+        likeCount: sub.likeCount,
+        createdAt: sub.createdAt,
+        user: {
+          displayName: sub.user.displayName || "익명",
+          email: sub.user.email,
+        },
+      })),
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: "Internal server error",
+    });
+  }
+});
+
+// 최근 AI 피드백 가져오기 (랜딩페이지용)
+router.get("/ai-feedback", async (req, res) => {
+  try {
+    const recentSubmissions = await Submission.aggregate([
+      {
+        $match: {
+          score: { $exists: true, $ne: null },
+          aiFeedback: { $exists: true, $ne: null },
+        },
+      },
+      {
+        $sort: { createdAt: -1 },
+      },
+      {
+        $limit: 10,
+      },
+      {
+        $lookup: {
+          from: "users",
+          localField: "user.uid",
+          foreignField: "uid",
+          as: "userInfo",
+        },
+      },
+      {
+        $unwind: "$userInfo",
+      },
+      {
+        $project: {
+          id: "$_id",
+          title: "$title",
+          originalText: "$text",
+          content: "$aiFeedback",
+          feedback: "$aiFeedback",
+          score: "$score",
+          user: {
+            displayName: "$userInfo.displayName",
+            email: "$userInfo.email",
+          },
+          mode: "$mode",
+          topic: "$topic",
+        },
+      },
+    ]);
+
+    res.json({
+      success: true,
+      data: recentSubmissions,
+    });
+  } catch (error) {
+    console.error("AI 피드백 조회 오류:", error);
+    res.status(500).json({
+      success: false,
+      error: "Internal server error",
+    });
+  }
+});
+
+// 🔐 인증이 필요한 라우트들
 router.use(authenticateToken);
 
 // ✍ 글 제출
@@ -151,98 +244,6 @@ router.get("/popular", async (req, res) => {
   } catch (err) {
     console.error("🔥 인기 글 조회 실패:", err);
     res.status(500).json({ message: "서버 오류" });
-  }
-});
-
-// 랜딩페이지 최근 글 조회
-router.get("/recent", async (req, res) => {
-  try {
-    const submissions = await Submission.find()
-      .sort({ createdAt: -1 })
-      .limit(50)
-      .select("title text user mode likeCount createdAt topic") // topic 필드 포함
-      .lean();
-
-    res.setHeader("Content-Type", "application/json");
-    res.json({
-      success: true,
-      data: submissions.map((sub) => ({
-        _id: sub._id,
-        title: sub.title,
-        text: sub.text,
-        topic: sub.topic,
-        mode: sub.mode,
-        likeCount: sub.likeCount,
-        createdAt: sub.createdAt,
-        user: {
-          displayName: sub.user.displayName || "익명",
-          email: sub.user.email,
-        },
-      })),
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: "Internal server error",
-    });
-  }
-});
-
-// 최근 AI 피드백 가져오기
-router.get("/ai-feedback", async (req, res) => {
-  try {
-    const recentSubmissions = await Submission.aggregate([
-      {
-        $match: {
-          score: { $exists: true, $ne: null },
-          aiFeedback: { $exists: true, $ne: null },
-        },
-      },
-      {
-        $sort: { createdAt: -1 },
-      },
-      {
-        $limit: 10,
-      },
-      {
-        $lookup: {
-          from: "users",
-          localField: "user.uid",
-          foreignField: "uid",
-          as: "userInfo",
-        },
-      },
-      {
-        $unwind: "$userInfo",
-      },
-      {
-        $project: {
-          id: "$_id",
-          title: "$title",
-          originalText: "$text", // text 필드가 실제 원문 내용
-          content: "$text", // text 필드를 content로도 제공
-          feedback: "$aiFeedback",
-          score: "$score",
-          user: {
-            displayName: "$user.displayName",
-          },
-          mode: "$mode",
-          topic: "$topic",
-          createdAt: 1,
-        },
-      },
-    ]);
-
-    res.json({
-      success: true,
-      data: recentSubmissions,
-    });
-  } catch (error) {
-    console.error("AI 피드백 조회 오류:", error);
-    res.status(500).json({
-      success: false,
-      message: "AI 피드백 조회 중 오류가 발생했습니다.",
-    });
   }
 });
 
