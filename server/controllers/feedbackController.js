@@ -11,20 +11,70 @@ const {
 const { getUserTodayDate } = require("../utils/timezoneUtils");
 const { getTodayDateKoreaFinal } = require("../utils/timezoneUtils");
 
+/**
+ * UTC 오프셋을 기반으로 대략적인 위치 정보를 반환
+ * @param {number} offsetHours - UTC 기준 시간 차이 (시간 단위)
+ * @returns {string} 위치 정보
+ */
+const getLocationByOffset = (offsetHours) => {
+  const locationMap = {
+    "-12": "🇺🇸 하와이",
+    "-11": "🇺🇸 알래스카",
+    "-10": "🇺🇸 하와이",
+    "-9": "🇺🇸 알래스카",
+    "-8": "🇺🇸 로스앤젤레스",
+    "-7": "🇺🇸 덴버",
+    "-6": "🇺🇸 시카고",
+    "-5": "🇺🇸 뉴욕",
+    "-4": "🇺🇸 뉴욕 (서머타임)",
+    "-3": "🇧🇷 상파울루",
+    "-2": "🇧🇷 상파울루 (서머타임)",
+    "-1": "🇵🇹 아조레스",
+    0: "🇬🇧 런던",
+    1: "🇬🇧 런던 (서머타임) / 🇫🇷 파리 / 🇩🇪 베를린",
+    2: "🇺🇦 키예프 / 🇹🇷 이스탄불",
+    3: "🇷🇺 모스크바",
+    4: "🇷🇺 모스크바 (서머타임)",
+    5: "🇮🇳 뭄바이",
+    5.5: "🇮🇳 뭄바이",
+    6: "🇰🇿 알마티",
+    7: "🇹🇭 방콕",
+    8: "🇨🇳 베이징 / 🇭🇰 홍콩",
+    9: "🇰🇷 서울 / 🇯🇵 도쿄",
+    10: "🇦🇺 시드니",
+    11: "🇦🇺 시드니 (서머타임)",
+    12: "🇳🇿 오클랜드",
+    13: "🇳🇿 오클랜드 (서머타임)",
+  };
+
+  // 가장 가까운 오프셋 찾기
+  const closestOffset = Object.keys(locationMap).reduce((prev, curr) => {
+    return Math.abs(curr - offsetHours) < Math.abs(prev - offsetHours)
+      ? curr
+      : prev;
+  });
+
+  return locationMap[closestOffset] || `알 수 없는 지역`;
+};
+
 // 피드백 가능 여부 확인 함수
 const canGiveFeedback = async (uid, userTimezone = null, userOffset = null) => {
   try {
+    // 사용자 정보 조회
+    const user = await User.findOne({ uid }).select("email displayName");
+    const userEmail = user ? user.email : "unknown";
+
     // 사용자 시간대 기준으로 오늘 날짜 계산
     let todayString;
     if (userTimezone && userOffset !== null) {
       todayString = getUserTodayDate(userOffset, userTimezone);
       console.log(
-        `🌍 [canGiveFeedback] 사용자 시간대 기준 날짜: ${userTimezone} (offset: ${userOffset}) -> ${todayString}`
+        `🌍 [canGiveFeedback] ${userEmail} - 사용자 시간대 기준 날짜: ${userTimezone} (offset: ${userOffset}) -> ${todayString}`
       );
     } else {
       todayString = getTodayDateKoreaFinal();
       console.log(
-        `🇰🇷 [canGiveFeedback] 한국 시간 기준 날짜 (기본값): ${todayString}`
+        `🇰🇷 [canGiveFeedback] ${userEmail} - 한국 시간 기준 날짜 (기본값): ${todayString}`
       );
     }
 
@@ -35,7 +85,9 @@ const canGiveFeedback = async (uid, userTimezone = null, userOffset = null) => {
     });
 
     if (!todaySubmission) {
-      console.log(`❌ [canGiveFeedback] 오늘 글을 쓰지 않음: ${todayString}`);
+      console.log(
+        `❌ [canGiveFeedback] ${userEmail} - 오늘 글을 쓰지 않음: ${todayString}`
+      );
       return {
         canGive: false,
         reason: "오늘 글을 작성해야 피드백을 남길 수 있습니다.",
@@ -50,7 +102,7 @@ const canGiveFeedback = async (uid, userTimezone = null, userOffset = null) => {
     });
 
     console.log(
-      `📊 [canGiveFeedback] 오늘 피드백 수: ${todayFeedbackCount}개 (${todayString})`
+      `📊 [canGiveFeedback] ${userEmail} - 오늘 피드백 수: ${todayFeedbackCount}개 (${todayString})`
     );
 
     // 3. 피드백 제한 확인 (하루 최대 5개)
@@ -70,7 +122,7 @@ const canGiveFeedback = async (uid, userTimezone = null, userOffset = null) => {
       todayFeedbackCount,
     };
   } catch (error) {
-    console.error("❌ [canGiveFeedback] 오류:", error);
+    console.error(`❌ [canGiveFeedback] ${userEmail} - 오류:`, error);
     throw error;
   }
 };
@@ -85,8 +137,12 @@ const getAvailableSubmissions = async (req, res) => {
     let todayString;
     if (timezone && offset !== undefined) {
       todayString = getUserTodayDate(parseInt(offset), timezone);
+      // 사용자 시간대 기준으로 현재 시간 계산
+      const userNow = new Date(
+        new Date().getTime() - parseInt(offset) * 60 * 1000
+      );
       console.log(
-        `🌍 [getAvailableSubmissions] 사용자 시간대 기준 날짜: ${timezone} (offset: ${offset}) -> ${todayString}`
+        `🌍 [getAvailableSubmissions] 사용자 시간대 기준 날짜: ${timezone} (offset: ${offset}) -> ${todayString} (userTime: ${userNow.toISOString()}, timezone: ${timezone})`
       );
     } else {
       todayString = getTodayDateKoreaFinal();

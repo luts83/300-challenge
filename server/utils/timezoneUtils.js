@@ -42,21 +42,8 @@ const getUserTodayDate = (userOffset = 0) => {
       userOffset = -540; // 한국 시간 기본값
     }
 
-    console.log("🕐 [DEBUG] getUserTodayDate 계산 (수정됨):", {
-      serverTime: now.toISOString(),
-      userOffset,
-      userOffsetHours: userOffset / 60,
-    });
-
     // 사용자 시간대의 현재 시간 계산
     const userTime = new Date(now.getTime() - userOffset * 60 * 1000);
-
-    console.log("🌍 [DEBUG] 사용자 시간대 계산 (수정됨):", {
-      userTime: userTime.toISOString(),
-      userTimeLocal: userTime.toLocaleString("ko-KR", {
-        timeZone: "Asia/Seoul",
-      }),
-    });
 
     // 사용자 시간대 기준으로 오늘 날짜의 시작(00:00:00)을 UTC로 계산
     // getTodayDateKorea와 동일한 방식 사용
@@ -68,15 +55,6 @@ const getUserTodayDate = (userOffset = 0) => {
     const utcDateStart = new Date(
       Date.UTC(userYear, userMonth, userDay, 0, 0, 0, 0)
     );
-
-    console.log("📅 [DEBUG] 최종 날짜 계산 (수정됨):", {
-      userYear,
-      userMonth,
-      userDay,
-      utcDateStart: utcDateStart.toISOString(),
-      result: utcDateStart.toDateString(),
-      expectedDate: "Tue Aug 12 2025",
-    });
 
     return utcDateStart.toISOString().split("T")[0];
   } catch (error) {
@@ -126,21 +104,6 @@ const getTodayDateKorea = () => {
     const utcDateStart = new Date(
       Date.UTC(koreaYear, koreaMonth, koreaDay, 0, 0, 0, 0)
     );
-
-    console.log("🇰🇷 [DEBUG] getTodayDateKorea 계산 (UTC 기준):", {
-      serverTime: now.toISOString(),
-      serverDate: now.toDateString(),
-      utcNow: utcNow,
-      koreaOffset: koreaOffset,
-      koreaTime: koreaTime.toISOString(),
-      koreaDate: koreaTime.toDateString(),
-      koreaYear,
-      koreaMonth,
-      koreaDay,
-      utcDateStart: utcDateStart.toISOString(),
-      result: utcDateStart.toDateString(),
-      expectedDate: "Tue Aug 12 2025",
-    });
 
     return utcDateStart;
   } catch (error) {
@@ -202,17 +165,6 @@ const getTodayDateKoreaSimple = () => {
     // 한국 시간 00:00:00 = UTC 15:00:00 (전날)
     // 따라서 UTC 기준으로는 15시간을 빼야 함
     const utcDateStart = new Date(koreaTime.getTime() - 15 * 60 * 60 * 1000);
-
-    console.log("🇰🇷 [DEBUG] getTodayDateKoreaSimple 계산:", {
-      serverTime: now.toISOString(),
-      serverDate: now.toDateString(),
-      koreaTime: koreaTime.toISOString(),
-      koreaDate: koreaTime.toDateString(),
-      utcDateStart: utcDateStart.toISOString(),
-      result: utcDateStart.toISOString(),
-      expectedDate: "Tue Aug 12 2025",
-      calculation: "koreaTime - 15시간 = UTC 기준 한국 오늘 시작",
-    });
 
     return utcDateStart;
   } catch (error) {
@@ -353,17 +305,6 @@ const getUserTodayDateString = (userOffset = 0) => {
 
     // 사용자 현지 날짜를 서버 로컬 타임존과 무관하게 안정적으로 계산
     const result = userTime.toISOString().slice(0, 10);
-
-    // 디버깅 로그 추가
-    if (process.env.NODE_ENV === "development") {
-      console.log(`[DEBUG] getUserTodayDateString (UTC-safe)`, {
-        serverTime: now.toISOString(),
-        userOffset,
-        userOffsetHours: userOffset / 60,
-        userTimeISO: userTime.toISOString(),
-        result,
-      });
-    }
 
     return result;
   } catch (error) {

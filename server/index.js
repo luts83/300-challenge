@@ -71,9 +71,7 @@ const allowedOrigins = [
   "https://dwriting.com",
   "https://www.dwriting.com",
   "http://localhost:5173",
-  "http://192.168.45.65:5173",
-  "http://192.168.0.172:5173",
-  "http://192.168.0.181:5173",
+  "http://192.168.0.242:5173",
 ];
 
 app.use(

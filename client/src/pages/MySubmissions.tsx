@@ -355,14 +355,6 @@ const MySubmissions = () => {
   const fetchAllStats = async () => {
     if (!user) return;
 
-    // 개발 환경에서만 로깅 (프로덕션에서는 제거)
-    if (import.meta.env.DEV) {
-      console.log('🚀 [DEBUG] fetchAllStats 시작:', {
-        userUid: user.uid,
-        timestamp: new Date().toISOString(),
-      });
-    }
-
     try {
       // 인증 토큰 가져오기
       const token = await user.getIdToken();
@@ -390,32 +382,6 @@ const MySubmissions = () => {
         }),
       ]);
 
-      // 개발 환경에서만 로깅 (프로덕션에서는 제거)
-      if (import.meta.env.DEV) {
-        console.log('📡 [DEBUG] API 응답 데이터:', {
-          stats: {
-            mode300: statsRes.data?.mode_300,
-            mode1000: statsRes.data?.mode_1000,
-          },
-          feedbackStats: {
-            totalSubmissions: feedbackStatsRes.data?.totalSubmissions,
-            unlockedSubmissions: feedbackStatsRes.data?.unlockedSubmissions,
-            feedbackGiven: feedbackStatsRes.data?.feedbackGiven,
-            feedbackReceived: feedbackStatsRes.data?.feedbackReceived,
-          },
-          weeklyGrowth: {
-            submissions: weeklyGrowthRes.data?.submissions,
-            thisWeek: weeklyGrowthRes.data?.thisWeek,
-            lastWeek: weeklyGrowthRes.data?.lastWeek,
-          },
-          dailyFeedback: {
-            mode300: todayFeedbackRes.data?.count?.mode_300 || 0,
-            mode1000: todayFeedbackRes.data?.count?.mode_1000 || 0,
-            total: todayFeedbackRes.data?.count?.total || 0,
-          },
-        });
-      }
-
       // 각 상태 업데이트
       setStats(statsRes.data);
       setFeedbackStats(feedbackStatsRes.data);
@@ -429,30 +395,9 @@ const MySubmissions = () => {
         total: (countData.mode300 || 0) + (countData.mode1000 || 0),
       };
 
-      // 개발 환경에서만 로깅 (프로덕션에서는 제거)
-      if (import.meta.env.DEV) {
-        console.log('🔄 [DEBUG] 상태 업데이트:', {
-          before: {
-            mode300: dailyFeedbackCount.mode300,
-            mode1000: dailyFeedbackCount.mode1000,
-            total: dailyFeedbackCount.total,
-          },
-          after: {
-            mode300: newDailyFeedbackCount.mode300,
-            mode1000: newDailyFeedbackCount.mode1000,
-            total: newDailyFeedbackCount.total,
-          },
-          rawData: {
-            mode300: todayFeedbackRes.data?.count?.mode_300 || 0,
-            mode1000: todayFeedbackRes.data?.count?.mode_1000 || 0,
-            total: todayFeedbackRes.data?.count?.total || 0,
-          },
-        });
-      }
-
       setDailyFeedbackCount(newDailyFeedbackCount);
     } catch (err: any) {
-      console.error('❌ [DEBUG] 통계 데이터 조회 실패:', {
+      console.error('❌ 통계 데이터 조회 실패:', {
         error: err,
         message: err.message,
         response: err.response?.data,

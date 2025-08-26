@@ -97,6 +97,17 @@ router.get("/:uid", async (req, res) => {
       });
     }
 
+    // 디버깅: 유저 로컬타임 출력 (토큰 조회 시)
+    const userLocalTime = new Date();
+    const userLocalTimeAdjusted = new Date(
+      userLocalTime.getTime() - offset * 60 * 1000
+    );
+
+    console.log(`[토큰 조회] ${userRecord.email} 유저 로컬타임:`, {
+      userTime: userLocalTimeAdjusted.toISOString(),
+      timezone: timezone,
+    });
+
     // Token 모델에서 토큰 정보 조회
     const tokenEntry = await Token.findOne({ uid });
 
@@ -335,42 +346,26 @@ router.get("/:uid", async (req, res) => {
 
         finalTokenEntry.tokens_300 = TOKEN.DAILY_LIMIT_300;
         finalTokenEntry.lastRefreshed = now;
+        // 사용자 시간대 기준으로 현재 시간 계산
+        const userNow = new Date(new Date().getTime() - offset * 60 * 1000);
         console.log(
           `[토큰지급] ${
             userRecord.email
-          }: 300자 일일리셋 (유저 로컬타임: ${new Date().toLocaleString(
-            "ko-KR",
-            { timeZone: "Asia/Seoul" }
-          )})`
+          }: 300자 일일리셋 (userTime: ${userNow.toISOString()}, timezone: ${timezone})`
         );
-        console.log(`[토큰지급 상세]`, {
-          lastRefreshedUserDay,
-          todayStr,
-          currentUserDay,
-          hoursSinceLastRefresh: hoursSinceLastRefresh.toFixed(2),
-          reason: "일일 리셋 조건 만족",
-          timestamp: now.toISOString(),
-        });
       } else {
         // 스킵 로그는 토큰이 0개일 때만 출력하고, 중복 방지
         if (finalTokenEntry.tokens_300 === 0) {
           const logKey = `token_skip_${userRecord.uid}_${today}`;
           if (!debugLogCache.has(logKey)) {
+            // 사용자 시간대 기준으로 현재 시간 계산
+            const userNow = new Date(new Date().getTime() - offset * 60 * 1000);
             console.log(
               `[토큰스킵] ${
                 userRecord.email
-              }: 아직 리프레시 시간이 아님 (유저 로컬타임: ${new Date().toLocaleString(
-                "ko-KR",
-                { timeZone: "Asia/Seoul" }
-              )})`
+              }: 아직 리프레시 시간이 아님 (userTime: ${userNow.toISOString()}, timezone: ${timezone})`
             );
-            console.log(`[토큰스킵 상세]`, {
-              lastRefreshedUserDay,
-              todayStr,
-              currentUserDay,
-              reason: "일일 리셋 조건 불만족",
-              timestamp: now.toISOString(),
-            });
+
             debugLogCache.add(logKey);
 
             // 캐시 크기 제한 (메모리 누수 방지)
@@ -399,13 +394,12 @@ router.get("/:uid", async (req, res) => {
       if (lastRefreshedUserDay < todayStr) {
         finalTokenEntry.tokens_300 = TOKEN.DAILY_LIMIT_300;
         finalTokenEntry.lastRefreshed = now;
+        // 사용자 시간대 기준으로 현재 시간 계산
+        const userNow = new Date(new Date().getTime() - offset * 60 * 1000);
         console.log(
           `[토큰지급] ${
             userRecord.email
-          }: 300자 신규유저 일일리셋 (유저 로컬타임: ${new Date().toLocaleString(
-            "ko-KR",
-            { timeZone: "Asia/Seoul" }
-          )})`
+          }: 300자 신규유저 일일리셋 (userTime: ${userNow.toISOString()}, timezone: ${timezone})`
         );
       }
     } else {
@@ -417,13 +411,12 @@ router.get("/:uid", async (req, res) => {
         finalTokenEntry.tokens_300 = TOKEN.WEEKLY_LIMIT_300;
         finalTokenEntry.tokens_1000 = TOKEN.WEEKLY_LIMIT_1000;
         finalTokenEntry.lastWeeklyRefreshed = monday;
+        // 사용자 시간대 기준으로 현재 시간 계산
+        const userNow = new Date(new Date().getTime() - offset * 60 * 1000);
         console.log(
           `[토큰지급] ${
             userRecord.email
-          }: 300자+1000자 주간리셋 (유저 로컬타임: ${new Date().toLocaleString(
-            "ko-KR",
-            { timeZone: "Asia/Seoul" }
-          )})`
+          }: 300자+1000자 주간리셋 (userTime: ${userNow.toISOString()}, timezone: ${timezone})`
         );
       }
     }
@@ -435,13 +428,12 @@ router.get("/:uid", async (req, res) => {
       if (finalTokenEntry.lastWeeklyRefreshed < monday) {
         finalTokenEntry.tokens_1000 = TOKEN.WEEKLY_LIMIT_1000;
         finalTokenEntry.lastWeeklyRefreshed = monday;
+        // 사용자 시간대 기준으로 현재 시간 계산
+        const userNow = new Date(new Date().getTime() - offset * 60 * 1000);
         console.log(
           `[토큰지급] ${
             userRecord.email
-          }: 1000자 주간리셋 (유저 로컬타임: ${new Date().toLocaleString(
-            "ko-KR",
-            { timeZone: "Asia/Seoul" }
-          )})`
+          }: 1000자 주간리셋 (userTime: ${userNow.toISOString()}, timezone: ${timezone})`
         );
       }
     } else if (daysSinceJoin < 7) {
@@ -450,13 +442,12 @@ router.get("/:uid", async (req, res) => {
       if (finalTokenEntry.lastWeeklyRefreshed < monday) {
         finalTokenEntry.tokens_1000 = TOKEN.WEEKLY_LIMIT_1000;
         finalTokenEntry.lastWeeklyRefreshed = monday;
+        // 사용자 시간대 기준으로 현재 시간 계산
+        const userNow = new Date(new Date().getTime() - offset * 60 * 1000);
         console.log(
           `[토큰지급] ${
             userRecord.email
-          }: 1000자 신규유저 주간리셋 (유저 로컬타임: ${new Date().toLocaleString(
-            "ko-KR",
-            { timeZone: "Asia/Seoul" }
-          )})`
+          }: 1000자 신규유저 주간리셋 (userTime: ${userNow.toISOString()}, timezone: ${timezone})`
         );
       }
     }

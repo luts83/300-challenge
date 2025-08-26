@@ -478,7 +478,7 @@ router.get("/today/:uid", async (req, res) => {
       const today = getTodayDateKoreaFinal();
       todayString = today.toISOString().slice(0, 10);
       console.log(
-        `🇰🇷 [피드백 현황] 한국 시간 기준 날짜 (기본값): ${todayString}`
+        `🇰🇷 [피드백 현황] ${user.email} - 한국 시간 기준 날짜 (기본값): ${todayString}`
       );
     }
 
@@ -543,7 +543,7 @@ router.get("/system/today", async (req, res) => {
       const today = getTodayDateKoreaFinal();
       todayString = today.toISOString().slice(0, 10);
       console.log(
-        `🇰🇷 [시스템 피드백 현황] 한국 시간 기준 날짜 (기본값): ${todayString}`
+        `🇰🇷 [시스템 피드백 현황] 시스템 전체 - 한국 시간 기준 날짜 (기본값): ${todayString}`
       );
     }
 
@@ -1082,7 +1082,7 @@ router.get("/debug/timezone", async (req, res) => {
       },
     };
 
-    console.log("🧪 [DEBUG] 시간대 테스트 결과:", testResults);
+    console.log("🧪 시간대 테스트 결과:", testResults);
     res.json(testResults);
   } catch (error) {
     console.error("❌ 시간대 테스트 에러:", error);

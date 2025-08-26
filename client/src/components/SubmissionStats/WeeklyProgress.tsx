@@ -119,6 +119,31 @@ export const WeeklyProgress: React.FC<WeeklyProgressProps> = ({ className = '' }
   // 글 작성 완료 이벤트 구독
   useEffect(() => {
     const handleSubmissionComplete = () => {
+      // 🔍 새로고침 시 유저 로컬시간 디버깅
+      if (user) {
+        const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        const userOffset = new Date().getTimezoneOffset();
+        console.log('🔄 [WeeklyProgress] 글 작성 완료 - 유저 로컬시간 정보:', {
+          email: user.email,
+          timezone: userTimezone,
+          offset: userOffset,
+          offsetHours: userOffset / 60,
+          userLocalTime: new Date().toLocaleString(),
+          userLocalTimeISO: new Date().toISOString(),
+          description:
+            userOffset === 0
+              ? 'UTC/GMT'
+              : userOffset === -540
+                ? '🇰🇷 한국 시간 (UTC+9)'
+                : userOffset === -60
+                  ? '🇬🇧 영국 섬머타임 (UTC+1)'
+                  : userOffset === 300
+                    ? '🇺🇸 미국 동부 (UTC-5)'
+                    : `UTC${userOffset > 0 ? '-' : '+'}${Math.abs(userOffset / 60)}`,
+          timestamp: new Date().toISOString(),
+        });
+      }
+
       fetchStreak();
       refetchTokens(); // 토큰 정보도 함께 업데이트
     };
@@ -130,6 +155,31 @@ export const WeeklyProgress: React.FC<WeeklyProgressProps> = ({ className = '' }
   // 페이지 포커스될 때마다 데이터 새로고침
   useEffect(() => {
     const handleFocus = () => {
+      // 🔍 새로고침 시 유저 로컬시간 디버깅
+      if (user) {
+        const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        const userOffset = new Date().getTimezoneOffset();
+        console.log('🔄 [WeeklyProgress] 페이지 포커스 - 유저 로컬시간 정보:', {
+          email: user.email,
+          timezone: userTimezone,
+          offset: userOffset,
+          offsetHours: userOffset / 60,
+          userLocalTime: new Date().toLocaleString(),
+          userLocalTimeISO: new Date().toISOString(),
+          description:
+            userOffset === 0
+              ? 'UTC/GMT'
+              : userOffset === -540
+                ? '🇰🇷 한국 시간 (UTC+9)'
+                : userOffset === -60
+                  ? '🇬🇧 영국 섬머타임 (UTC+1)'
+                  : userOffset === 300
+                    ? '🇺🇸 미국 동부 (UTC-5)'
+                    : `UTC${userOffset > 0 ? '-' : '+'}${Math.abs(userOffset / 60)}`,
+          timestamp: new Date().toISOString(),
+        });
+      }
+
       fetchStreak();
       refetchTokens(); // 토큰 정보도 함께 업데이트
     };

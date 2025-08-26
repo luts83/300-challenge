@@ -18,6 +18,52 @@ const {
 } = require("../prompts/personalizedEvaluationPrompts");
 const { calculateWeightedScore } = require("../utils/responseFormatter");
 
+/**
+ * UTC 오프셋을 기반으로 대략적인 위치 정보를 반환
+ * @param {number} offsetHours - UTC 기준 시간 차이 (시간 단위)
+ * @returns {string} 위치 정보
+ */
+const getLocationByOffset = (offsetHours) => {
+  const locationMap = {
+    "-12": "🇺🇸 하와이",
+    "-11": "🇺🇸 알래스카",
+    "-10": "🇺🇸 하와이",
+    "-9": "🇺🇸 알래스카",
+    "-8": "🇺🇸 로스앤젤레스",
+    "-7": "🇺🇸 덴버",
+    "-6": "🇺🇸 시카고",
+    "-5": "🇺🇸 뉴욕",
+    "-4": "🇺🇸 뉴욕 (서머타임)",
+    "-3": "🇧🇷 상파울루",
+    "-2": "🇧🇷 상파울루 (서머타임)",
+    "-1": "🇵🇹 아조레스",
+    0: "🇬🇧 런던",
+    1: "🇬🇧 런던 (서머타임) / 🇫🇷 파리 / 🇩🇪 베를린",
+    2: "🇺🇦 키예프 / 🇹🇷 이스탄불",
+    3: "🇷🇺 모스크바",
+    4: "🇷🇺 모스크바 (서머타임)",
+    5: "🇮🇳 뭄바이",
+    5.5: "🇮🇳 뭄바이",
+    6: "🇰🇿 알마티",
+    7: "🇹🇭 방콕",
+    8: "🇨🇳 베이징 / 🇭🇰 홍콩",
+    9: "🇰🇷 서울 / 🇯🇵 도쿄",
+    10: "🇦🇺 시드니",
+    11: "🇦🇺 시드니 (서머타임)",
+    12: "🇳🇿 오클랜드",
+    13: "🇳🇿 오클랜드 (서머타임)",
+  };
+
+  // 가장 가까운 오프셋 찾기
+  const closestOffset = Object.keys(locationMap).reduce((prev, curr) => {
+    return Math.abs(curr - offsetHours) < Math.abs(prev - offsetHours)
+      ? curr
+      : prev;
+  });
+
+  return locationMap[closestOffset] || `알 수 없는 지역`;
+};
+
 // 1. 먼저 함수 정의를 파일 상단에 추가
 const checkFirstSubmissionOfDay = async (uid) => {
   const todayStart = new Date();
@@ -732,7 +778,10 @@ async function handleSubmit(req, res) {
       if (timezone && offset !== undefined) {
         // 사용자 시간대 정보가 있으면 사용자 기준으로 계산
         const todayDate = getUserTodayDate(parseInt(offset));
-        today = todayDate.toISOString().split("T")[0];
+        today =
+          typeof todayDate === "string"
+            ? todayDate
+            : todayDate.toISOString().split("T")[0];
         console.log(
           `🌍 사용자 시간대 기준 날짜 계산: ${timezone} (offset: ${offset}) -> ${today}`
         );
@@ -1077,14 +1126,17 @@ async function handleSubmit(req, res) {
           }
         );
 
+        // 사용자 시간대 기준으로 현재 시간 계산
+        const userNow = new Date(
+          currentTime.getTime() - safeUserOffset * 60 * 1000
+        );
         // 황금열쇠 지급 성공 로그
         console.log(
           `[황금열쇠 지급] ${
             user.email
-          }: 1000자 글 작성 보상 (+1) (유저 로컬타임: ${new Date().toLocaleString(
-            "ko-KR",
-            { timeZone: "Asia/Seoul" }
-          )})`
+          }: 1000자 글 작성 보상 (+1) (userTime: ${userNow.toISOString()}, timezone: ${
+            timezone || "Asia/Seoul"
+          })`
         );
       } catch (error) {
         console.error("[황금열쇠 지급 실패]", {
@@ -1158,14 +1210,17 @@ async function handleSubmit(req, res) {
               }
             );
 
+            // 사용자 시간대 기준으로 현재 시간 계산
+            const userNow = new Date(
+              currentTime.getTime() - safeUserOffset * 60 * 1000
+            );
             // 황금열쇠 지급 성공 로그
             console.log(
               `[황금열쇠 지급] ${
                 user.email
-              }: 주간 스트릭 완료 보상 (+1) (유저 로컬타임: ${new Date().toLocaleString(
-                "ko-KR",
-                { timeZone: "Asia/Seoul" }
-              )})`
+              }: 주간 스트릭 완료 보상 (+1) (userTime: ${userNow.toISOString()}, timezone: ${
+                timezone || "Asia/Seoul"
+              })`
             );
 
             // 스트릭 완료 기록
@@ -1273,11 +1328,11 @@ const handleStreakCompletion = async (user, streak, userToken) => {
     userToken.goldenKeys += TOKEN.GOLDEN_KEY;
     await userToken.save({ session });
 
-    // 황금열쇠 지급 성공 로그
+    // 황금열쇠 지급 성공 로그 (서버 시간 기준)
     console.log(
       `[황금열쇠 지급] ${
         user.email
-      }: 스트릭 완료 보상 (+1) (유저 로컬타임: ${new Date().toLocaleString(
+      }: 스트릭 완료 보상 (+1) (서버 시간: ${new Date().toLocaleString(
         "ko-KR",
         { timeZone: "Asia/Seoul" }
       )})`
