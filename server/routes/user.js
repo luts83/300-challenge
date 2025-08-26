@@ -4,6 +4,12 @@ const express = require("express");
 const router = express.Router();
 const User = require("../models/User");
 const { authenticateToken } = require("../middleware/auth");
+const {
+  validateNickname,
+  checkDuplicateNickname,
+  findUsersWithInappropriateNicknames,
+  migrateInappropriateNicknames,
+} = require("../utils/nicknameValidator");
 
 // 모든 user 라우트에 인증 미들웨어 적용
 router.use(authenticateToken);
@@ -43,6 +49,31 @@ router.patch("/profile", async (req, res) => {
   });
 
   try {
+    // 닉네임 변경이 있는 경우 검증
+    if (displayName !== undefined) {
+      const validation = validateNickname(displayName);
+      if (!validation.isValid) {
+        return res.status(400).json({
+          message: "닉네임이 유효하지 않습니다.",
+          errors: validation.errors,
+        });
+      }
+
+      // 중복 닉네임 체크
+      const isDuplicate = await checkDuplicateNickname(
+        validation.trimmedNickname,
+        uid
+      );
+      if (isDuplicate) {
+        return res.status(400).json({
+          message: "이미 사용 중인 닉네임입니다.",
+        });
+      }
+
+      // 검증된 닉네임으로 업데이트
+      displayName = validation.trimmedNickname;
+    }
+
     const updateData = {};
     if (displayName !== undefined) {
       updateData.displayName = displayName;
@@ -106,6 +137,49 @@ router.patch("/profile", async (req, res) => {
   } catch (error) {
     console.error("프로필 업데이트 오류:", error);
     res.status(500).json({ message: "프로필 업데이트에 실패했습니다." });
+  }
+});
+
+// 중복 닉네임 체크 (GET /check-nickname?nickname=xxx)
+router.get("/check-nickname", async (req, res) => {
+  const { nickname } = req.query;
+  if (!nickname)
+    return res.status(400).json({ message: "nickname이 필요합니다." });
+
+  try {
+    const isDuplicate = await checkDuplicateNickname(nickname);
+    res.json({ isDuplicate });
+  } catch (error) {
+    console.error("중복 닉네임 체크 오류:", error);
+    res.status(500).json({ message: "중복 닉네임 체크에 실패했습니다." });
+  }
+});
+
+// 부적절한 닉네임 사용자 조회 (관리자용)
+router.get("/inappropriate-nicknames", async (req, res) => {
+  try {
+    const users = await findUsersWithInappropriateNicknames();
+    res.json({
+      count: users.length,
+      users: users,
+    });
+  } catch (error) {
+    console.error("부적절한 닉네임 사용자 조회 오류:", error);
+    res.status(500).json({ message: "사용자 조회에 실패했습니다." });
+  }
+});
+
+// 닉네임 마이그레이션 실행 (관리자용)
+router.post("/migrate-nicknames", async (req, res) => {
+  try {
+    const result = await migrateInappropriateNicknames();
+    res.json({
+      message: "닉네임 마이그레이션이 완료되었습니다.",
+      result: result,
+    });
+  } catch (error) {
+    console.error("닉네임 마이그레이션 오류:", error);
+    res.status(500).json({ message: "닉네임 마이그레이션에 실패했습니다." });
   }
 });
 

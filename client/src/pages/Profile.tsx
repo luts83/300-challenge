@@ -15,7 +15,7 @@ interface UserProfile {
 }
 
 const Profile: React.FC = () => {
-  const { user, refreshUser } = useUser();
+  const { user, refreshUser, getIdToken } = useUser();
   const { isDarkMode, toggleTheme } = useTheme();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -26,6 +26,9 @@ const Profile: React.FC = () => {
   });
   const [passwordResetLoading, setPasswordResetLoading] = useState(false);
   const [isGoogleUser, setIsGoogleUser] = useState(false);
+  const [nicknameErrors, setNicknameErrors] = useState<string[]>([]);
+  const [isCheckingNickname, setIsCheckingNickname] = useState(false);
+  const [isDuplicateNickname, setIsDuplicateNickname] = useState(false);
 
   // 프로필 정보 로드
   useEffect(() => {
@@ -34,8 +37,10 @@ const Profile: React.FC = () => {
     const fetchProfile = async () => {
       try {
         setLoading(true);
+        const token = await getIdToken();
         const response = await axios.get(
-          `${import.meta.env.VITE_API_URL}/api/user/profile?uid=${user.uid}`
+          `${import.meta.env.VITE_API_URL}/api/user/profile?uid=${user.uid}`,
+          { headers: { Authorization: `Bearer ${token}` } }
         );
         const profileData = response.data;
         setProfile(profileData);
@@ -72,26 +77,128 @@ const Profile: React.FC = () => {
     checkGoogleUser();
   }, [user]);
 
+  // 닉네임 유효성 검사
+  const validateNickname = (nickname: string): string[] => {
+    const errors: string[] = [];
+
+    if (!nickname || nickname.trim().length === 0) {
+      errors.push('닉네임을 입력해주세요.');
+      return errors;
+    }
+
+    const trimmedNickname = nickname.trim();
+
+    if (trimmedNickname.length < 2) {
+      errors.push('닉네임은 2글자 이상이어야 합니다.');
+    }
+
+    if (trimmedNickname.length > 20) {
+      errors.push('닉네임은 20글자 이하여야 합니다.');
+    }
+
+    // 부적절한 닉네임 패턴 체크
+    const inappropriatePatterns = [
+      /^익명$/,
+      /^anonymous$/i,
+      /^anon$/i,
+      /^unknown$/i,
+      /^guest$/i,
+      /^user$/i,
+      /^사용자$/,
+      /^닉네임$/,
+      /^nickname$/i,
+      /^\d+$/,
+      /^[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]+$/,
+      /^\s+$/,
+      /^admin$/i,
+      /^administrator$/i,
+      /^관리자$/,
+      /^운영자$/,
+    ];
+
+    for (const pattern of inappropriatePatterns) {
+      if (pattern.test(trimmedNickname)) {
+        errors.push('부적절한 닉네임입니다. 다른 닉네임을 사용해주세요.');
+        break;
+      }
+    }
+
+    return errors;
+  };
+
+  // 중복 닉네임 체크
+  const checkDuplicateNickname = async (nickname: string) => {
+    if (!nickname || nickname.trim().length === 0) return;
+
+    try {
+      setIsCheckingNickname(true);
+      const token = await getIdToken();
+
+      const response = await axios.get(
+        `${import.meta.env.VITE_API_URL}/api/user/check-nickname?nickname=${encodeURIComponent(nickname)}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      setIsDuplicateNickname(response.data.isDuplicate);
+
+      if (response.data.isDuplicate) {
+        setNicknameErrors(prev => [
+          ...prev.filter(e => !e.includes('중복')),
+          '이미 사용 중인 닉네임입니다.',
+        ]);
+      }
+    } catch (error) {
+      console.error('중복 닉네임 체크 실패:', error);
+    } finally {
+      setIsCheckingNickname(false);
+    }
+  };
+
   // 폼 데이터 변경 핸들러
   const handleInputChange = (field: string, value: string | boolean) => {
     setFormData(prev => ({
       ...prev,
       [field]: value,
     }));
+
+    // 닉네임 변경 시 실시간 검증
+    if (field === 'displayName') {
+      const errors = validateNickname(value as string);
+      setNicknameErrors(errors);
+
+      // 에러가 없고 닉네임이 변경된 경우에만 중복 체크
+      if (errors.length === 0 && value !== profile?.displayName) {
+        checkDuplicateNickname(value as string);
+      } else {
+        setIsDuplicateNickname(false);
+      }
+    }
   };
 
   // 프로필 업데이트
   const handleSave = async () => {
     if (!user) return;
 
+    // 닉네임 유효성 검사
+    if (formData.displayName !== profile?.displayName) {
+      const errors = validateNickname(formData.displayName);
+      if (errors.length > 0) {
+        setNicknameErrors(errors);
+        toast.error('닉네임이 유효하지 않습니다.');
+        return;
+      }
+    }
+
     try {
       setSaving(true);
 
       // 1. 서버 데이터베이스 업데이트
-      const response = await axios.patch(`${import.meta.env.VITE_API_URL}/api/user/profile`, {
-        uid: user.uid,
-        ...formData,
-      });
+      const token = await getIdToken();
+      const response = await axios.patch(
+        `${import.meta.env.VITE_API_URL}/api/user/profile`,
+        { uid: user.uid, ...formData },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
 
       // 2. Firebase Auth의 displayName도 업데이트
       if (formData.displayName !== user.displayName) {
@@ -125,9 +232,20 @@ const Profile: React.FC = () => {
       setTimeout(() => {
         window.location.reload();
       }, 1000);
-    } catch (error) {
+    } catch (error: any) {
       console.error('프로필 업데이트 실패:', error);
-      toast.error('프로필 업데이트에 실패했습니다.');
+
+      // 서버에서 반환한 에러 메시지 처리
+      if (error.response?.data?.message) {
+        if (error.response.data.errors) {
+          setNicknameErrors(error.response.data.errors);
+          toast.error('닉네임이 유효하지 않습니다.');
+        } else {
+          toast.error(error.response.data.message);
+        }
+      } else {
+        toast.error('프로필 업데이트에 실패했습니다.');
+      }
     } finally {
       setSaving(false);
     }
@@ -229,8 +347,46 @@ const Profile: React.FC = () => {
                     value={formData.displayName}
                     onChange={e => handleInputChange('displayName', e.target.value)}
                     placeholder="닉네임을 입력하세요"
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className={`w-full px-3 py-2 border rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                      nicknameErrors.length > 0
+                        ? 'border-red-500 focus:ring-red-500'
+                        : 'border-gray-300 dark:border-gray-600'
+                    }`}
                   />
+                  {/* 닉네임 에러 메시지 */}
+                  {nicknameErrors.length > 0 && (
+                    <div className="mt-2 space-y-1">
+                      {nicknameErrors.map((error, index) => (
+                        <p
+                          key={index}
+                          className="text-sm text-red-600 dark:text-red-400 flex items-center"
+                        >
+                          <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                            <path
+                              fillRule="evenodd"
+                              d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
+                              clipRule="evenodd"
+                            />
+                          </svg>
+                          {error}
+                        </p>
+                      ))}
+                    </div>
+                  )}
+                  {/* 닉네임 가이드라인 */}
+                  <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                    <p>• 2-20자 사이로 입력해주세요</p>
+                    <p>• 익명, anonymous, user 등은 사용할 수 없습니다</p>
+                    <p>• 중복된 닉네임은 사용할 수 없습니다</p>
+                    {isCheckingNickname && <p className="text-blue-500">• 중복 확인 중...</p>}
+                    {!isCheckingNickname &&
+                      formData.displayName !== profile?.displayName &&
+                      formData.displayName.trim().length > 0 &&
+                      nicknameErrors.length === 0 &&
+                      !isDuplicateNickname && (
+                        <p className="text-green-500">• 사용 가능한 닉네임입니다</p>
+                      )}
+                  </div>
                 </div>
 
                 <div>
@@ -337,7 +493,12 @@ const Profile: React.FC = () => {
             <div className="flex justify-end">
               <button
                 onClick={handleSave}
-                disabled={saving}
+                disabled={
+                  saving ||
+                  nicknameErrors.length > 0 ||
+                  formData.displayName.trim().length === 0 ||
+                  isDuplicateNickname
+                }
                 className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {saving ? '저장 중...' : '저장'}
