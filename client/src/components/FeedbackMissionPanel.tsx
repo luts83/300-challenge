@@ -33,6 +33,10 @@ const FeedbackMissionPanel: React.FC<FeedbackMissionPanelProps> = ({
           `${import.meta.env.VITE_API_URL}/api/feedback/today/${user.uid}`,
           {
             headers: { Authorization: `Bearer ${token}` },
+            params: {
+              timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+              offset: new Date().getTimezoneOffset(),
+            },
           }
         );
         setTodayFeedbackCount(res.data.count);

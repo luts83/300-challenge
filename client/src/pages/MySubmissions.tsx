@@ -379,6 +379,10 @@ const MySubmissions = () => {
         }),
         axios.get(`${import.meta.env.VITE_API_URL}/api/feedback/today/${user.uid}`, {
           headers: authHeaders,
+          params: {
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            offset: new Date().getTimezoneOffset(),
+          },
         }),
       ]);
 

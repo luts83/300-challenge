@@ -32,12 +32,13 @@ function logNonWhitelistedUserActivity(activity, userInfo) {
       }
     }
   } else {
-    console.log(`🚨 [비화이트리스트 유저 활동 감지] ${timestamp}`);
+    const localTime = new Date();
+    console.log(`🚨 [비화이트리스트 유저 활동 감지] ${localTime}`);
     console.log(`📧 이메일: ${userInfo.email}`);
     console.log(`👤 사용자명: ${userInfo.displayName || "N/A"}`);
     console.log(`🆔 UID: ${userInfo.uid}`);
     console.log(`🎯 활동: ${activity}`);
-    console.log(`⏰ 시간: ${timestamp}`);
+    console.log(`⏰ 시간: ${localTime}`);
     console.log("─".repeat(80));
   }
 }

@@ -67,7 +67,7 @@ const canGiveFeedback = async (uid, userTimezone = null, userOffset = null) => {
     // 사용자 시간대 기준으로 오늘 날짜 계산
     let todayString;
     if (userTimezone && userOffset !== null) {
-      todayString = getUserTodayDate(userOffset, userTimezone);
+      todayString = getUserTodayDate(userOffset, userTimezone); // ✅ getUserTodayDate는 이미 String 반환
       console.log(
         `🌍 [canGiveFeedback] ${userEmail} - 사용자 시간대 기준 날짜: ${userTimezone} (offset: ${userOffset}) -> ${todayString}`
       );
@@ -136,7 +136,7 @@ const getAvailableSubmissions = async (req, res) => {
     // 사용자 시간대 기준으로 오늘 날짜 계산
     let todayString;
     if (timezone && offset !== undefined) {
-      todayString = getUserTodayDate(parseInt(offset), timezone);
+      todayString = getUserTodayDate(parseInt(offset), timezone); // ✅ getUserTodayDate는 이미 String 반환
       // 사용자 시간대 기준으로 현재 시간 계산
       const userNow = new Date(
         new Date().getTime() - parseInt(offset) * 60 * 1000
@@ -491,7 +491,7 @@ const assignFeedbackMissions = async (req, res) => {
     // 사용자 시간대 기준으로 오늘 날짜 계산
     let todayString;
     if (offset !== undefined && timezone) {
-      todayString = getUserTodayDate(offset, timezone);
+      todayString = getUserTodayDate(offset, timezone); // ✅ getUserTodayDate는 이미 String 반환
       console.log(
         `🌍 [assignFeedbackMissions] 사용자 시간대 기준 날짜: ${timezone} (offset: ${offset}) -> ${todayString}`
       );

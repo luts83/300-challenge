@@ -778,10 +778,7 @@ async function handleSubmit(req, res) {
       if (timezone && offset !== undefined) {
         // 사용자 시간대 정보가 있으면 사용자 기준으로 계산
         const todayDate = getUserTodayDate(parseInt(offset));
-        today =
-          typeof todayDate === "string"
-            ? todayDate
-            : todayDate.toISOString().split("T")[0];
+        today = todayDate; // ✅ getUserTodayDate는 이미 String 반환
         console.log(
           `🌍 사용자 시간대 기준 날짜 계산: ${timezone} (offset: ${offset}) -> ${today}`
         );

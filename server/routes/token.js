@@ -13,6 +13,48 @@ const {
 // 디버그 로그 캐시 (유저별로 한 번만 출력)
 const debugLogCache = new Set();
 
+// 로그 중복 방지 함수 (10분 내 동일 작업은 한 번만 로깅)
+function shouldLog(uid, action, minutes = 10) {
+  const key = `${uid}_${action}_${new Date().toISOString().slice(0, 10)}`;
+  const now = Date.now();
+
+  if (!debugLogCache.has(key)) {
+    debugLogCache.add(key);
+    return true;
+  }
+
+  // 캐시에서 마지막 로깅 시간 확인 (Set이므로 Map으로 변경 필요)
+  // 간단한 구현을 위해 Set을 Map으로 변경
+  return false;
+}
+
+// 로그 중복 방지 함수 (Map 기반, 10분 내 동일 작업은 한 번만 로깅)
+const logCache = new Map();
+function shouldLogWithTime(uid, action, minutes = 10) {
+  const key = `${uid}_${action}_${new Date().toISOString().slice(0, 10)}`;
+  const now = Date.now();
+
+  if (!logCache.has(key)) {
+    logCache.set(key, now);
+    return true;
+  }
+
+  const lastLogTime = logCache.get(key);
+  if (now - lastLogTime > minutes * 60 * 1000) {
+    logCache.set(key, now);
+    return true;
+  }
+
+  return false;
+}
+
+// 캐시 크기 제한 (메모리 누수 방지)
+function cleanupLogCache() {
+  if (logCache.size > 1000) {
+    logCache.clear();
+  }
+}
+
 /**
  * UTC 오프셋을 기반으로 대략적인 위치 정보를 반환
  * @param {number} offsetHours - UTC 기준 시간 차이 (시간 단위)
@@ -97,16 +139,18 @@ router.get("/:uid", async (req, res) => {
       });
     }
 
-    // 디버깅: 유저 로컬타임 출력 (토큰 조회 시)
-    const userLocalTime = new Date();
-    const userLocalTimeAdjusted = new Date(
-      userLocalTime.getTime() - offset * 60 * 1000
-    );
+    // 디버깅: 유저 로컬타임 출력 (토큰 조회 시) - 10분 내 중복 방지
+    if (shouldLogWithTime(uid, "token_query", 10)) {
+      const userLocalTime = new Date();
+      const userLocalTimeAdjusted = new Date(
+        userLocalTime.getTime() - offset * 60 * 1000
+      );
 
-    console.log(`[토큰 조회] ${userRecord.email} 유저 로컬타임:`, {
-      userTime: userLocalTimeAdjusted.toISOString(),
-      timezone: timezone,
-    });
+      console.log(`[토큰 조회] ${userRecord.email} 유저 로컬타임:`, {
+        userTime: userLocalTimeAdjusted.toISOString(),
+        timezone: timezone,
+      });
+    }
 
     // Token 모델에서 토큰 정보 조회
     const tokenEntry = await Token.findOne({ uid });
@@ -174,6 +218,9 @@ router.get("/:uid", async (req, res) => {
     if (debugLogCache.size > 1000) {
       debugLogCache.clear();
     }
+
+    // 로그 캐시 정리
+    cleanupLogCache();
 
     let finalTokenEntry = tokenEntry;
     if (!finalTokenEntry) {
@@ -348,11 +395,13 @@ router.get("/:uid", async (req, res) => {
         finalTokenEntry.lastRefreshed = now;
         // 사용자 시간대 기준으로 현재 시간 계산
         const userNow = new Date(new Date().getTime() - offset * 60 * 1000);
-        console.log(
-          `[토큰지급] ${
-            userRecord.email
-          }: 300자 일일리셋 (userTime: ${userNow.toISOString()}, timezone: ${timezone})`
-        );
+        if (shouldLogWithTime(uid, "token_grant_300", 10)) {
+          console.log(
+            `[토큰지급] ${
+              userRecord.email
+            }: 300자 일일리셋 (userTime: ${userNow.toISOString()}, timezone: ${timezone})`
+          );
+        }
       } else {
         // 스킵 로그는 토큰이 0개일 때만 출력하고, 중복 방지
         if (finalTokenEntry.tokens_300 === 0) {
@@ -396,11 +445,13 @@ router.get("/:uid", async (req, res) => {
         finalTokenEntry.lastRefreshed = now;
         // 사용자 시간대 기준으로 현재 시간 계산
         const userNow = new Date(new Date().getTime() - offset * 60 * 1000);
-        console.log(
-          `[토큰지급] ${
-            userRecord.email
-          }: 300자 신규유저 일일리셋 (userTime: ${userNow.toISOString()}, timezone: ${timezone})`
-        );
+        if (shouldLogWithTime(uid, "token_grant_300_new", 10)) {
+          console.log(
+            `[토큰지급] ${
+              userRecord.email
+            }: 300자 신규유저 일일리셋 (userTime: ${userNow.toISOString()}, timezone: ${timezone})`
+          );
+        }
       }
     } else {
       // 비참여자, 가입 7일 이후: 주간 지급
@@ -413,11 +464,13 @@ router.get("/:uid", async (req, res) => {
         finalTokenEntry.lastWeeklyRefreshed = monday;
         // 사용자 시간대 기준으로 현재 시간 계산
         const userNow = new Date(new Date().getTime() - offset * 60 * 1000);
-        console.log(
-          `[토큰지급] ${
-            userRecord.email
-          }: 300자+1000자 주간리셋 (userTime: ${userNow.toISOString()}, timezone: ${timezone})`
-        );
+        if (shouldLogWithTime(uid, "token_grant_weekly", 10)) {
+          console.log(
+            `[토큰지급] ${
+              userRecord.email
+            }: 300자+1000자 주간리셋 (userTime: ${userNow.toISOString()}, timezone: ${timezone})`
+          );
+        }
       }
     }
 
@@ -430,11 +483,13 @@ router.get("/:uid", async (req, res) => {
         finalTokenEntry.lastWeeklyRefreshed = monday;
         // 사용자 시간대 기준으로 현재 시간 계산
         const userNow = new Date(new Date().getTime() - offset * 60 * 1000);
-        console.log(
-          `[토큰지급] ${
-            userRecord.email
-          }: 1000자 주간리셋 (userTime: ${userNow.toISOString()}, timezone: ${timezone})`
-        );
+        if (shouldLogWithTime(uid, "token_grant_1000", 10)) {
+          console.log(
+            `[토큰지급] ${
+              userRecord.email
+            }: 1000자 주간리셋 (userTime: ${userNow.toISOString()}, timezone: ${timezone})`
+          );
+        }
       }
     } else if (daysSinceJoin < 7) {
       // 비참여자, 가입 후 7일 이내: 주간 지급 (사용자 시간대 기준으로 이미 계산된 monday 사용)
@@ -444,11 +499,13 @@ router.get("/:uid", async (req, res) => {
         finalTokenEntry.lastWeeklyRefreshed = monday;
         // 사용자 시간대 기준으로 현재 시간 계산
         const userNow = new Date(new Date().getTime() - offset * 60 * 1000);
-        console.log(
-          `[토큰지급] ${
-            userRecord.email
-          }: 1000자 신규유저 주간리셋 (userTime: ${userNow.toISOString()}, timezone: ${timezone})`
-        );
+        if (shouldLogWithTime(uid, "token_grant_1000_new", 10)) {
+          console.log(
+            `[토큰지급] ${
+              userRecord.email
+            }: 1000자 신규유저 주간리셋 (userTime: ${userNow.toISOString()}, timezone: ${timezone})`
+          );
+        }
       }
     }
     // 비참여자, 가입 7일 이후는 위에서 이미 처리됨

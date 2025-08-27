@@ -19,6 +19,53 @@ const {
 } = require("../utils/timezoneUtils");
 const { authenticateToken } = require("../middleware/auth");
 
+// 로그 중복 방지 함수 (10분 내 동일 작업은 한 번만 로깅)
+const logCache = new Map();
+function shouldLogWithTime(uid, action, minutes = 10) {
+  const key = `${uid}_${action}_${new Date().toISOString().slice(0, 10)}`;
+  const now = Date.now();
+
+  if (!logCache.has(key)) {
+    logCache.set(key, now);
+    return true;
+  }
+
+  const lastLogTime = logCache.get(key);
+  if (now - lastLogTime > minutes * 60 * 1000) {
+    logCache.set(key, now);
+    return true;
+  }
+
+  return false;
+}
+
+// 캐시 크기 제한 (메모리 누수 방지)
+function cleanupLogCache() {
+  if (logCache.size > 1000) {
+    logCache.clear();
+  }
+}
+
+// 변화 감지 기반 로깅: 동일 날짜/스코프에서 집계치가 변하면 즉시 로깅
+const lastCountCache = new Map();
+function shouldLogOnChange(scopeKey, current) {
+  const prev = lastCountCache.get(scopeKey);
+  const changed =
+    !prev ||
+    prev.mode300 !== current.mode300 ||
+    prev.mode1000 !== current.mode1000 ||
+    prev.total !== current.total;
+
+  if (changed) {
+    lastCountCache.set(scopeKey, { ...current });
+    // 캐시 크기 관리
+    if (lastCountCache.size > 1000) {
+      lastCountCache.clear();
+    }
+  }
+  return changed;
+}
+
 // 모든 feedback 라우트에 인증 미들웨어 적용
 router.use(authenticateToken);
 
@@ -416,7 +463,7 @@ router.get("/status/:uid", async (req, res) => {
       // 사용자 시간대 정보가 있으면 사용자 기준으로 계산
       const { getUserTodayDate } = require("../utils/timezoneUtils");
       const userToday = getUserTodayDate(parseInt(offset));
-      todayString = userToday.toISOString().slice(0, 10);
+      todayString = userToday; // ✅ getUserTodayDate는 이미 String 반환
       console.log(
         `🌍 [피드백 상태] 사용자 시간대 기준 날짜: ${timezone} (offset: ${offset}) -> ${todayString}`
       );
@@ -469,17 +516,22 @@ router.get("/today/:uid", async (req, res) => {
       // 사용자 시간대 정보가 있으면 사용자 기준으로 계산
       const { getUserTodayDate } = require("../utils/timezoneUtils");
       const userToday = getUserTodayDate(parseInt(offset));
-      todayString = userToday.toISOString().slice(0, 10);
-      console.log(
-        `🌍 [피드백 현황] 사용자 시간대 기준 날짜: ${timezone} (offset: ${offset}) -> ${todayString}`
-      );
+      // getUserTodayDate는 이미 YYYY-MM-DD 문자열을 반환함
+      todayString = userToday;
+      if (shouldLogWithTime(uid, "feedback_timezone_info", 10)) {
+        console.log(
+          `🌍 [피드백 현황] 사용자 시간대 기준 날짜: ${timezone} (offset: ${offset}) -> ${todayString}`
+        );
+      }
     } else {
       // 기본값: 한국 시간 기준
       const today = getTodayDateKoreaFinal();
       todayString = today.toISOString().slice(0, 10);
-      console.log(
-        `🇰🇷 [피드백 현황] ${user.email} - 한국 시간 기준 날짜 (기본값): ${todayString}`
-      );
+      if (shouldLogWithTime(uid, "feedback_korea_date", 10)) {
+        console.log(
+          `🇰🇷 [피드백 현황] ${user.email} - 한국 시간 기준 날짜 (기본값): ${todayString}`
+        );
+      }
     }
 
     // 특정 유저가 오늘 작성한 피드백만 조회
@@ -494,6 +546,14 @@ router.get("/today/:uid", async (req, res) => {
       })
       .lean();
 
+    // 🔍 디버깅: 핵심 정보만 로깅
+    console.log(`🔍 [피드백 현황] 쿼리 결과:`, {
+      uid,
+      todayString,
+      found_feedbacks: todayFeedbacks.length,
+      feedback_modes: todayFeedbacks.map((fb) => fb.toSubmissionId?.mode),
+    });
+
     // 모드별 피드백 수 계산
     const mode300Count = todayFeedbacks.filter(
       (fb) => fb.toSubmissionId?.mode === "mode_300"
@@ -503,9 +563,23 @@ router.get("/today/:uid", async (req, res) => {
     ).length;
     const totalTodayCount = mode300Count + mode1000Count;
 
-    console.log(
-      `📊 [피드백 현황] 유저 ${user.email}(${uid})의 오늘 피드백: 300자 ${mode300Count}개, 1000자 ${mode1000Count}개, 총 ${totalTodayCount}개`
-    );
+    const dateKey = todayString;
+    const scopeKey = `user_today_${uid}_${dateKey}`;
+    if (
+      shouldLogOnChange(scopeKey, {
+        mode300: mode300Count,
+        mode1000: mode1000Count,
+        total: totalTodayCount,
+      }) ||
+      shouldLogWithTime(uid, "feedback_count_summary", 10)
+    ) {
+      console.log(
+        `📊 [피드백 현황] 유저 ${user.email}(${uid})의 오늘 피드백: 300자 ${mode300Count}개, 1000자 ${mode1000Count}개, 총 ${totalTodayCount}개`
+      );
+    }
+
+    // 캐시 정리
+    cleanupLogCache();
 
     res.json({
       user: {
@@ -534,17 +608,22 @@ router.get("/system/today", async (req, res) => {
       // 사용자 시간대 정보가 있으면 사용자 기준으로 계산
       const { getUserTodayDate } = require("../utils/timezoneUtils");
       const userToday = getUserTodayDate(parseInt(offset));
-      todayString = userToday.toISOString().slice(0, 10);
-      console.log(
-        `🌍 [시스템 피드백 현황] 사용자 시간대 기준 날짜: ${timezone} (offset: ${offset}) -> ${todayString}`
-      );
+      // getUserTodayDate는 이미 YYYY-MM-DD 문자열을 반환함
+      todayString = userToday;
+      if (shouldLogWithTime("system", "system_feedback_timezone_info", 10)) {
+        console.log(
+          `🌍 [시스템 피드백 현황] 사용자 시간대 기준 날짜: ${timezone} (offset: ${offset}) -> ${todayString}`
+        );
+      }
     } else {
       // 기본값: 한국 시간 기준
       const today = getTodayDateKoreaFinal();
       todayString = today.toISOString().slice(0, 10);
-      console.log(
-        `🇰🇷 [시스템 피드백 현황] 시스템 전체 - 한국 시간 기준 날짜 (기본값): ${todayString}`
-      );
+      if (shouldLogWithTime("system", "system_feedback_korea_date", 10)) {
+        console.log(
+          `🇰🇷 [시스템 피드백 현황] 시스템 전체 - 한국 시간 기준 날짜 (기본값): ${todayString}`
+        );
+      }
     }
 
     // 전체 시스템의 오늘 작성된 피드백 조회
@@ -567,9 +646,22 @@ router.get("/system/today", async (req, res) => {
     ).length;
     const totalTodayCount = mode300Count + mode1000Count;
 
-    console.log(
-      `📊 [시스템 피드백 현황] 전체 시스템 오늘 피드백: 300자 ${mode300Count}개, 1000자 ${mode1000Count}개, 총 ${totalTodayCount}개`
-    );
+    const systemScopeKey = `system_today_${todayString}`;
+    if (
+      shouldLogOnChange(systemScopeKey, {
+        mode300: mode300Count,
+        mode1000: mode1000Count,
+        total: totalTodayCount,
+      }) ||
+      shouldLogWithTime("system", "system_feedback_count_summary", 10)
+    ) {
+      console.log(
+        `📊 [시스템 피드백 현황] 전체 시스템 오늘 피드백: 300자 ${mode300Count}개, 1000자 ${mode1000Count}개, 총 ${totalTodayCount}개`
+      );
+    }
+
+    // 캐시 정리
+    cleanupLogCache();
 
     res.json({
       mode_300: mode300Count,

@@ -31,7 +31,7 @@ const logUserTime = (userEmail, userTimezone, userOffset) => {
 /**
  * 사용자 시간대 기준으로 오늘 날짜를 계산하는 공통 함수
  * @param {number} userOffset - 사용자 UTC 오프셋 (분 단위, getTimezoneOffset 값)
- * @returns {Date} UTC 기준 Date 객체
+ * @returns {string} YYYY-MM-DD 형식의 날짜 문자열
  */
 const getUserTodayDate = (userOffset = 0) => {
   try {
@@ -56,13 +56,14 @@ const getUserTodayDate = (userOffset = 0) => {
       Date.UTC(userYear, userMonth, userDay, 0, 0, 0, 0)
     );
 
+    // ✅ String 타입 반환 (Submission과 Feedback 모델의 String 타입과 일치)
     return utcDateStart.toISOString().split("T")[0];
   } catch (error) {
     console.error(
       `❌ Error in getUserTodayDate with userOffset: ${userOffset}`,
       error
     );
-    // 에러 발생 시 한국 시간 기준으로 오늘 날짜 반환
+    // 에러 발생 시 한국 시간 기준으로 오늘 날짜 반환 (String 타입)
     const koreaTime = new Date(new Date().getTime() + 9 * 60 * 60 * 1000);
     const koreaDateStart = new Date(
       koreaTime.getFullYear(),
@@ -73,7 +74,10 @@ const getUserTodayDate = (userOffset = 0) => {
       0,
       0
     );
-    return new Date(koreaDateStart.getTime() - 9 * 60 * 60 * 1000);
+    // ✅ String 타입 반환으로 통일
+    return new Date(koreaDateStart.getTime() - 9 * 60 * 60 * 1000)
+      .toISOString()
+      .split("T")[0];
   }
 };
 

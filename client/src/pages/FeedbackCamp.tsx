@@ -134,16 +134,20 @@ const FeedbackCamp = () => {
     }
   }, [user]); // user만 의존성으로 설정
 
-  // 오늘의 피드백 현황 직접 가져오기
-  const fetchTodayFeedbackStatus = useCallback(async () => {
+  // 오늘의 피드백 현황 불러오기
+  const fetchTodayFeedbackCount = useCallback(async () => {
     if (!user?.uid) return;
 
     try {
       const token = await user.getIdToken();
       if (!token) return;
 
+      // 유저의 로컬타임 정보 가져오기
+      const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const userOffset = new Date().getTimezoneOffset();
+
       const { data } = await axios.get(
-        `${import.meta.env.VITE_API_URL}/api/feedback/today/${user.uid}`,
+        `${import.meta.env.VITE_API_URL}/api/feedback/today/${user.uid}?timezone=${userTimezone}&offset=${userOffset}`,
         {
           headers: { Authorization: `Bearer ${token}` },
         }
@@ -385,9 +389,9 @@ const FeedbackCamp = () => {
       }
 
       // 오늘의 피드백 현황 API 호출
-      fetchTodayFeedbackStatus();
+      fetchTodayFeedbackCount();
     }
-  }, [user, isStateRestored, fetchGivenFeedbacks, fetchTodayFeedbackStatus]); // checkAndApplyRetroactiveFeedback 의존성 제거
+  }, [user, isStateRestored, fetchGivenFeedbacks, fetchTodayFeedbackCount]); // checkAndApplyRetroactiveFeedback 의존성 제거
 
   useEffect(() => {
     const fetchPopularSubmissions = async () => {
@@ -965,7 +969,7 @@ localStorage: ${JSON.stringify(info.localStorage)}`);
         setSubmittedIds(prev => [...prev, submissionId]);
 
         // 피드백 현황 새로고침
-        await fetchTodayFeedbackStatus();
+        await fetchTodayFeedbackCount();
         await fetchGivenFeedbacks();
 
         // 피드백 입력 초기화
@@ -1118,7 +1122,7 @@ localStorage: ${JSON.stringify(info.localStorage)}`);
         setSubmittedIds(prev => [...prev, submissionId]);
 
         // 피드백 현황 새로고침
-        await fetchTodayFeedbackStatus();
+        await fetchTodayFeedbackCount();
         await fetchGivenFeedbacks();
 
         // 피드백 입력 초기화
