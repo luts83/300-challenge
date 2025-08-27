@@ -705,6 +705,9 @@ const Write300 = () => {
                 disabled={
                   tokens === 0 ||
                   !isMinLengthMet ||
+                  !title ||
+                  !title.trim() ||
+                  title.trim().length < CONFIG.SUBMISSION.TITLE.MIN_LENGTH ||
                   submitted ||
                   isSubmitting ||
                   submissionInProgress.current ||
@@ -713,6 +716,9 @@ const Write300 = () => {
                 className={`px-3 py-1.5 text-sm rounded-lg ${
                   tokens === 0 ||
                   !isMinLengthMet ||
+                  !title ||
+                  !title.trim() ||
+                  title.trim().length < CONFIG.SUBMISSION.TITLE.MIN_LENGTH ||
                   submitted ||
                   isSubmitting ||
                   submissionInProgress.current ||

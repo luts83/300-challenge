@@ -85,6 +85,7 @@ const FeedbackCamp = () => {
   const [isStateRestored, setIsStateRestored] = useState<boolean | null>(null);
   const [allSubmissionDates, setAllSubmissionDates] = useState<string[]>([]);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
 
   const observer = useRef<IntersectionObserver | null>(null);
 
@@ -912,7 +913,7 @@ localStorage: ${JSON.stringify(info.localStorage)}`);
     }
 
     try {
-      setLoading(true);
+      setIsSubmittingFeedback(true); // ✅ 피드백 제출 전용 로딩 상태
 
       // 🔍 전송할 시간 정보 로깅
       const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -960,6 +961,9 @@ localStorage: ${JSON.stringify(info.localStorage)}`);
         const successMessage = generateFeedbackSuccessMessage(result);
         alert(successMessage);
 
+        // ✅ submittedIds 상태 업데이트 복원 - 즉시 UI에 반영
+        setSubmittedIds(prev => [...prev, submissionId]);
+
         // 피드백 현황 새로고침
         await fetchTodayFeedbackStatus();
         await fetchGivenFeedbacks();
@@ -974,13 +978,9 @@ localStorage: ${JSON.stringify(info.localStorage)}`);
         setExpanded(null);
       } else {
         const errorData = await response.json();
-        alert(`피드백 제출 실패: ${errorData.message}`);
-      }
-    } catch (err) {
-      if (axios.isAxiosError(err)) {
-        const errorMessage = err.response?.data?.message;
+        const errorMessage = errorData.message;
 
-        // 서버에서 온 에러 메시지에 따라 더 친절한 안내
+        // ✅ fetch API 에러 처리 로직으로 수정
         if (errorMessage?.includes('오늘은 아직 글을 작성하지 않으셨네요')) {
           const result = window.confirm(
             '❌ 피드백을 남기기 위해서는 오늘 글을 작성해야 합니다!\n\n' +
@@ -1012,9 +1012,48 @@ localStorage: ${JSON.stringify(info.localStorage)}`);
           );
         }
       }
+    } catch (err) {
+      // ✅ fetch API 에러 처리 로직으로 수정
+      if (err instanceof Error) {
+        const errorMessage = err.message;
+
+        if (errorMessage?.includes('오늘은 아직 글을 작성하지 않으셨네요')) {
+          const result = window.confirm(
+            '❌ 피드백을 남기기 위해서는 오늘 글을 작성해야 합니다!\n\n' +
+              '1. 먼저 오늘의 글쓰기를 완료해 주세요.\n' +
+              '2. 글쓰기 완료 후 다시 피드백을 남겨주세요.\n\n' +
+              '✍️ 글쓰기 페이지로 이동하시겠습니까?'
+          );
+
+          if (result) {
+            navigate('/'); // 글쓰기 페이지로 이동
+          }
+        } else if (errorMessage?.includes('이미 이 글에 피드백을 작성하셨습니다')) {
+          alert('❌ 이미 이 글에 피드백을 작성하셨습니다.\n다른 글에 피드백을 남겨보세요!');
+        } else if (errorMessage?.includes('피드백을 작성할 수 없습니다')) {
+          alert(
+            '❌ 피드백을 작성할 수 없습니다.\n\n' +
+              '가능한 원인:\n' +
+              '1. 오늘 글을 작성하지 않은 경우\n' +
+              '2. 자신의 글에 피드백을 시도한 경우\n' +
+              '3. 이미 피드백을 작성한 글인 경우\n\n' +
+              '문제가 지속되면 관리자에게 문의해 주세요.'
+          );
+        } else {
+          // 기타 에러
+          alert(
+            '❌ 피드백 제출에 실패했습니다.\n\n' +
+              '문제가 지속되면 아래 내용과 함께 관리자에게 문의해 주세요.\n' +
+              `에러 메시지: ${errorMessage || '알 수 없는 오류'}`
+          );
+        }
+      } else {
+        // 예상치 못한 에러
+        alert('❌ 피드백 제출에 실패했습니다.\n\n' + '문제가 지속되면 관리자에게 문의해 주세요.');
+      }
       logger.error('피드백 제출 실패:', err);
     } finally {
-      setLoading(false);
+      setIsSubmittingFeedback(false); // ✅ 피드백 제출 전용 로딩 상태 해제
     }
   };
 
@@ -1039,7 +1078,7 @@ localStorage: ${JSON.stringify(info.localStorage)}`);
     // strengths와 improvements는 선택사항이므로 검증하지 않음
 
     try {
-      setLoading(true);
+      setIsSubmittingFeedback(true); // ✅ 피드백 제출 전용 로딩 상태
 
       // 디버깅: 전송할 데이터 로깅
       const feedbackData = {
@@ -1059,35 +1098,42 @@ localStorage: ${JSON.stringify(info.localStorage)}`);
         return;
       }
 
-      const response = await axios.post(
-        `${import.meta.env.VITE_API_URL}/api/feedback`,
-        feedbackData,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
-
-      // 교차 피드백 정보를 포함한 상세한 성공 메시지 생성
-      const successMessage = generateFeedbackSuccessMessage(response.data);
-      alert(successMessage);
-
-      // 피드백 현황 새로고침
-      await fetchTodayFeedbackStatus();
-      await fetchGivenFeedbacks();
-
-      // 피드백 입력 초기화
-      setFeedbacks(prev => {
-        const newFeedbacks = { ...prev };
-        delete newFeedbacks[submissionId];
-        return newFeedbacks;
+      const response = await fetch(`/api/feedback`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(feedbackData),
       });
 
-      setExpanded(null);
-    } catch (err) {
-      if (axios.isAxiosError(err)) {
-        const errorMessage = err.response?.data?.message;
+      if (response.ok) {
+        const result = await response.json();
 
-        // 서버에서 온 에러 메시지에 따라 더 친절한 안내
+        // 교차 피드백 정보를 포함한 상세한 성공 메시지 생성
+        const successMessage = generateFeedbackSuccessMessage(result);
+        alert(successMessage);
+
+        // ✅ submittedIds 상태 업데이트 복원 - 즉시 UI에 반영
+        setSubmittedIds(prev => [...prev, submissionId]);
+
+        // 피드백 현황 새로고침
+        await fetchTodayFeedbackStatus();
+        await fetchGivenFeedbacks();
+
+        // 피드백 입력 초기화
+        setFeedbacks(prev => {
+          const newFeedbacks = { ...prev };
+          delete newFeedbacks[submissionId];
+          return newFeedbacks;
+        });
+
+        setExpanded(null);
+      } else {
+        const errorData = await response.json();
+        const errorMessage = errorData.message;
+
+        // ✅ fetch API 에러 처리 로직으로 수정
         if (errorMessage?.includes('오늘은 아직 글을 작성하지 않으셨네요')) {
           const result = window.confirm(
             '❌ 피드백을 남기기 위해서는 오늘 글을 작성해야 합니다!\n\n' +
@@ -1119,9 +1165,48 @@ localStorage: ${JSON.stringify(info.localStorage)}`);
           );
         }
       }
+    } catch (err) {
+      // ✅ fetch API 에러 처리 로직으로 수정
+      if (err instanceof Error) {
+        const errorMessage = err.message;
+
+        if (errorMessage?.includes('오늘은 아직 글을 작성하지 않으셨네요')) {
+          const result = window.confirm(
+            '❌ 피드백을 남기기 위해서는 오늘 글을 작성해야 합니다!\n\n' +
+              '1. 먼저 오늘의 글쓰기를 완료해 주세요.\n' +
+              '2. 글쓰기 완료 후 다시 피드백을 남겨주세요.\n\n' +
+              '✍️ 글쓰기 페이지로 이동하시겠습니까?'
+          );
+
+          if (result) {
+            navigate('/'); // 글쓰기 페이지로 이동
+          }
+        } else if (errorMessage?.includes('이미 이 글에 피드백을 작성하셨습니다')) {
+          alert('❌ 이미 이 글에 피드백을 작성하셨습니다.\n다른 글에 피드백을 남겨보세요!');
+        } else if (errorMessage?.includes('피드백을 작성할 수 없습니다')) {
+          alert(
+            '❌ 피드백을 작성할 수 없습니다.\n\n' +
+              '가능한 원인:\n' +
+              '1. 오늘 글을 작성하지 않은 경우\n' +
+              '2. 자신의 글에 피드백을 시도한 경우\n' +
+              '3. 이미 피드백을 작성한 글인 경우\n\n' +
+              '문제가 지속되면 관리자에게 문의해 주세요.'
+          );
+        } else {
+          // 기타 에러
+          alert(
+            '❌ 피드백 제출에 실패했습니다.\n\n' +
+              '문제가 지속되면 아래 내용과 함께 관리자에게 문의해 주세요.\n' +
+              `에러 메시지: ${errorMessage || '알 수 없는 오류'}`
+          );
+        }
+      } else {
+        // 예상치 못한 에러
+        alert('❌ 피드백 제출에 실패했습니다.\n\n' + '문제가 지속되면 관리자에게 문의해 주세요.');
+      }
       logger.error('피드백 제출 실패:', err);
     } finally {
-      setLoading(false);
+      setIsSubmittingFeedback(false); // ✅ 피드백 제출 전용 로딩 상태 해제
     }
   };
 
@@ -1522,6 +1607,7 @@ localStorage: ${JSON.stringify(info.localStorage)}`);
                           : counts.available_1000
                     }
                     isLoadingMore={isLoadingMore}
+                    isSubmittingFeedback={isSubmittingFeedback} // ✅ 피드백 제출 로딩 상태 전달
                   />
                 </>
               )}
