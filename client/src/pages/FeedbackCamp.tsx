@@ -742,9 +742,12 @@ const FeedbackCamp = () => {
         return;
       }
 
-      const response = await fetch(`/api/feedback/today/${user.uid}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL}/api/feedback/today/${user.uid}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
       const apiData = await response.json();
 
       console.log('📡 [디버그] API 응답:', {
@@ -944,7 +947,7 @@ localStorage: ${JSON.stringify(info.localStorage)}`);
         return;
       }
 
-      const response = await fetch(`/api/feedback`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/feedback`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -952,7 +955,8 @@ localStorage: ${JSON.stringify(info.localStorage)}`);
         },
         body: JSON.stringify({
           toSubmissionId: submissionId,
-          content: feedbackContent,
+          fromUid: user.uid,
+          overall: feedbackContent,
           userTimezone: userTimezone,
           userOffset: userOffset,
         }),
@@ -1102,13 +1106,16 @@ localStorage: ${JSON.stringify(info.localStorage)}`);
         return;
       }
 
-      const response = await fetch(`/api/feedback`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/feedback`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(feedbackData),
+        body: JSON.stringify({
+          ...feedbackData,
+          fromUid: user.uid,
+        }),
       });
 
       if (response.ok) {
