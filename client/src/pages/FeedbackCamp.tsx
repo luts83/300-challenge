@@ -947,84 +947,45 @@ localStorage: ${JSON.stringify(info.localStorage)}`);
         return;
       }
 
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/feedback`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
+      // ✅ 안정적인 axios 사용으로 복구
+      const response = await axios.post(
+        `${import.meta.env.VITE_API_URL}/api/feedback`,
+        {
           toSubmissionId: submissionId,
-          fromUid: user.uid,
-          overall: feedbackContent,
+          content: feedbackContent, // ✅ 서버 호환성을 위해 content 필드 사용
           userTimezone: userTimezone,
           userOffset: userOffset,
-        }),
+        },
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      // 교차 피드백 정보를 포함한 상세한 성공 메시지 생성
+      const successMessage = generateFeedbackSuccessMessage(response.data);
+      alert(successMessage);
+
+      // ✅ submittedIds 상태 업데이트 복원 - 즉시 UI에 반영
+      setSubmittedIds(prev => [...prev, submissionId]);
+
+      // 피드백 현황 새로고침
+      await fetchTodayFeedbackCount();
+      await fetchGivenFeedbacks();
+
+      // 피드백 입력 초기화
+      setFeedbacks(prev => {
+        const newFeedbacks = { ...prev };
+        delete newFeedbacks[submissionId];
+        return newFeedbacks;
       });
 
-      if (response.ok) {
-        const result = await response.json();
-
-        // 교차 피드백 정보를 포함한 상세한 성공 메시지 생성
-        const successMessage = generateFeedbackSuccessMessage(result);
-        alert(successMessage);
-
-        // ✅ submittedIds 상태 업데이트 복원 - 즉시 UI에 반영
-        setSubmittedIds(prev => [...prev, submissionId]);
-
-        // 피드백 현황 새로고침
-        await fetchTodayFeedbackCount();
-        await fetchGivenFeedbacks();
-
-        // 피드백 입력 초기화
-        setFeedbacks(prev => {
-          const newFeedbacks = { ...prev };
-          delete newFeedbacks[submissionId];
-          return newFeedbacks;
-        });
-
-        setExpanded(null);
-      } else {
-        const errorData = await response.json();
-        const errorMessage = errorData.message;
-
-        // ✅ fetch API 에러 처리 로직으로 수정
-        if (errorMessage?.includes('오늘은 아직 글을 작성하지 않으셨네요')) {
-          const result = window.confirm(
-            '❌ 피드백을 남기기 위해서는 오늘 글을 작성해야 합니다!\n\n' +
-              '1. 먼저 오늘의 글쓰기를 완료해 주세요.\n' +
-              '2. 글쓰기 완료 후 다시 피드백을 남겨주세요.\n\n' +
-              '✍️ 글쓰기 페이지로 이동하시겠습니까?'
-          );
-
-          if (result) {
-            navigate('/'); // 글쓰기 페이지로 이동
-          }
-        } else if (errorMessage?.includes('이미 이 글에 피드백을 작성하셨습니다')) {
-          alert('❌ 이미 이 글에 피드백을 작성하셨습니다.\n다른 글에 피드백을 남겨보세요!');
-        } else if (errorMessage?.includes('피드백을 작성할 수 없습니다')) {
-          alert(
-            '❌ 피드백을 작성할 수 없습니다.\n\n' +
-              '가능한 원인:\n' +
-              '1. 오늘 글을 작성하지 않은 경우\n' +
-              '2. 자신의 글에 피드백을 시도한 경우\n' +
-              '3. 이미 피드백을 작성한 글인 경우\n\n' +
-              '문제가 지속되면 관리자에게 문의해 주세요.'
-          );
-        } else {
-          // 기타 에러
-          alert(
-            '❌ 피드백 제출에 실패했습니다.\n\n' +
-              '문제가 지속되면 아래 내용과 함께 관리자에게 문의해 주세요.\n' +
-              `에러 메시지: ${errorMessage || '알 수 없는 오류'}`
-          );
-        }
-      }
+      setExpanded(null);
     } catch (err) {
-      // ✅ fetch API 에러 처리 로직으로 수정
-      if (err instanceof Error) {
-        const errorMessage = err.message;
+      // ✅ axios 에러 처리로 복구하면서 개선된 메시지 유지
+      if (axios.isAxiosError(err)) {
+        const errorMessage = err.response?.data?.message;
 
+        // 서버에서 온 에러 메시지에 따라 더 친절한 안내
         if (errorMessage?.includes('오늘은 아직 글을 작성하지 않으셨네요')) {
           const result = window.confirm(
             '❌ 피드백을 남기기 위해서는 오늘 글을 작성해야 합니다!\n\n' +
@@ -1106,81 +1067,40 @@ localStorage: ${JSON.stringify(info.localStorage)}`);
         return;
       }
 
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/feedback`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          ...feedbackData,
-          fromUid: user.uid,
-        }),
+      // ✅ 안정적인 axios 사용으로 복구
+      const response = await axios.post(
+        `${import.meta.env.VITE_API_URL}/api/feedback`,
+        feedbackData,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      // 교차 피드백 정보를 포함한 상세한 성공 메시지 생성
+      const successMessage = generateFeedbackSuccessMessage(response.data);
+      alert(successMessage);
+
+      // ✅ submittedIds 상태 업데이트 복원 - 즉시 UI에 반영
+      setSubmittedIds(prev => [...prev, submissionId]);
+
+      // 피드백 현황 새로고침
+      await fetchTodayFeedbackCount();
+      await fetchGivenFeedbacks();
+
+      // 피드백 입력 초기화
+      setFeedbacks(prev => {
+        const newFeedbacks = { ...prev };
+        delete newFeedbacks[submissionId];
+        return newFeedbacks;
       });
 
-      if (response.ok) {
-        const result = await response.json();
-
-        // 교차 피드백 정보를 포함한 상세한 성공 메시지 생성
-        const successMessage = generateFeedbackSuccessMessage(result);
-        alert(successMessage);
-
-        // ✅ submittedIds 상태 업데이트 복원 - 즉시 UI에 반영
-        setSubmittedIds(prev => [...prev, submissionId]);
-
-        // 피드백 현황 새로고침
-        await fetchTodayFeedbackCount();
-        await fetchGivenFeedbacks();
-
-        // 피드백 입력 초기화
-        setFeedbacks(prev => {
-          const newFeedbacks = { ...prev };
-          delete newFeedbacks[submissionId];
-          return newFeedbacks;
-        });
-
-        setExpanded(null);
-      } else {
-        const errorData = await response.json();
-        const errorMessage = errorData.message;
-
-        // ✅ fetch API 에러 처리 로직으로 수정
-        if (errorMessage?.includes('오늘은 아직 글을 작성하지 않으셨네요')) {
-          const result = window.confirm(
-            '❌ 피드백을 남기기 위해서는 오늘 글을 작성해야 합니다!\n\n' +
-              '1. 먼저 오늘의 글쓰기를 완료해 주세요.\n' +
-              '2. 글쓰기 완료 후 다시 피드백을 남겨주세요.\n\n' +
-              '✍️ 글쓰기 페이지로 이동하시겠습니까?'
-          );
-
-          if (result) {
-            navigate('/'); // 글쓰기 페이지로 이동
-          }
-        } else if (errorMessage?.includes('이미 이 글에 피드백을 작성하셨습니다')) {
-          alert('❌ 이미 이 글에 피드백을 작성하셨습니다.\n다른 글에 피드백을 남겨보세요!');
-        } else if (errorMessage?.includes('피드백을 작성할 수 없습니다')) {
-          alert(
-            '❌ 피드백을 작성할 수 없습니다.\n\n' +
-              '가능한 원인:\n' +
-              '1. 오늘 글을 작성하지 않은 경우\n' +
-              '2. 자신의 글에 피드백을 시도한 경우\n' +
-              '3. 이미 피드백을 작성한 글인 경우\n\n' +
-              '문제가 지속되면 관리자에게 문의해 주세요.'
-          );
-        } else {
-          // 기타 에러
-          alert(
-            '❌ 피드백 제출에 실패했습니다.\n\n' +
-              '문제가 지속되면 아래 내용과 함께 관리자에게 문의해 주세요.\n' +
-              `에러 메시지: ${errorMessage || '알 수 없는 오류'}`
-          );
-        }
-      }
+      setExpanded(null);
     } catch (err) {
-      // ✅ fetch API 에러 처리 로직으로 수정
-      if (err instanceof Error) {
-        const errorMessage = err.message;
+      // ✅ axios 에러 처리로 복구하면서 개선된 메시지 유지
+      if (axios.isAxiosError(err)) {
+        const errorMessage = err.response?.data?.message;
 
+        // 서버에서 온 에러 메시지에 따라 더 친절한 안내
         if (errorMessage?.includes('오늘은 아직 글을 작성하지 않으셨네요')) {
           const result = window.confirm(
             '❌ 피드백을 남기기 위해서는 오늘 글을 작성해야 합니다!\n\n' +

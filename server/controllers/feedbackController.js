@@ -225,6 +225,7 @@ exports.submitFeedback = async (req, res) => {
     strengths,
     improvements,
     overall,
+    content, // ✅ Aug 22일 버전 호환성을 위해 content 필드 추가
     userTimezone,
     userOffset,
   } = req.body;
@@ -237,10 +238,13 @@ exports.submitFeedback = async (req, res) => {
   //   userOffset || 0
   // );
 
+  // ✅ Aug 22일 버전 호환성을 위한 필드 처리
+  const feedbackContent = overall || content;
+  
   // 구조화된 피드백 검증
   if (
-    !overall ||
-    overall.trim().length < CONFIG.FEEDBACK.STRUCTURED.MIN_LENGTH.OVERALL
+    !feedbackContent ||
+    feedbackContent.trim().length < CONFIG.FEEDBACK.STRUCTURED.MIN_LENGTH.OVERALL
   ) {
     return res.status(400).json({
       message: "전체적인 느낌을 15자 이상 작성해주세요.",
@@ -351,8 +355,8 @@ exports.submitFeedback = async (req, res) => {
           improvements && improvements.trim().length > 0
             ? improvements.trim()
             : null,
-        overall: overall || null,
-        content: `전체적인 느낌:\n${overall}${
+        overall: feedbackContent || null, // ✅ 통합된 피드백 내용 사용
+        content: `전체적인 느낌:\n${feedbackContent}${
           strengths && strengths.trim().length > 0
             ? `\n\n마음에 드는 부분:\n${strengths.trim()}`
             : ""
