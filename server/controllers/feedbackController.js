@@ -385,7 +385,9 @@ exports.submitFeedback = async (req, res) => {
       });
       // 알림이 켜져있을 때만 이메일 전송 (feedbackNotification === true)
       if (targetUser && targetUser.feedbackNotification === true) {
-        await sendFeedbackEmail(savedFeedback, targetSubmission);
+        // ✅ canViewFeedback 매개변수 추가로 Aug 22일 버전과 완벽 호환
+        const canViewFeedback = targetUser.feedbackNotification === true;
+        await sendFeedbackEmail(savedFeedback, targetSubmission, canViewFeedback);
       }
     } catch (emailError) {
       logger.error("피드백 알림 이메일 전송 실패:", emailError);

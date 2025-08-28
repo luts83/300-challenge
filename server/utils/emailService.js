@@ -8,6 +8,14 @@ const transporter = nodemailer.createTransport({
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASSWORD,
   },
+  // ✅ 연결 안정성 향상을 위한 설정 추가
+  connectionTimeout: 60000, // 60초 연결 타임아웃
+  greetingTimeout: 30000,  // 30초 인사 타임아웃
+  socketTimeout: 60000,    // 60초 소켓 타임아웃
+  pool: true,              // 연결 풀 사용
+  maxConnections: 5,       // 최대 연결 수
+  maxMessages: 100,        // 연결당 최대 메시지 수
+  rateLimit: 14,           // 초당 최대 메시지 수 (Gmail 제한)
 });
 
 // 피드백 알림 이메일 템플릿
@@ -35,7 +43,7 @@ const createFeedbackEmailTemplate = (feedback, submission, canViewFeedback) => {
 };
 
 // 이메일 전송 함수
-async function sendFeedbackEmail(feedback, submission, canViewFeedback) {
+async function sendFeedbackEmail(feedback, submission, canViewFeedback = false) {
   try {
     const mailOptions = {
       from: process.env.EMAIL_USER,
@@ -44,10 +52,22 @@ async function sendFeedbackEmail(feedback, submission, canViewFeedback) {
       html: createFeedbackEmailTemplate(feedback, submission, canViewFeedback),
     };
 
-    await transporter.sendMail(mailOptions);
+    // ✅ 연결 타임아웃 설정 추가
+    const result = await transporter.sendMail(mailOptions);
+    console.log("✅ 이메일 전송 성공:", submission.user.email);
     return true;
   } catch (error) {
-    console.error("이메일 전송 실패:", error);
+    console.error("❌ 이메일 전송 실패:", error);
+    
+    // ✅ 구체적인 에러 로깅
+    if (error.code === 'ETIMEDOUT') {
+      console.error("🔴 연결 타임아웃 - SMTP 서버 연결 실패");
+    } else if (error.code === 'EAUTH') {
+      console.error("🔴 인증 실패 - 이메일 계정 정보 확인 필요");
+    } else if (error.code === 'ECONNECTION') {
+      console.error("🔴 연결 실패 - 네트워크 또는 방화벽 문제");
+    }
+    
     return false;
   }
 }
