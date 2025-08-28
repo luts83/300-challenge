@@ -66,6 +66,8 @@ function shouldLogOnChange(scopeKey, current) {
   return changed;
 }
 
+
+
 // 모든 feedback 라우트에 인증 미들웨어 적용
 router.use(authenticateToken);
 

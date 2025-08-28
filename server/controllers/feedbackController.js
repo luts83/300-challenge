@@ -381,13 +381,59 @@ exports.submitFeedback = async (req, res) => {
     if (targetUser && targetUser.feedbackNotification === true) {
       // ✅ 비동기 이메일 전송으로 피드백 제출 지연 방지
       setImmediate(async () => {
+        const emailStartTime = Date.now();
         try {
           const canViewFeedback = targetUser.feedbackNotification === true;
-          await sendFeedbackEmail(savedFeedback, targetSubmission, canViewFeedback);
-          console.log("✅ 피드백 알림 이메일 전송 완료:", targetSubmission.user.email);
+          
+          // ✅ 이메일 전송 시작 로깅
+          console.log(`📧 [이메일 전송 시작] ${targetSubmission.user.email}에게 피드백 알림 전송 시도`);
+          
+          const emailResult = await sendFeedbackEmail(savedFeedback, targetSubmission, canViewFeedback);
+          
+          const emailDuration = Date.now() - emailStartTime;
+          
+          if (emailResult) {
+            // ✅ 이메일 전송 성공 로깅
+            console.log(`✅ [이메일 전송 성공] ${targetSubmission.user.email}에게 피드백 알림 전송 완료 (${emailDuration}ms)`);
+            
+            // ✅ 성공 통계 로깅 (모니터링용)
+            logger.info("피드백 알림 이메일 전송 성공", {
+              recipient: targetSubmission.user.email,
+              feedbackId: savedFeedback._id,
+              submissionId: targetSubmission._id,
+              duration: emailDuration,
+              timestamp: new Date().toISOString()
+            });
+          } else {
+            // ✅ 이메일 전송 실패 로깅
+            console.log(`❌ [이메일 전송 실패] ${targetSubmission.user.email}에게 피드백 알림 전송 실패 (${emailDuration}ms)`);
+            
+            // ✅ 실패 통계 로깅 (모니터링용)
+            logger.warn("피드백 알림 이메일 전송 실패", {
+              recipient: targetSubmission.user.email,
+              feedbackId: savedFeedback._id,
+              submissionId: targetSubmission._id,
+              duration: emailDuration,
+              timestamp: new Date().toISOString()
+            });
+          }
         } catch (emailError) {
-          logger.error("피드백 알림 이메일 전송 실패:", emailError);
-          // 이메일 전송 실패는 전체 프로세스를 중단시키지 않음
+          const emailDuration = Date.now() - emailStartTime;
+          
+          // ✅ 이메일 전송 에러 상세 로깅
+          console.error(`💥 [이메일 전송 에러] ${targetSubmission.user.email}에게 피드백 알림 전송 중 에러 발생 (${emailDuration}ms):`, emailError);
+          
+          // ✅ 에러 통계 로깅 (모니터링용)
+          logger.error("피드백 알림 이메일 전송 에러", {
+            recipient: targetSubmission.user.email,
+            feedbackId: savedFeedback._id,
+            submissionId: targetSubmission._id,
+            duration: emailDuration,
+            error: emailError.message,
+            errorCode: emailError.code,
+            stack: emailError.stack,
+            timestamp: new Date().toISOString()
+          });
         }
       });
     }
