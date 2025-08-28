@@ -21,20 +21,37 @@ const writingStreakSchema = new Schema({
   ],
 });
 
-// 새로운 주 시작 여부 확인 메서드 (UTC 기준 월요일 비교로 고정)
-writingStreakSchema.methods.shouldStartNewWeek = function () {
+// ✅ 새로운 주 시작 여부 확인 메서드 (사용자 시간대 기준으로 수정)
+writingStreakSchema.methods.shouldStartNewWeek = function (userOffset = -540) {
   if (!this.currentWeekStartDate) return true;
 
-  const now = new Date();
-  const monday = new Date(
-    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
-  );
-  const dayOfWeek = monday.getUTCDay(); // 0=일요일, 1=월요일
-  // 이번 주 월요일 00:00:00 UTC로 이동
-  monday.setUTCDate(monday.getUTCDate() - dayOfWeek + 1);
-  monday.setUTCHours(0, 0, 0, 0);
+  // timezoneUtils.js의 getUserMonday 함수 사용
+  const { getUserMonday } = require("../utils/timezoneUtils");
+  const monday = getUserMonday(userOffset);
 
   return this.currentWeekStartDate < monday;
+};
+
+// ✅ 사용자 시간대 기준으로 주간 리셋을 처리하는 메서드 추가
+writingStreakSchema.methods.resetForNewWeek = function (userOffset = -540) {
+  const { getUserMonday } = require("../utils/timezoneUtils");
+  const monday = getUserMonday(userOffset);
+
+  // 이전 주 기록을 히스토리에 저장
+  if (this.weeklyProgress?.some((day) => day)) {
+    const wasCompleted = this.weeklyProgress.every((day) => day);
+    this.streakHistory.push({
+      weekStartDate: this.currentWeekStartDate,
+      completed: wasCompleted,
+      completionDate: wasCompleted ? this.lastStreakCompletion : null,
+    });
+  }
+
+  // 새로운 주 시작
+  this.weeklyProgress = Array(5).fill(false);
+  this.celebrationShown = false;
+  this.currentWeekStartDate = monday;
+  this.lastUpdated = new Date();
 };
 
 // 현재 주차의 진행률 계산 메서드 추가

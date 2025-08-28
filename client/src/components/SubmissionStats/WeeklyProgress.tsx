@@ -92,10 +92,18 @@ export const WeeklyProgress: React.FC<WeeklyProgressProps> = ({ className = '' }
         return;
       }
 
+      // ✅ 사용자 시간대 정보를 쿼리 파라미터로 전달
+      const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const userOffset = new Date().getTimezoneOffset();
+
       const response = await axios.get<StreakData>(
         `${import.meta.env.VITE_API_URL}/api/streak/${user.uid}`,
         {
           headers: { Authorization: `Bearer ${token}` },
+          params: {
+            timezone: userTimezone,
+            offset: userOffset,
+          },
         }
       );
       const { weeklyProgress, celebrationShown } = response.data;

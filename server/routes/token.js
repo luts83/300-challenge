@@ -162,21 +162,10 @@ router.get("/:uid", async (req, res) => {
       getUserTodayDateString,
       getUserTodayDate,
       getUserMonday,
-      logTimezoneInfo,
     } = require("../utils/timezoneUtils");
 
     const today = getUserTodayDateString(offset);
     const monday = getUserMonday(offset);
-
-    // 간략화된 시간대 디버깅 (유저별 하루 한 번만)
-    const timezoneDebugKey = `${uid}_timezone_${today}`;
-    if (
-      process.env.NODE_ENV === "development" &&
-      !debugLogCache.has(timezoneDebugKey)
-    ) {
-      logTimezoneInfo(userRecord.email, timezone, offset);
-      debugLogCache.add(timezoneDebugKey);
-    }
 
     // 주간 리셋 디버깅 로그 추가
     if (process.env.NODE_ENV === "development") {

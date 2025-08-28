@@ -100,7 +100,11 @@ export const MyFeedbacks: React.FC<MyFeedbacksProps> = ({
                         <span>{feedback.submissionAuthor?.displayName || '익명'}</span>
                         <span className="text-gray-400 dark:text-gray-300">•</span>
                         <span>
-                          {new Date(feedback.createdAt).toLocaleDateString('ko-KR', {
+                          {new Date(
+                            feedback.submissionCreatedAt ||
+                              submission?.createdAt ||
+                              feedback.createdAt
+                          ).toLocaleDateString('ko-KR', {
                             year: 'numeric',
                             month: 'long',
                             day: 'numeric',

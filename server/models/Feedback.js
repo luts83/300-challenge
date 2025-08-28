@@ -46,6 +46,9 @@ const feedbackSchema = new mongoose.Schema(
     // 피드백 내용
     writtenDate: { type: String }, // YYYY-MM-DD 형식
 
+    // 원글 작성 날짜 (피드백 대상 글의 원래 작성 날짜)
+    submissionCreatedAt: { type: Date },
+
     // 피드백 상태
     isRead: { type: Boolean, default: false }, // 읽음 여부
   },

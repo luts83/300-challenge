@@ -160,21 +160,6 @@ export const getLocationByTimezone = (timezone: string): string => {
 };
 
 /**
- * 시간대 디버깅 정보를 출력합니다
- */
-export const debugTimezone = (): void => {
-  const { timezone, offset, currentTime, localTime } = getCurrentTimezoneInfo();
-
-  console.log('=== 시간대 디버깅 정보 ===');
-  console.log('현재 시간:', currentTime);
-  console.log('로컬 시간:', localTime);
-  console.log('시간대:', timezone);
-  console.log('getTimezoneOffset():', offset, '분');
-  console.log('시간대 설명:', getTimezoneDescription(timezone, offset));
-  console.log('========================');
-};
-
-/**
  * 영국 시간대 사용자 검증
  */
 export const validateUKTimezone = (): boolean => {

@@ -24,7 +24,7 @@ export interface Feedback {
   createdAt: string;
   mode?: 'mode_300' | 'mode_1000';
   submissionAuthor?: { uid: string; email: string; displayName?: string };
-  submissionCreatedAt?: string;
+  submissionCreatedAt?: string; // 원글 작성 날짜 (피드백 대상 글의 원래 작성 날짜)
 }
 
 export interface TodaySummary {

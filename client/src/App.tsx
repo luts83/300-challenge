@@ -19,7 +19,7 @@ import FAQ from './pages/FAQ';
 import Profile from './pages/Profile';
 import { initTheme, toggleDarkMode } from './utils/theme';
 import { ThemeProvider } from './context/ThemeContext';
-import TimezoneDebug from './components/TimezoneDebug';
+
 import PrivateRoute from './components/PrivateRoute';
 
 // 배경 이미지 래퍼 컴포넌트
@@ -119,7 +119,6 @@ function App() {
               <Route path="/cookie-policy" element={<CookiePolicy />} />
               <Route path="/faq" element={<FAQ />} />
             </Routes>
-            <TimezoneDebug />
           </BackgroundWrapper>
         </Router>
       </ThemeProvider>

@@ -67,7 +67,7 @@ const canGiveFeedback = async (uid, userTimezone = null, userOffset = null) => {
     // 사용자 시간대 기준으로 오늘 날짜 계산
     let todayString;
     if (userTimezone && userOffset !== null) {
-      todayString = getUserTodayDate(userOffset, userTimezone); // ✅ getUserTodayDate는 이미 String 반환
+      todayString = getUserTodayDate(userOffset); // ✅ getUserTodayDate는 userOffset만 받음
       console.log(
         `🌍 [canGiveFeedback] ${userEmail} - 사용자 시간대 기준 날짜: ${userTimezone} (offset: ${userOffset}) -> ${todayString}`
       );
@@ -136,7 +136,7 @@ const getAvailableSubmissions = async (req, res) => {
     // 사용자 시간대 기준으로 오늘 날짜 계산
     let todayString;
     if (timezone && offset !== undefined) {
-      todayString = getUserTodayDate(parseInt(offset), timezone); // ✅ getUserTodayDate는 이미 String 반환
+      todayString = getUserTodayDate(parseInt(offset)); // ✅ getUserTodayDate는 userOffset만 받음
       // 사용자 시간대 기준으로 현재 시간 계산
       const userNow = new Date(
         new Date().getTime() - parseInt(offset) * 60 * 1000
@@ -240,11 +240,12 @@ exports.submitFeedback = async (req, res) => {
 
   // ✅ Aug 22일 버전 호환성을 위한 필드 처리
   const feedbackContent = overall || content;
-  
+
   // 구조화된 피드백 검증
   if (
     !feedbackContent ||
-    feedbackContent.trim().length < CONFIG.FEEDBACK.STRUCTURED.MIN_LENGTH.OVERALL
+    feedbackContent.trim().length <
+      CONFIG.FEEDBACK.STRUCTURED.MIN_LENGTH.OVERALL
   ) {
     return res.status(400).json({
       message: "전체적인 느낌을 15자 이상 작성해주세요.",
@@ -302,6 +303,11 @@ exports.submitFeedback = async (req, res) => {
         .status(404)
         .json({ message: "피드백 작성자 정보를 찾을 수 없습니다." });
     }
+
+    // 3. 피드백 대상 사용자 정보 가져오기 (이메일 알림용)
+    const targetUser = await User.findOne({
+      email: targetSubmission.user.email,
+    });
 
     // 비화이트리스트 유저 활동 로깅
     await detectNonWhitelistedUserActivity("피드백 제출", {
@@ -369,6 +375,9 @@ exports.submitFeedback = async (req, res) => {
         // 피드백 작성 날짜 - 사용자 시간대 기준
         writtenDate: todayString, // canGiveFeedback에서 계산된 날짜 사용
 
+        // 원글 작성 날짜 - 피드백 대상 글의 원래 작성 날짜
+        submissionCreatedAt: targetSubmission.createdAt,
+
         // 피드백 상태
         isRead: false,
         isHelpful: null,
@@ -384,45 +393,58 @@ exports.submitFeedback = async (req, res) => {
         const emailStartTime = Date.now();
         try {
           const canViewFeedback = targetUser.feedbackNotification === true;
-          
+
           // ✅ 이메일 전송 시작 로깅
-          console.log(`📧 [이메일 전송 시작] ${targetSubmission.user.email}에게 피드백 알림 전송 시도`);
-          
-          const emailResult = await sendFeedbackEmail(savedFeedback, targetSubmission, canViewFeedback);
-          
+          console.log(
+            `📧 [이메일 전송 시작] ${targetSubmission.user.email}에게 피드백 알림 전송 시도`
+          );
+
+          const emailResult = await sendFeedbackEmail(
+            savedFeedback,
+            targetSubmission,
+            canViewFeedback
+          );
+
           const emailDuration = Date.now() - emailStartTime;
-          
+
           if (emailResult) {
             // ✅ 이메일 전송 성공 로깅
-            console.log(`✅ [이메일 전송 성공] ${targetSubmission.user.email}에게 피드백 알림 전송 완료 (${emailDuration}ms)`);
-            
+            console.log(
+              `✅ [이메일 전송 성공] ${targetSubmission.user.email}에게 피드백 알림 전송 완료 (${emailDuration}ms)`
+            );
+
             // ✅ 성공 통계 로깅 (모니터링용)
             logger.info("피드백 알림 이메일 전송 성공", {
               recipient: targetSubmission.user.email,
               feedbackId: savedFeedback._id,
               submissionId: targetSubmission._id,
               duration: emailDuration,
-              timestamp: new Date().toISOString()
+              timestamp: new Date().toISOString(),
             });
           } else {
             // ✅ 이메일 전송 실패 로깅
-            console.log(`❌ [이메일 전송 실패] ${targetSubmission.user.email}에게 피드백 알림 전송 실패 (${emailDuration}ms)`);
-            
+            console.log(
+              `❌ [이메일 전송 실패] ${targetSubmission.user.email}에게 피드백 알림 전송 실패 (${emailDuration}ms)`
+            );
+
             // ✅ 실패 통계 로깅 (모니터링용)
             logger.warn("피드백 알림 이메일 전송 실패", {
               recipient: targetSubmission.user.email,
               feedbackId: savedFeedback._id,
               submissionId: targetSubmission._id,
               duration: emailDuration,
-              timestamp: new Date().toISOString()
+              timestamp: new Date().toISOString(),
             });
           }
         } catch (emailError) {
           const emailDuration = Date.now() - emailStartTime;
-          
+
           // ✅ 이메일 전송 에러 상세 로깅
-          console.error(`💥 [이메일 전송 에러] ${targetSubmission.user.email}에게 피드백 알림 전송 중 에러 발생 (${emailDuration}ms):`, emailError);
-          
+          console.error(
+            `💥 [이메일 전송 에러] ${targetSubmission.user.email}에게 피드백 알림 전송 중 에러 발생 (${emailDuration}ms):`,
+            emailError
+          );
+
           // ✅ 에러 통계 로깅 (모니터링용)
           logger.error("피드백 알림 이메일 전송 에러", {
             recipient: targetSubmission.user.email,
@@ -432,7 +454,7 @@ exports.submitFeedback = async (req, res) => {
             error: emailError.message,
             errorCode: emailError.code,
             stack: emailError.stack,
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
           });
         }
       });
@@ -541,7 +563,7 @@ const assignFeedbackMissions = async (req, res) => {
     // 사용자 시간대 기준으로 오늘 날짜 계산
     let todayString;
     if (offset !== undefined && timezone) {
-      todayString = getUserTodayDate(offset, timezone); // ✅ getUserTodayDate는 이미 String 반환
+      todayString = getUserTodayDate(offset); // ✅ getUserTodayDate는 userOffset만 받음
       console.log(
         `🌍 [assignFeedbackMissions] 사용자 시간대 기준 날짜: ${timezone} (offset: ${offset}) -> ${todayString}`
       );

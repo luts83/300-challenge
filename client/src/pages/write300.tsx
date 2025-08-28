@@ -127,7 +127,6 @@ const Write300 = () => {
   const handleSubmit = async (forceSubmit = false) => {
     // 🛡️ 중복 제출 방지 강화
     if (submissionInProgress.current || isSubmitting) {
-      console.log('🚫 이미 제출 중입니다. 중복 요청 무시됨');
       return;
     }
 
@@ -181,150 +180,28 @@ const Write300 = () => {
     } else {
       // 자동 제출 시에도 최소 글자 수 확인
       if (!finalIsMinLengthMet) {
-        // ✅ 안전한 클립보드 저장 함수
-        const saveToClipboard = async (text: string) => {
-          try {
-            // 1. navigator.clipboard 시도 (navigator 존재 여부도 확인)
-            if (
-              typeof navigator !== 'undefined' &&
-              navigator &&
-              navigator.clipboard &&
-              typeof navigator.clipboard.writeText === 'function'
-            ) {
-              await navigator.clipboard.writeText(text);
-              return { success: true, method: 'clipboard' };
-            }
-          } catch (error) {
-            console.warn('navigator.clipboard 실패:', error);
-          }
-
-          try {
-            // 2. document.execCommand 대체 방법 (구형 브라우저)
-            const textArea = document.createElement('textarea');
-            textArea.value = text;
-            textArea.style.position = 'fixed';
-            textArea.style.left = '-999999px';
-            textArea.style.top = '-999999px';
-            document.body.appendChild(textArea);
-            textArea.focus();
-            textArea.select();
-
-            const successful = document.execCommand('copy');
-            document.body.removeChild(textArea);
-
-            if (successful) {
-              return { success: true, method: 'execCommand' };
-            }
-          } catch (error) {
-            console.warn('execCommand 실패:', error);
-          }
-
-          // 3. 모든 방법 실패
-          return { success: false, method: 'none' };
-        };
-
-        // 클립보드에 자동 저장 시도
+        // 간단한 사용자 선택 처리
         const safeTitle = title && title.trim().length > 0 ? title.trim() : '(제목 없음)';
-        const contentToSave = `제목: ${safeTitle}\n\n내용:\n${finalText}`;
-        const clipboardResult = await saveToClipboard(contentToSave);
 
-        if (clipboardResult.success) {
-          const userChoice = confirm(
-            `⏰ 시간 초과로 자동 제출하려고 했지만 글자수가 부족해서 자동 제출이 불가능합니다.\n\n` +
-              `✅ 클립보드에 자동 저장되었습니다!\n\n` +
-              `📝 저장된 내용:\n` +
-              `제목: ${safeTitle}\n` +
-              `내용: ${finalText.substring(0, 50)}${finalText.length > 50 ? '...' : ''}\n\n` +
-              `현재 글자 수: ${finalCharCount}자 (필요: ${CONFIG.SUBMISSION.MODE_300.MIN_LENGTH}자)\n\n` +
-              `다시 작성하시겠습니까? (취소하면 메인페이지로 이동합니다)`
-          );
+        const userChoice = confirm(
+          `⏰ 시간 초과로 자동 제출하려고 했지만 글자수가 부족해서 자동 제출이 불가능합니다.\n\n` +
+            `📝 작성하신 내용:\n` +
+            `제목: ${safeTitle}\n` +
+            `내용: ${finalText.substring(0, 50)}${finalText.length > 50 ? '...' : ''}\n\n` +
+            `현재 글자 수: ${finalCharCount}자 (필요: ${CONFIG.SUBMISSION.MODE_300.MIN_LENGTH}자)\n\n` +
+            `다시 작성하시겠습니까? (취소하면 메인페이지로 이동합니다)`
+        );
 
-          if (userChoice) {
-            // 다시 작성 선택 시 - 타이머 재시작
-            setStartTime(Date.now());
-            setIsStarted(true);
-            setRemainingTime(CONFIG.TIMER.DURATION_MINUTES * 60);
-            return;
-          } else {
-            // 메인페이지로 이동
-            navigate('/');
-            return;
-          }
+        if (userChoice) {
+          // 다시 작성 선택 시 - 타이머 재시작
+          setStartTime(Date.now());
+          setIsStarted(true);
+          setRemainingTime(CONFIG.TIMER.DURATION_MINUTES * 60);
+          return;
         } else {
-          // 클립보드 저장 실패 시 대안 제공 (유저 제스처 이후 재시도 포함)
-          console.warn('클립보드 저장 실패, 대안 방법 시도');
-
-          // 로컬 백업: 혹시라도 복구가 필요할 때를 대비
-          try {
-            localStorage.setItem('write300_backup', contentToSave);
-          } catch (e) {
-            console.warn('로컬 백업 저장 실패:', e);
-          }
-
-          // 사용자에게 내용을 수동으로 복사할 수 있도록 안내
-          const manualCopyChoice = confirm(
-            `⏰ 시간 초과로 자동 제출하려고 했지만 글자수가 부족해서 자동 제출이 불가능합니다.\n\n` +
-              `❌ 클립보드 자동 저장에 실패했습니다.\n\n` +
-              `📝 작성하신 내용을 수동으로 복사해주세요:\n\n` +
-              `제목: ${safeTitle}\n` +
-              `내용: ${finalText}\n\n` +
-              `현재 글자 수: ${finalCharCount}자 (필요: ${CONFIG.SUBMISSION.MODE_300.MIN_LENGTH}자)\n\n` +
-              `확인을 누르면 자동 복사를 다시 시도합니다. 취소하면 메인페이지로 이동합니다.`
-          );
-
-          if (manualCopyChoice) {
-            // 사용자의 확인(제스처) 직후에 다시 복사 시도
-            let copied = false;
-            try {
-              if (
-                typeof navigator !== 'undefined' &&
-                navigator &&
-                navigator.clipboard &&
-                typeof navigator.clipboard.writeText === 'function'
-              ) {
-                await navigator.clipboard.writeText(contentToSave);
-                copied = true;
-              }
-            } catch (e) {
-              // ignore
-            }
-
-            if (!copied) {
-              try {
-                const ta = document.createElement('textarea');
-                ta.value = contentToSave;
-                ta.style.position = 'fixed';
-                ta.style.left = '-999999px';
-                ta.style.top = '-999999px';
-                document.body.appendChild(ta);
-                ta.focus();
-                ta.select();
-                copied = document.execCommand('copy');
-                document.body.removeChild(ta);
-              } catch (e) {
-                console.warn('재시도 복사 실패:', e);
-              }
-            }
-
-            if (copied) {
-              alert('✅ 작성 내용이 클립보드에 복사되었습니다. 계속 작성하실 수 있어요.');
-            } else {
-              alert('❌ 자동 복사에 실패했습니다. 표시된 내용을 직접 복사해 주세요.');
-            }
-
-            // 다시 작성 선택 시 - 타이머 재시작
-            setStartTime(Date.now());
-            setIsStarted(true);
-            setRemainingTime(CONFIG.TIMER.DURATION_MINUTES * 60);
-            submissionInProgress.current = false;
-            setSubmissionState('idle');
-            setSubmissionProgress('');
-            return;
-          } else {
-            // 메인페이지로 이동
-            navigate('/');
-            return;
-          }
+          // 메인페이지로 이동
+          navigate('/');
+          return;
         }
       }
     }
@@ -357,16 +234,15 @@ const Write300 = () => {
       const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
       const userOffset = new Date().getTimezoneOffset();
 
-      // ✅ 디버깅: 전송할 데이터 로그
       const submitData = {
-        title: title || '', // title이 undefined인 경우 빈 문자열로 처리
-        text: finalText, // ✅ trim된 텍스트 사용
+        title: title || '',
+        text: finalText,
         topic: dailyTopic || null,
         mode: 'mode_300',
-        duration: finalDuration, // ✅ 수정된 시간 사용
+        duration: finalDuration,
         forceSubmit: forceSubmit,
-        isMinLengthMet: finalIsMinLengthMet, // ✅ 실시간 검증 결과 사용
-        charCount: finalCharCount, // ✅ trim된 텍스트의 글자 수 사용
+        isMinLengthMet: finalIsMinLengthMet,
+        charCount: finalCharCount,
         timezone: userTimezone,
         offset: userOffset,
         user: {
@@ -375,8 +251,6 @@ const Write300 = () => {
           displayName: user.displayName || '익명',
         },
       };
-
-      console.log('⏱️ 최종 소요 시간:', finalDuration, '초');
 
       // 인증 토큰 가져오기
       const token = await user.getIdToken();
@@ -457,12 +331,10 @@ const Write300 = () => {
 
         // 🛡️ 이미 제출 중이거나 완료된 경우 자동 제출 방지
         if (submissionInProgress.current || isSubmitting || submitted) {
-          console.log('🚫 자동 제출 차단: 이미 제출 중이거나 완료됨');
           return;
         }
 
         // 🚨 자동 제출 전 최종 상태 확인
-        console.log('⏰ 시간 초과로 자동 제출 시작');
 
         // setTimeout으로 약간의 지연을 주어 상태 업데이트가 완료되도록 함
         setTimeout(() => {
@@ -470,7 +342,7 @@ const Write300 = () => {
           if (!submissionInProgress.current && !isSubmitting && !submitted) {
             handleSubmit(true); // 강제 제출
           } else {
-            console.log('🚫 자동 제출 취소: 제출 상태 변경됨');
+            // 자동 제출 취소: 제출 상태 변경됨
           }
         }, 200); // 200ms로 증가하여 상태 동기화 보장
       }
@@ -689,7 +561,6 @@ const Write300 = () => {
                   setSubmissionProgress('');
 
                   // 새로운 글쓰기 시작 시 draft 상태 완전 초기화
-                  console.log('새로운 글쓰기 시작: draft 상태 초기화됨');
                 }}
                 className={`px-3 py-1.5 text-sm rounded-lg ${
                   tokens === 0

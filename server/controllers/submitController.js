@@ -1164,22 +1164,13 @@ async function handleSubmit(req, res) {
           });
         }
 
-        // 새로운 주 시작 체크
-        if (streak.shouldStartNewWeek()) {
-          // 이전 주 기록을 히스토리에 저장
-          if (streak.weeklyProgress?.some((day) => day)) {
-            const wasCompleted = streak.weeklyProgress.every((day) => day);
-            streak.streakHistory.push({
-              weekStartDate: streak.currentWeekStartDate,
-              completed: wasCompleted,
-              completionDate: wasCompleted ? streak.lastStreakCompletion : null,
-            });
-          }
-
-          // 새로운 주 시작
-          streak.weeklyProgress = Array(5).fill(false);
-          streak.celebrationShown = false;
-          streak.currentWeekStartDate = monday;
+        // ✅ 새로운 주 시작 체크 (사용자 시간대 기준)
+        if (streak.shouldStartNewWeek(safeUserOffset)) {
+          console.log(
+            `[스트릭] ${user.email}: 새로운 주 시작 - 주간 리셋 실행`
+          );
+          // 수정된 WritingStreak 모델의 resetForNewWeek 메서드 사용
+          streak.resetForNewWeek(safeUserOffset);
         }
 
         const dayIndex = dayOfWeek - 1;

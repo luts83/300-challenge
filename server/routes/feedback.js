@@ -66,8 +66,6 @@ function shouldLogOnChange(scopeKey, current) {
   return changed;
 }
 
-
-
 // 모든 feedback 라우트에 인증 미들웨어 적용
 router.use(authenticateToken);
 
@@ -1050,11 +1048,25 @@ router.get("/given-today/:uid", async (req, res) => {
 router.get("/all-dates/:uid", async (req, res) => {
   const { uid } = req.params;
   const submissions = await Submission.find({ "user.uid": uid }).select(
-    "createdAt"
+    "createdAt mode submissionDate"
   );
-  const dates = submissions.map((sub) =>
-    sub.createdAt.toISOString().slice(0, 10)
-  );
+
+  // 날짜별로 모드 정보를 그룹화
+  const dateModeMap = new Map();
+  submissions.forEach((sub) => {
+    const date = sub.createdAt.toISOString().slice(0, 10);
+    if (!dateModeMap.has(date)) {
+      dateModeMap.set(date, new Set());
+    }
+    if (sub.mode === "mode_300" || sub.mode === "mode_1000") {
+      dateModeMap.get(date).add(sub.mode);
+    }
+  });
+
+  const dates = Array.from(dateModeMap.keys());
+  const todayModes =
+    dateModeMap.get(new Date().toISOString().slice(0, 10)) || new Set();
+
   // 사용자 정보 조회
   const user = await User.findOne({ uid }).select("email displayName").lean();
 
@@ -1066,7 +1078,8 @@ router.get("/all-dates/:uid", async (req, res) => {
           displayName: user.displayName,
         }
       : null,
-    dates: Array.from(new Set(dates)),
+    dates: dates,
+    todayModes: Array.from(todayModes),
   });
 });
 
@@ -1165,7 +1178,7 @@ router.get("/debug/timezone", async (req, res) => {
         date: koreaTime.toDateString(),
       },
       functions: {
-        getUserTodayDate: getUserTodayDate().toISOString(),
+        getUserTodayDate: getUserTodayDate(-540).toISOString(), // 한국 시간 기준 (offset: -540)
         getTodayDateKorea: getTodayDateKorea().toISOString(),
         getTodayDateKoreaFinal: getTodayDateKoreaFinal().toISOString(),
       },

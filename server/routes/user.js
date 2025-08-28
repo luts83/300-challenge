@@ -39,7 +39,8 @@ router.get("/profile", async (req, res) => {
 
 // 프로필 정보 업데이트 (PATCH /profile)
 router.patch("/profile", async (req, res) => {
-  const { uid, displayName, feedbackNotification } = req.body;
+  const { uid, feedbackNotification } = req.body;
+  let { displayName } = req.body;
   if (!uid) return res.status(400).json({ message: "uid가 필요합니다." });
 
   console.log("프로필 업데이트 요청:", {
@@ -83,6 +84,23 @@ router.patch("/profile", async (req, res) => {
     }
 
     console.log("업데이트할 데이터:", updateData);
+
+    // 업데이트할 데이터가 없으면 현재 사용자 정보만 반환
+    if (Object.keys(updateData).length === 0) {
+      const user = await User.findOne({ uid });
+      if (!user) return res.status(404).json({ message: "User not found" });
+
+      return res.json({
+        message: "변경사항이 없습니다.",
+        user: {
+          uid: user.uid,
+          email: user.email,
+          displayName: user.displayName,
+          feedbackNotification: user.feedbackNotification,
+          updatedAt: user.updatedAt,
+        },
+      });
+    }
 
     const user = await User.findOneAndUpdate({ uid }, updateData, {
       new: true,

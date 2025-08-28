@@ -2,7 +2,7 @@
 
 /**
  * 서버 측 통합된 시간대 처리 유틸리티
- * 모든 시간 관련 계산을 일관되게 처리합니다.
+ * 모든 시간 관련 계산을 사용자 시간대 기준으로 일관되게 처리합니다.
  */
 
 /**
@@ -29,151 +29,49 @@ const logUserTime = (userEmail, userTimezone, userOffset) => {
 };
 
 /**
+ * 사용자 시간대 기준으로 오늘 날짜를 문자열로 반환하는 함수
+ * @param {number} userOffset - 사용자 UTC 오프셋 (분 단위, getTimezoneOffset 값)
+ * @returns {string} YYYY-MM-DD 형식의 날짜 문자열
+ */
+const getUserTodayDateString = (userOffset = 0) => {
+  try {
+    // 현재 UTC 시간
+    const now = new Date();
+
+    // 사용자 시간대 기준으로 현재 시간 계산
+    // userOffset은 getTimezoneOffset() 값이므로 음수입니다
+    const userTime = new Date(now.getTime() - userOffset * 60 * 1000);
+
+    // 사용자 현지 날짜를 서버 로컬 타임존과 무관하게 안정적으로 계산
+    const result = userTime.toISOString().slice(0, 10);
+
+    return result;
+  } catch (error) {
+    console.error(
+      `Error in getUserTodayDateString with userOffset: ${userOffset}`,
+      error
+    );
+    // 에러 발생 시 현재 날짜 문자열 반환
+    return new Date().toISOString().slice(0, 10);
+  }
+};
+
+/**
  * 사용자 시간대 기준으로 오늘 날짜를 계산하는 공통 함수
  * @param {number} userOffset - 사용자 UTC 오프셋 (분 단위, getTimezoneOffset 값)
  * @returns {string} YYYY-MM-DD 형식의 날짜 문자열
  */
 const getUserTodayDate = (userOffset = 0) => {
   try {
-    const now = new Date();
-
-    // 기본값: 한국 시간 (UTC+9, offset = -540)
-    if (userOffset === 0) {
-      userOffset = -540; // 한국 시간 기본값
-    }
-
-    // 사용자 시간대의 현재 시간 계산
-    const userTime = new Date(now.getTime() - userOffset * 60 * 1000);
-
-    // 사용자 시간대 기준으로 오늘 날짜의 시작(00:00:00)을 UTC로 계산
-    // getTodayDateKorea와 동일한 방식 사용
-    const userYear = userTime.getUTCFullYear();
-    const userMonth = userTime.getUTCMonth();
-    const userDay = userTime.getUTCDate();
-
-    // UTC 기준으로 사용자 시간대의 오늘 시작점 계산
-    const utcDateStart = new Date(
-      Date.UTC(userYear, userMonth, userDay, 0, 0, 0, 0)
-    );
-
-    // ✅ String 타입 반환 (Submission과 Feedback 모델의 String 타입과 일치)
-    return utcDateStart.toISOString().split("T")[0];
+    // ✅ 사용자 시간대 기준으로 오늘 날짜 계산 (간소화)
+    return getUserTodayDateString(userOffset);
   } catch (error) {
     console.error(
       `❌ Error in getUserTodayDate with userOffset: ${userOffset}`,
       error
     );
-    // 에러 발생 시 한국 시간 기준으로 오늘 날짜 반환 (String 타입)
-    const koreaTime = new Date(new Date().getTime() + 9 * 60 * 60 * 1000);
-    const koreaDateStart = new Date(
-      koreaTime.getFullYear(),
-      koreaTime.getMonth(),
-      koreaTime.getDate(),
-      0,
-      0,
-      0,
-      0
-    );
-    // ✅ String 타입 반환으로 통일
-    return new Date(koreaDateStart.getTime() - 9 * 60 * 60 * 1000)
-      .toISOString()
-      .split("T")[0];
-  }
-};
-
-/**
- * 한국 시간 기준으로 오늘 날짜를 간단하게 계산하는 함수
- * UTC 기준으로 직접 계산하여 정확성 보장
- * @returns {Date} 한국 시간 기준 오늘 날짜의 시작 (UTC로 변환)
- */
-const getTodayDateKorea = () => {
-  try {
-    const now = new Date();
-
-    // 현재 UTC 시간
-    const utcNow = now.getTime();
-
-    // 한국 시간 (UTC+9) 계산
-    const koreaOffset = 9 * 60 * 60 * 1000; // 9시간을 밀리초로
-    const koreaTime = new Date(utcNow + koreaOffset);
-
-    // 한국 시간 기준으로 오늘 날짜의 시작 (00:00:00)
-    // 주의: new Date() 생성자는 UTC 기준으로 해석되므로 직접 계산
-    const koreaYear = koreaTime.getUTCFullYear();
-    const koreaMonth = koreaTime.getUTCMonth();
-    const koreaDay = koreaTime.getUTCDate();
-
-    // UTC 기준으로 한국 시간 00:00:00을 나타내는 시간 계산
-    // 한국 시간 00:00:00 = UTC 15:00:00 (전날)
-    const utcDateStart = new Date(
-      Date.UTC(koreaYear, koreaMonth, koreaDay, 0, 0, 0, 0)
-    );
-
-    return utcDateStart;
-  } catch (error) {
-    console.error("❌ Error in getTodayDateKorea:", error);
-
-    // 에러 시 현재 날짜 반환
-    return new Date();
-  }
-};
-
-/**
- * 한국 시간 기준으로 오늘 날짜를 가장 간단하게 계산하는 함수 (최종 버전)
- * 한국 시간의 오늘 날짜를 직접 계산
- * @returns {Date} 한국 시간 기준 오늘 날짜의 시작 (UTC로 변환)
- */
-const getTodayDateKoreaFinal = () => {
-  try {
-    const now = new Date();
-    const utcNow = now.getTime();
-    const koreaOffset = 9 * 60 * 60 * 1000; // KST는 UTC+9
-    const koreaTime = new Date(utcNow + koreaOffset);
-
-    // KST 기준으로 오늘의 시작 (00:00:00)
-    const koreaYear = koreaTime.getUTCFullYear();
-    const koreaMonth = koreaTime.getUTCMonth();
-    const koreaDay = koreaTime.getUTCDate();
-
-    // UTC 기준으로 KST 00:00:00에 해당하는 시간 계산
-    const utcDateStart = Date.UTC(koreaYear, koreaMonth, koreaDay);
-
-    return new Date(utcDateStart);
-  } catch (error) {
-    console.error("❌ getTodayDateKoreaFinal 오류:", error);
-    // 오류 시 KST 기준으로 오늘 시작 시간 반환
-    const now = new Date();
-    const utcNow = now.getTime();
-    const koreaOffset = 9 * 60 * 60 * 1000;
-    const koreaTime = new Date(utcNow + koreaOffset);
-    const koreaYear = koreaTime.getUTCFullYear();
-    const koreaMonth = koreaTime.getUTCMonth();
-    const koreaDay = koreaTime.getUTCDate();
-    return new Date(Date.UTC(koreaYear, koreaMonth, koreaDay));
-  }
-};
-
-/**
- * 한국 시간 기준으로 오늘 날짜를 가장 간단하게 계산하는 함수
- * 단순한 시간 더하기/빼기로 계산
- * @returns {Date} 한국 시간 기준 오늘 날짜의 시작 (UTC로 변환)
- */
-const getTodayDateKoreaSimple = () => {
-  try {
-    const now = new Date();
-
-    // 현재 UTC 시간에 9시간을 더해서 한국 시간 계산
-    const koreaTime = new Date(now.getTime() + 9 * 60 * 60 * 1000);
-
-    // 한국 시간 기준 오늘 날짜의 시작 (00:00:00)
-    // 한국 시간 00:00:00 = UTC 15:00:00 (전날)
-    // 따라서 UTC 기준으로는 15시간을 빼야 함
-    const utcDateStart = new Date(koreaTime.getTime() - 15 * 60 * 60 * 1000);
-
-    return utcDateStart;
-  } catch (error) {
-    console.error("❌ Error in getTodayDateKoreaSimple:", error);
-    return new Date();
+    // 에러 발생 시 현재 날짜 문자열 반환
+    return new Date().toISOString().slice(0, 10);
   }
 };
 
@@ -184,9 +82,7 @@ const getTodayDateKoreaSimple = () => {
  * @returns {Date} UTC 기준 Date 객체
  */
 const getUserDateString = (date, userOffset = 0) => {
-  // ✅ 영국 시간(UTC+0)을 기본값으로 변경
-  // userOffset은 getTimezoneOffset() 값이므로 음수입니다
-  // 사용자 시간대의 해당 날짜를 계산 (수정: -를 +로 변경)
+  // ✅ 사용자 시간대 기준으로 해당 날짜 계산
   const userTime = new Date(date.getTime() - userOffset * 60 * 1000);
 
   // 사용자 시간대 기준으로 해당 날짜의 시작(00:00:00)을 UTC로 변환
@@ -202,6 +98,17 @@ const getUserDateString = (date, userOffset = 0) => {
 
   // 사용자 시간대 기준 날짜를 UTC로 변환
   return new Date(userDateStart.getTime() + userOffset * 60 * 1000);
+};
+
+/**
+ * 사용자 시간대 기준으로 특정 날짜를 문자열로 반환하는 함수
+ * @param {Date} date - 기준 날짜
+ * @param {number} userOffset - 사용자 UTC 오프셋 (분 단위, getTimezoneOffset 값)
+ * @returns {string} YYYY-MM-DD 형식의 날짜 문자열
+ */
+const getUserDateStringFormatted = (date, userOffset = 0) => {
+  const userDate = getUserDateString(date, userOffset);
+  return userDate.toISOString().slice(0, 10);
 };
 
 /**
@@ -291,45 +198,6 @@ const getUserMonday = (userOffset = 0) => {
     // 에러 발생 시 현재 날짜 반환
     return new Date();
   }
-};
-
-/**
- * 사용자 시간대 기준으로 오늘 날짜를 문자열로 반환하는 함수
- * @param {number} userOffset - 사용자 UTC 오프셋 (분 단위, getTimezoneOffset 값)
- * @returns {string} YYYY-MM-DD 형식의 날짜 문자열
- */
-const getUserTodayDateString = (userOffset = 0) => {
-  try {
-    // 현재 UTC 시간
-    const now = new Date();
-
-    // 사용자 시간대 기준으로 현재 시간 계산
-    // userOffset은 getTimezoneOffset() 값이므로 음수입니다
-    const userTime = new Date(now.getTime() - userOffset * 60 * 1000);
-
-    // 사용자 현지 날짜를 서버 로컬 타임존과 무관하게 안정적으로 계산
-    const result = userTime.toISOString().slice(0, 10);
-
-    return result;
-  } catch (error) {
-    console.error(
-      `Error in getUserTodayDateString with userOffset: ${userOffset}`,
-      error
-    );
-    // 에러 발생 시 현재 날짜 문자열 반환
-    return new Date().toISOString().slice(0, 10);
-  }
-};
-
-/**
- * 사용자 시간대 기준으로 특정 날짜를 문자열로 반환하는 함수
- * @param {Date} date - 기준 날짜
- * @param {number} userOffset - 사용자 UTC 오프셋 (분 단위, getTimezoneOffset 값)
- * @returns {string} YYYY-MM-DD 형식의 날짜 문자열
- */
-const getUserDateStringFormatted = (date, userOffset = 0) => {
-  const userDate = getUserDateString(date, userOffset);
-  return userDate.toISOString().slice(0, 10);
 };
 
 /**
@@ -423,6 +291,11 @@ const logTimezoneInfo = (userEmail, timezone, offset) => {
   );
 };
 
+/**
+ * 특정 시간대 기준으로 오늘 날짜를 문자열로 반환하는 함수
+ * @param {string} timezone - 시간대 문자열
+ * @returns {string} YYYY-MM-DD 형식의 날짜 문자열
+ */
 function getTodayStringByTimezone(timezone = "UTC") {
   try {
     return new Intl.DateTimeFormat("en-CA", {
@@ -436,6 +309,12 @@ function getTodayStringByTimezone(timezone = "UTC") {
   }
 }
 
+/**
+ * 특정 시간대 기준으로 특정 날짜를 문자열로 반환하는 함수
+ * @param {Date} date - 기준 날짜
+ * @param {string} timezone - 시간대 문자열
+ * @returns {string} YYYY-MM-DD 형식의 날짜 문자열
+ */
 function getDateStringByTimezone(date, timezone = "UTC") {
   try {
     return new Intl.DateTimeFormat("en-CA", {
@@ -449,6 +328,100 @@ function getDateStringByTimezone(date, timezone = "UTC") {
   }
 }
 
+/**
+ * 한국 시간 기준으로 오늘 날짜를 계산하는 함수 (기존 코드 호환성 유지)
+ * @returns {Date} 한국 시간 기준 오늘 날짜의 시작 (UTC로 변환)
+ */
+const getTodayDateKorea = () => {
+  try {
+    const now = new Date();
+    const utcNow = now.getTime();
+    const koreaOffset = 9 * 60 * 60 * 1000; // KST는 UTC+9
+    const koreaTime = new Date(utcNow + koreaOffset);
+
+    // KST 기준으로 오늘의 시작 (00:00:00)
+    const koreaYear = koreaTime.getUTCFullYear();
+    const koreaMonth = koreaTime.getUTCMonth();
+    const koreaDay = koreaTime.getUTCDate();
+
+    // UTC 기준으로 KST 00:00:00에 해당하는 시간 계산
+    const utcDateStart = Date.UTC(koreaYear, koreaMonth, koreaDay);
+
+    return new Date(utcDateStart);
+  } catch (error) {
+    console.error("❌ getTodayDateKorea 오류:", error);
+    // 오류 시 KST 기준으로 오늘 시작 시간 반환
+    const now = new Date();
+    const utcNow = now.getTime();
+    const koreaOffset = 9 * 60 * 60 * 1000;
+    const koreaTime = new Date(utcNow + koreaOffset);
+    const koreaYear = koreaTime.getUTCFullYear();
+    const koreaMonth = koreaTime.getUTCMonth();
+    const koreaDay = koreaTime.getUTCDate();
+    return new Date(Date.UTC(koreaYear, koreaMonth, koreaDay));
+  }
+};
+
+/**
+ * 한국 시간 기준으로 오늘 날짜를 간단하게 계산하는 함수 (기존 코드 호환성 유지)
+ * @returns {Date} 한국 시간 기준 오늘 날짜의 시작 (UTC로 변환)
+ */
+const getTodayDateKoreaSimple = () => {
+  try {
+    const now = new Date();
+    const utcNow = now.getTime();
+    const koreaOffset = 9 * 60 * 60 * 1000; // KST는 UTC+9
+    const koreaTime = new Date(utcNow + koreaOffset);
+
+    // KST 기준으로 오늘의 시작 (00:00:00)
+    const koreaYear = koreaTime.getUTCFullYear();
+    const koreaMonth = koreaTime.getUTCMonth();
+    const koreaDay = koreaTime.getUTCDate();
+
+    // UTC 기준으로 KST 00:00:00에 해당하는 시간 계산
+    const utcDateStart = Date.UTC(koreaYear, koreaMonth, koreaDay);
+
+    return new Date(utcDateStart);
+  } catch (error) {
+    console.error("❌ getTodayDateKoreaSimple 오류:", error);
+    return new Date();
+  }
+};
+
+/**
+ * 한국 시간 기준으로 오늘 날짜를 가장 간단하게 계산하는 함수 (기존 코드 호환성 유지)
+ * @returns {Date} 한국 시간 기준 오늘 날짜의 시작 (UTC로 변환)
+ */
+const getTodayDateKoreaFinal = () => {
+  try {
+    const now = new Date();
+    const utcNow = now.getTime();
+    const koreaOffset = 9 * 60 * 60 * 1000; // KST는 UTC+9
+    const koreaTime = new Date(utcNow + koreaOffset);
+
+    // KST 기준으로 오늘의 시작 (00:00:00)
+    const koreaYear = koreaTime.getUTCFullYear();
+    const koreaMonth = koreaTime.getUTCMonth();
+    const koreaDay = koreaTime.getUTCDate();
+
+    // UTC 기준으로 KST 00:00:00에 해당하는 시간 계산
+    const utcDateStart = Date.UTC(koreaYear, koreaMonth, koreaDay);
+
+    return new Date(utcDateStart);
+  } catch (error) {
+    console.error("❌ getTodayDateKoreaFinal 오류:", error);
+    // 오류 시 KST 기준으로 오늘 시작 시간 반환
+    const now = new Date();
+    const utcNow = now.getTime();
+    const koreaOffset = 9 * 60 * 60 * 1000;
+    const koreaTime = new Date(utcNow + koreaOffset);
+    const koreaYear = koreaTime.getUTCFullYear();
+    const koreaMonth = koreaTime.getUTCMonth();
+    const koreaDay = koreaTime.getUTCDate();
+    return new Date(Date.UTC(koreaYear, koreaMonth, koreaDay));
+  }
+};
+
 module.exports = {
   getUserTodayDate,
   getUserDateString,
@@ -461,9 +434,9 @@ module.exports = {
   getTimezoneDescription,
   logTimezoneInfo,
   logUserTime,
+  getTodayStringByTimezone,
+  getDateStringByTimezone,
   getTodayDateKorea,
   getTodayDateKoreaSimple,
   getTodayDateKoreaFinal,
-  getTodayStringByTimezone,
-  getDateStringByTimezone,
 };
