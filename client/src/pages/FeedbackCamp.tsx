@@ -961,16 +961,18 @@ localStorage: ${JSON.stringify(info.localStorage)}`);
         }
       );
 
-      // 교차 피드백 정보를 포함한 상세한 성공 메시지 생성
+      // ✅ 즉시 성공 메시지 표시 (이메일 전송은 백그라운드에서 처리)
       const successMessage = generateFeedbackSuccessMessage(response.data);
       alert(successMessage);
 
       // ✅ submittedIds 상태 업데이트 복원 - 즉시 UI에 반영
       setSubmittedIds(prev => [...prev, submissionId]);
 
-      // 피드백 현황 새로고침
-      await fetchTodayFeedbackCount();
-      await fetchGivenFeedbacks();
+      // ✅ 피드백 현황 새로고침 (비동기로 처리)
+      Promise.all([fetchTodayFeedbackCount(), fetchGivenFeedbacks()]).catch(err => {
+        console.warn('피드백 현황 새로고침 실패:', err);
+        // 새로고침 실패는 사용자 경험에 영향을 주지 않음
+      });
 
       // 피드백 입력 초기화
       setFeedbacks(prev => {
@@ -1076,16 +1078,18 @@ localStorage: ${JSON.stringify(info.localStorage)}`);
         }
       );
 
-      // 교차 피드백 정보를 포함한 상세한 성공 메시지 생성
+      // ✅ 즉시 성공 메시지 표시 (이메일 전송은 백그라운드에서 처리)
       const successMessage = generateFeedbackSuccessMessage(response.data);
       alert(successMessage);
 
       // ✅ submittedIds 상태 업데이트 복원 - 즉시 UI에 반영
       setSubmittedIds(prev => [...prev, submissionId]);
 
-      // 피드백 현황 새로고침
-      await fetchTodayFeedbackCount();
-      await fetchGivenFeedbacks();
+      // ✅ 피드백 현황 새로고침 (비동기로 처리)
+      Promise.all([fetchTodayFeedbackCount(), fetchGivenFeedbacks()]).catch(err => {
+        console.warn('피드백 현황 새로고침 실패:', err);
+        // 새로고침 실패는 사용자 경험에 영향을 주지 않음
+      });
 
       // 피드백 입력 초기화
       setFeedbacks(prev => {

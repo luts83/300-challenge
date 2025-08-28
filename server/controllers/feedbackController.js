@@ -377,21 +377,19 @@ exports.submitFeedback = async (req, res) => {
       return await newFeedback.save();
     })();
 
-    // 이메일 알림 설정에 따라 전송
-    try {
-      // 피드백 대상 글의 유저(=알림 받을 유저) 정보 조회
-      const targetUser = await User.findOne({
-        email: targetSubmission.user.email,
+    // 이메일 알림 설정에 따라 전송 (비동기 처리로 UX 개선)
+    if (targetUser && targetUser.feedbackNotification === true) {
+      // ✅ 비동기 이메일 전송으로 피드백 제출 지연 방지
+      setImmediate(async () => {
+        try {
+          const canViewFeedback = targetUser.feedbackNotification === true;
+          await sendFeedbackEmail(savedFeedback, targetSubmission, canViewFeedback);
+          console.log("✅ 피드백 알림 이메일 전송 완료:", targetSubmission.user.email);
+        } catch (emailError) {
+          logger.error("피드백 알림 이메일 전송 실패:", emailError);
+          // 이메일 전송 실패는 전체 프로세스를 중단시키지 않음
+        }
       });
-      // 알림이 켜져있을 때만 이메일 전송 (feedbackNotification === true)
-      if (targetUser && targetUser.feedbackNotification === true) {
-        // ✅ canViewFeedback 매개변수 추가로 Aug 22일 버전과 완벽 호환
-        const canViewFeedback = targetUser.feedbackNotification === true;
-        await sendFeedbackEmail(savedFeedback, targetSubmission, canViewFeedback);
-      }
-    } catch (emailError) {
-      logger.error("피드백 알림 이메일 전송 실패:", emailError);
-      // 이메일 전송 실패는 전체 프로세스를 중단시키지 않음
     }
 
     // Submission 모델의 hasGivenFeedback 필드 업데이트
