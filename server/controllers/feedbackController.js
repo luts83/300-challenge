@@ -392,8 +392,6 @@ exports.submitFeedback = async (req, res) => {
       setImmediate(async () => {
         const emailStartTime = Date.now();
         try {
-          const canViewFeedback = targetUser.feedbackNotification === true;
-
           // ✅ 이메일 전송 시작 로깅
           console.log(
             `📧 [이메일 전송 시작] ${targetSubmission.user.email}에게 피드백 알림 전송 시도`
@@ -401,8 +399,8 @@ exports.submitFeedback = async (req, res) => {
 
           const emailResult = await sendFeedbackEmail(
             savedFeedback,
-            targetSubmission,
-            canViewFeedback
+            targetSubmission
+            // canViewFeedback 파라미터 제거 - 이전 버전과 동일하게
           );
 
           const emailDuration = Date.now() - emailStartTime;
