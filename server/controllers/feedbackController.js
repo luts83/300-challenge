@@ -101,10 +101,6 @@ const canGiveFeedback = async (uid, userTimezone = null, userOffset = null) => {
       writtenDate: todayString, // writtenDate 기준으로 확인
     });
 
-    console.log(
-      `📊 [canGiveFeedback] ${userEmail} - 오늘 피드백 수: ${todayFeedbackCount}개 (${todayString})`
-    );
-
     // 3. 피드백 제한 확인 (하루 최대 5개)
     if (todayFeedbackCount >= 5) {
       return {
@@ -169,10 +165,6 @@ const getAvailableSubmissions = async (req, res) => {
       fromUid: uid,
       writtenDate: todayString, // writtenDate 기준으로 확인
     });
-
-    console.log(
-      `📊 [getAvailableSubmissions] 오늘 피드백 수: ${todayFeedbackCount}개 (${todayString})`
-    );
 
     // 3. 피드백 제한 확인 (하루 최대 5개)
     if (todayFeedbackCount >= 5) {
@@ -273,13 +265,26 @@ exports.submitFeedback = async (req, res) => {
       console.log(`🇰🇷 한국 시간 기준 날짜 계산 (기본값): ${todayString}`);
     }
 
-    // 중복 피드백 체크 추가
+    // 중복 피드백 체크 강화 (오늘 날짜 기준으로도 체크)
     const existingFeedback = await Feedback.findOne({
+      toSubmissionId,
+      fromUid,
+      writtenDate: todayString, // 오늘 날짜 기준으로도 중복 체크
+    });
+
+    if (existingFeedback) {
+      return res.status(400).json({
+        message: "이미 이 글에 피드백을 작성하셨습니다.",
+      });
+    }
+
+    // 추가 안전장치: 전체 기간 중복 체크
+    const anyExistingFeedback = await Feedback.findOne({
       toSubmissionId,
       fromUid,
     });
 
-    if (existingFeedback) {
+    if (anyExistingFeedback) {
       return res.status(400).json({
         message: "이미 이 글에 피드백을 작성하셨습니다.",
       });
@@ -383,7 +388,18 @@ exports.submitFeedback = async (req, res) => {
         isHelpful: null,
       });
 
-      return await newFeedback.save();
+      try {
+        return await newFeedback.save();
+      } catch (error) {
+        // 🚨 스키마 레벨 검증 에러 처리
+        if (error.name === "DuplicateFeedbackError") {
+          console.log(
+            `🚫 스키마 레벨 중복 피드백 감지: ${fromUid} -> ${toSubmissionId}`
+          );
+          throw new Error("이미 이 글에 피드백을 작성하셨습니다.");
+        }
+        throw error;
+      }
     })();
 
     // 이메일 알림 설정에 따라 전송 (비동기 처리로 UX 개선)
@@ -433,6 +449,15 @@ exports.submitFeedback = async (req, res) => {
               duration: emailDuration,
               timestamp: new Date().toISOString(),
             });
+
+            // 🚨 이메일 전송 실패 시 관리자 알림 (선택사항)
+            if (process.env.ADMIN_EMAIL) {
+              try {
+                // 여기에 관리자 알림 로직 추가 가능
+              } catch (adminError) {
+                console.error("관리자 알림 처리 실패:", adminError);
+              }
+            }
           }
         } catch (emailError) {
           const emailDuration = Date.now() - emailStartTime;
@@ -590,10 +615,6 @@ const assignFeedbackMissions = async (req, res) => {
       fromUid: uid,
       writtenDate: todayString, // writtenDate 기준으로 확인
     });
-
-    console.log(
-      `📊 [assignFeedbackMissions] 오늘 피드백 수: ${todayFeedbackCount}개 (${todayString})`
-    );
 
     // 3. 피드백 미션 할당 (writtenDate 기준으로 계산)
     const missions = [];

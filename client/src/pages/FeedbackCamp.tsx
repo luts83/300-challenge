@@ -471,13 +471,26 @@ const FeedbackCamp = () => {
     async (submissionId: string, feedback: string) => {
       if (!user?.uid) return;
 
+      // 🛡️ 중복 제출 방지 (클라이언트 측)
+      if (submittedIds.includes(submissionId)) {
+        alert('이미 피드백을 작성한 글입니다.');
+        return;
+      }
+
+      // 🛡️ 추가 검증: allSubmissions에서 이미 피드백한 글인지 확인
+      const targetSubmission = allSubmissions.find(sub => sub._id === submissionId);
+      if (targetSubmission && targetSubmission.hasGivenFeedback) {
+        alert('이미 피드백을 작성한 글입니다. 페이지를 새로고침해주세요.');
+        return;
+      }
+
       try {
         setIsSubmittingFeedback(true);
         const token = await user.getIdToken();
         if (!token) return;
 
         const response = await axios.post(
-          `${import.meta.env.VITE_API_URL}/api/feedback/submit`,
+          `${import.meta.env.VITE_API_URL}/api/feedback`,
           {
             toSubmissionId: submissionId,
             content: feedback,

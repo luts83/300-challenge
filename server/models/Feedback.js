@@ -57,4 +57,31 @@ const feedbackSchema = new mongoose.Schema(
   }
 );
 
+// 🔍 중복 피드백 방지를 위한 복합 인덱스 추가
+feedbackSchema.index({ fromUid: 1, toSubmissionId: 1 }, { unique: true });
+feedbackSchema.index({ fromUid: 1, writtenDate: 1, toSubmissionId: 1 });
+feedbackSchema.index({ toSubmissionId: 1, fromUid: 1 });
+
+// 🚨 중복 피드백 방지를 위한 스키마 레벨 검증 추가
+feedbackSchema.pre("save", async function (next) {
+  try {
+    // 같은 사용자가 같은 글에 피드백을 작성하려는지 확인
+    const existingFeedback = await this.constructor.findOne({
+      fromUid: this.fromUid,
+      toSubmissionId: this.toSubmissionId,
+      _id: { $ne: this._id }, // 현재 문서 제외
+    });
+
+    if (existingFeedback) {
+      const error = new Error("이미 이 글에 피드백을 작성하셨습니다.");
+      error.name = "DuplicateFeedbackError";
+      return next(error);
+    }
+
+    next();
+  } catch (error) {
+    next(error);
+  }
+});
+
 module.exports = mongoose.model("Feedback", feedbackSchema);

@@ -95,10 +95,12 @@ router.get("/assignments/:uid", async (req, res) => {
 
     const myMode = todaySubmission.mode;
 
-    // 이미 피드백한 글 ID 목록
-    const givenFeedbacks = await Feedback.find({ fromUid: uid }).select(
-      "toSubmissionId"
-    );
+    // 이미 피드백한 글 ID 목록 (전체 기간 기준으로 중복 방지)
+    const givenFeedbacks = await Feedback.find({
+      fromUid: uid,
+      // 전체 기간 동안 이미 피드백한 글을 모두 제외
+    }).select("toSubmissionId");
+
     const givenIds = givenFeedbacks
       .map((fb) => {
         try {
@@ -116,6 +118,7 @@ router.get("/assignments/:uid", async (req, res) => {
     let candidateQuery = {
       "user.uid": { $ne: uid },
       _id: { $nin: givenIds },
+      isDeleted: { $ne: true }, // 삭제된 글 제외
     };
 
     // 교차 피드백 설정에 따라 모드 조건 추가
@@ -171,16 +174,29 @@ router.get("/assignments/:uid", async (req, res) => {
       }
     }
 
-    // 미션 생성
+    // 🛡️ 최종 안전장치: 선택된 미션들이 실제로 피드백 가능한지 재검증
+    const finalMissions = [];
+    for (const target of selectedMissions) {
+      // 각 대상 글에 대해 다시 한 번 중복 체크
+      const existingFeedback = await Feedback.findOne({
+        fromUid: uid,
+        toSubmissionId: target._id,
+      });
+
+      if (!existingFeedback) {
+        finalMissions.push({
+          fromUid: uid,
+          toSubmissionId: target._id,
+          userUid: uid,
+          isDone: false,
+        });
+      } else {
+        // 중복 감지 시 조용히 제외
+      }
+    }
+
     // 사용자 정보 조회
     const user = await User.findOne({ uid }).select("email displayName").lean();
-
-    const missions = selectedMissions.map((target) => ({
-      fromUid: uid,
-      toSubmissionId: target._id,
-      userUid: uid,
-      isDone: false,
-    }));
 
     res.json({
       user: user
@@ -190,7 +206,7 @@ router.get("/assignments/:uid", async (req, res) => {
             displayName: user.displayName,
           }
         : null,
-      missions: missions,
+      missions: finalMissions,
     });
   } catch (err) {
     console.error("❌ 피드백 대상 조회 실패:", err);
@@ -546,14 +562,6 @@ router.get("/today/:uid", async (req, res) => {
       })
       .lean();
 
-    // 🔍 디버깅: 핵심 정보만 로깅
-    console.log(`🔍 [피드백 현황] 쿼리 결과:`, {
-      uid,
-      todayString,
-      found_feedbacks: todayFeedbacks.length,
-      feedback_modes: todayFeedbacks.map((fb) => fb.toSubmissionId?.mode),
-    });
-
     // 모드별 피드백 수 계산
     const mode300Count = todayFeedbacks.filter(
       (fb) => fb.toSubmissionId?.mode === "mode_300"
@@ -573,9 +581,6 @@ router.get("/today/:uid", async (req, res) => {
       }) ||
       shouldLogWithTime(uid, "feedback_count_summary", 10)
     ) {
-      console.log(
-        `📊 [피드백 현황] 유저 ${user.email}(${uid})의 오늘 피드백: 300자 ${mode300Count}개, 1000자 ${mode1000Count}개, 총 ${totalTodayCount}개`
-      );
     }
 
     // 캐시 정리
@@ -655,9 +660,6 @@ router.get("/system/today", async (req, res) => {
       }) ||
       shouldLogWithTime("system", "system_feedback_count_summary", 10)
     ) {
-      console.log(
-        `📊 [시스템 피드백 현황] 전체 시스템 오늘 피드백: 300자 ${mode300Count}개, 1000자 ${mode1000Count}개, 총 ${totalTodayCount}개`
-      );
     }
 
     // 캐시 정리
@@ -943,7 +945,13 @@ router.get("/all-submissions/:uid", async (req, res) => {
       }),
     ]);
 
-    const submissions = await Submission.find(filteredQuery)
+    // 이미 피드백한 글을 제외한 쿼리 생성
+    const finalQuery = {
+      ...filteredQuery,
+      _id: { $nin: Array.from(myFeedbackSet) },
+    };
+
+    const submissions = await Submission.find(finalQuery)
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
