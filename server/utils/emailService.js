@@ -47,7 +47,14 @@ async function sendFeedbackEmail(feedback, submission, canViewFeedback) {
     await transporter.sendMail(mailOptions);
     return true;
   } catch (error) {
-    // 이메일 전송 실패 시 조용히 처리
+    // 이메일 전송 실패 시 서버 로그에 기록
+    console.error(`❌ 이메일 전송 실패: ${submission.user.email}`, {
+      error: error.message,
+      code: error.code,
+      submissionId: submission._id,
+      feedbackId: feedback._id,
+      timestamp: new Date().toISOString(),
+    });
     return false;
   }
 }
