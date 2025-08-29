@@ -70,7 +70,7 @@ export const CONFIG = {
 
   // ⏱ 타이머 설정 (300자 글쓰기 기준, ms 단위 아님!)
   TIMER: {
-    DURATION_MINUTES: 0.5, // 타임어택 제한 시간
+    DURATION_MINUTES: 7, // 타임어택 제한 시간
   },
 
   // 📌 주제 표시 여부
