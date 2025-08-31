@@ -20,10 +20,73 @@ A web application for daily writing practice with AI feedback.
 
 ## Setup
 
+### 방법 1: Docker를 사용한 가상화 환경 (권장)
+
 1. Clone the repository
 
 ```bash
 git clone [repository-url]
+cd 300-challenge
+```
+
+2. Docker Desktop 실행
+   - macOS: Applications 폴더에서 Docker.app 실행
+   - Docker가 실행될 때까지 대기
+
+3. 환경 변수 설정
+   프로젝트 루트에 `.env` 파일 생성:
+
+```bash
+# 서버 설정
+NODE_ENV=development
+PORT=5000
+
+# MongoDB 설정
+MONGO_URI=mongodb://admin:password123@localhost:27017/300challenge?authSource=admin
+
+# Firebase 설정 (실제 값으로 변경 필요)
+FIREBASE_PROJECT_ID=your-project-id
+FIREBASE_PRIVATE_KEY=your-private-key
+FIREBASE_CLIENT_EMAIL=your-client-email
+
+# JWT 설정
+JWT_SECRET=your-jwt-secret-key
+
+# 이메일 설정
+EMAIL_SERVICE=gmail
+EMAIL_USER=your-email@gmail.com
+EMAIL_PASS=your-app-password
+
+# 클라이언트 설정
+VITE_API_URL=http://localhost:5000
+```
+
+4. Docker 컨테이너 실행
+
+```bash
+# 모든 서비스 실행 (MongoDB, 서버, 클라이언트)
+docker-compose up -d
+
+# 로그 확인
+docker-compose logs -f
+
+# 특정 서비스만 실행
+docker-compose up mongodb server
+docker-compose up client
+```
+
+5. 애플리케이션 접속
+   - 클라이언트: http://localhost:3000
+   - 서버 API: http://localhost:5000
+   - MongoDB: localhost:27017
+
+### 방법 2: 로컬 개발 환경
+
+1. Clone the repository
+
+```bash
+git clone [repository-url]
+cd 300-challenge
 ```
 
 2. Install dependencies
@@ -44,8 +107,8 @@ npm install
 Server (.env):
 
 ```
-PORT=3000
-MONGODB_URI=your_mongodb_uri
+PORT=5000
+MONGO_URI=your_mongodb_uri
 FIREBASE_PROJECT_ID=your_firebase_project_id
 FIREBASE_PRIVATE_KEY=your_firebase_private_key
 FIREBASE_CLIENT_EMAIL=your_firebase_client_email
@@ -55,7 +118,7 @@ OPENAI_API_KEY=your_openai_api_key
 Client (.env):
 
 ```
-VITE_API_URL=http://localhost:3000
+VITE_API_URL=http://localhost:5000
 VITE_FIREBASE_API_KEY=your_firebase_api_key
 VITE_FIREBASE_AUTH_DOMAIN=your_firebase_auth_domain
 VITE_FIREBASE_PROJECT_ID=your_firebase_project_id
@@ -71,7 +134,7 @@ VITE_FIREBASE_APP_ID=your_firebase_app_id
 cd server
 npm run dev
 
-# Start client
+# Start client (새 터미널에서)
 cd ../client
 npm run dev
 ```
@@ -84,6 +147,45 @@ The application can be configured through the `config.ts` file in the client dir
 - Character limits
 - AI feedback settings
 - Topic display settings
+
+## 🚀 최근 업데이트 (2025-01-20)
+
+### 🔄 멀티 디바이스 개발 환경 구축
+
+**시공간을 초월한 끊김 없는 개발을 위한 환경 변수 동기화 시스템:**
+
+#### 📱 사용 가능한 개발 환경:
+- **메인 컴퓨터**: 집에서 사용하는 무거운 개발 머신
+- **랩탑**: 밖에서 들고 다니는 가벼운 개발 머신
+- **GitHub**: 코드 및 환경 설정 동기화
+
+#### 🔧 환경 변수 동기화 방법:
+
+```bash
+# 1. 환경 변수 백업 (메인 컴퓨터에서)
+./sync-env.sh
+# 선택: 1 (현재 환경 변수를 .env 파일로 백업)
+
+# 2. .env 파일을 다른 컴퓨터로 복사
+# - USB, 클라우드, Git 등으로 전송
+
+# 3. 환경 변수 복원 (다른 컴퓨터에서)
+./sync-env.sh
+# 선택: 2 (.env 파일에서 환경 변수 복원)
+```
+
+#### 📁 생성된 파일들:
+- `env.template`: 환경 변수 템플릿
+- `sync-env.sh`: 환경 변수 동기화 스크립트
+- `.env`: 실제 환경 변수 (Git에 업로드되지 않음)
+
+#### 💡 개발 워크플로우:
+1. **메인 컴퓨터**에서 개발 → 환경 변수 백업
+2. **GitHub**에 코드 푸시
+3. **랩탑**에서 코드 풀 → 환경 변수 복원
+4. **랩탑**에서 개발 → 환경 변수 백업
+5. **메인 컴퓨터**에서 코드 풀 → 환경 변수 복원
+6. **무한 반복** 🚀
 
 ## 🚀 최근 업데이트 (2025-01-20)
 

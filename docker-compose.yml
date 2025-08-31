@@ -1,0 +1,77 @@
+version: '3.8'
+
+services:
+  # MongoDB 서비스
+  mongodb:
+    image: mongo:7.0
+    container_name: 300-challenge-mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password123
+      MONGO_INITDB_DATABASE: 300challenge
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+      - ./server/init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js:ro
+    networks:
+      - app-network
+
+  # 서버 서비스
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: 300-challenge-server
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      MONGO_URI: mongodb://admin:password123@mongodb:27017/300challenge?authSource=admin
+      PORT: 5000
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./server:/app
+      - /app/node_modules
+    depends_on:
+      - mongodb
+    networks:
+      - app-network
+    command: npm run dev
+
+  # 클라이언트 서비스
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    container_name: 300-challenge-client
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      VITE_API_URL: http://localhost:5000
+      PORT: 3000
+      VITE_FIREBASE_API_KEY: AIzaSyDnpAr7xv2dmeRpLAS7m1mQ0wyeo81xQAQ
+      VITE_FIREBASE_AUTH_DOMAIN: writing-challenge-d4892.firebaseapp.com
+      VITE_FIREBASE_PROJECT_ID: writing-challenge-d4892
+      VITE_FIREBASE_STORAGE_BUCKET: writing-challenge-d4892.firebasestorage.app
+      VITE_FIREBASE_MESSAGING_SENDER_ID: 323909574022
+      VITE_FIREBASE_APP_ID: 1:323909574022:web:d473ff4645efdf14b62007
+      VITE_FIREBASE_MEASUREMENT_ID: G-8715JL3XGX
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./client:/app
+      - /app/node_modules
+    depends_on:
+      - server
+    networks:
+      - app-network
+    command: npm run dev -- --host 0.0.0.0 --port 3000
+
+volumes:
+  mongodb_data:
+
+networks:
+  app-network:
+    driver: bridge

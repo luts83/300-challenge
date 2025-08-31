@@ -3,15 +3,15 @@ import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getAnalytics, isSupported } from 'firebase/analytics';
 
-// Firebase 구성 객체 (네 프로젝트에서 복사한 내용)
+// Firebase 구성 객체 (환경 변수에서 가져옴)
 const firebaseConfig = {
-  apiKey: 'AIzaSyDnpAr7xv2dmeRpLAS7m1mQ0wyeo81xQAQ',
-  authDomain: 'writing-challenge-d4892.firebaseapp.com',
-  projectId: 'writing-challenge-d4892',
-  storageBucket: 'writing-challenge-d4892.firebasestorage.app',
-  messagingSenderId: '323909574022',
-  appId: '1:323909574022:web:d473ff4645efdf14b62007',
-  measurementId: 'G-8715JL3XGX',
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || 'AIzaSyDnpAr7xv2dmeRpLAS7m1mQ0wyeo81xQAQ',
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || 'writing-challenge-d4892.firebaseapp.com',
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || 'writing-challenge-d4892',
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || 'writing-challenge-d4892.firebasestorage.app',
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '323909574022',
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || '1:323909574022:web:d473ff4645efdf14b62007',
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || 'G-8715JL3XGX',
 };
 
 // Firebase 앱 초기화

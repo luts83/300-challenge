@@ -19,6 +19,13 @@ client/build/
 .env.test.local
 .env.production.local
 
+# Encrypted environment variables (safe to commit)
+# .env.encrypted
+
+# Encryption keys (NEVER commit!)
+.env.key
+*.key
+
 # Logs
 npm-debug.log*
 yarn-debug.log*
