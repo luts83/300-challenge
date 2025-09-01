@@ -2,6 +2,16 @@ const nodemailer = require("nodemailer");
 const User = require("../models/User");
 const dns = require("dns");
 
+// Resend 서비스 import (Railway SMTP 차단 시 대안)
+let resendService = null;
+try {
+  resendService = require("./resendEmailService");
+} catch (error) {
+  console.log(
+    "⚠️ Resend 서비스가 설치되지 않았습니다. Gmail SMTP를 사용합니다."
+  );
+}
+
 // 환경 변수 검증
 function validateEmailConfig() {
   const requiredVars = ["EMAIL_USER", "EMAIL_PASSWORD"];
@@ -158,6 +168,19 @@ async function sendFeedbackEmail(
   if (retryCount === 0) {
     console.log("🔍 [이메일 전송] 환경 검증 시작...");
 
+    // Resend 사용 가능한지 확인 (Railway SMTP 차단 시 대안)
+    if (resendService && process.env.RESEND_API_KEY) {
+      console.log(
+        "📧 [이메일 전송] Resend 서비스 사용 (Railway SMTP 차단 대응)"
+      );
+      return await resendService.sendFeedbackEmail(
+        feedback,
+        submission,
+        canViewFeedback,
+        retryCount
+      );
+    }
+
     // 환경 변수 검증
     if (!validateEmailConfig()) {
       console.error("❌ [이메일 전송] 환경 변수 검증 실패");
@@ -175,6 +198,9 @@ async function sendFeedbackEmail(
     const smtpSuccess = await testSMTPConnection();
     if (!smtpSuccess) {
       console.error("❌ [이메일 전송] SMTP 연결 테스트 실패");
+      console.log(
+        "💡 Railway SMTP 차단 가능성. Resend 서비스 사용을 권장합니다."
+      );
       return false;
     }
 
