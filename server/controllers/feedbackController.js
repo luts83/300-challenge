@@ -453,7 +453,36 @@ exports.submitFeedback = async (req, res) => {
             // 🚨 이메일 전송 실패 시 관리자 알림 (선택사항)
             if (process.env.ADMIN_EMAIL) {
               try {
-                // 여기에 관리자 알림 로직 추가 가능
+                const { sendFeedbackEmail } = require("../utils/emailService");
+
+                // 관리자에게 이메일 전송 실패 알림
+                const adminNotification = {
+                  _id: new mongoose.Types.ObjectId(),
+                  content: `이메일 전송 실패: ${targetSubmission.user.email}`,
+                  fromUid: "system",
+                  toSubmissionId: targetSubmission._id,
+                  createdAt: new Date(),
+                };
+
+                const adminSubmission = {
+                  _id: targetSubmission._id,
+                  title: targetSubmission.title,
+                  user: {
+                    email: process.env.ADMIN_EMAIL,
+                    displayName: "관리자",
+                  },
+                };
+
+                await sendFeedbackEmail(
+                  adminNotification,
+                  adminSubmission,
+                  true,
+                  0
+                );
+
+                console.log(
+                  `📧 [관리자 알림] ${process.env.ADMIN_EMAIL}에게 이메일 전송 실패 알림 전송`
+                );
               } catch (adminError) {
                 console.error("관리자 알림 처리 실패:", adminError);
               }

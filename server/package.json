@@ -10,7 +10,8 @@
     "fix-token-history": "node scripts/fixUserTokenHistory.js",
     "migrate-text-hash": "node scripts/migrateTextHash.js",
     "test-smtp": "node scripts/testSMTP.js",
-    "test-network": "node scripts/testNetwork.js"
+    "test-network": "node scripts/testNetwork.js",
+    "test-email-debug": "node scripts/testEmailDebug.js"
   },
   "dependencies": {
     "axios": "^1.8.4",

@@ -104,22 +104,29 @@ const createIndexes = async () => {
       console.log("⚠️ user_text_hash_created 인덱스 이미 존재:", error.message);
     }
 
-    // 텍스트 검색을 위한 text 인덱스 (업계 표준)
+    // 텍스트 검색을 위한 text 인덱스 (제목, 내용, 작성자명, 이메일 포함)
     try {
       await Submission.collection.createIndex(
-        { title: "text", text: "text" },
         {
-          name: "title_text_search_index",
+          title: "text",
+          text: "text",
+          "user.displayName": "text",
+          "user.email": "text",
+        },
+        {
+          name: "comprehensive_search_index",
           weights: {
             title: 10, // 제목에 더 높은 가중치
-            text: 1, // 내용에 기본 가중치
+            text: 5, // 내용에 중간 가중치
+            "user.displayName": 3, // 작성자명에 낮은 가중치
+            "user.email": 1, // 이메일에 가장 낮은 가중치
           },
         }
       );
-      console.log("✅ title_text_search_index 인덱스 생성 완료");
+      console.log("✅ comprehensive_search_index 인덱스 생성 완료");
     } catch (error) {
       console.log(
-        "⚠️ title_text_search_index 인덱스 이미 존재:",
+        "⚠️ comprehensive_search_index 인덱스 이미 존재:",
         error.message
       );
     }

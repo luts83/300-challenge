@@ -123,7 +123,12 @@ const FeedbackCamp = () => {
           // 피드백 대상 글들
           axios.get(`${import.meta.env.VITE_API_URL}/api/feedback/all-submissions/${user.uid}`, {
             headers: { Authorization: `Bearer ${token}` },
-            params: { page: 1, limit: ITEMS_PER_PAGE },
+            params: {
+              page: 1,
+              limit: ITEMS_PER_PAGE,
+              search: searchQuery || undefined,
+              mode: activeTab === 'all' ? undefined : activeTab,
+            },
           }),
           // 내가 쓴 피드백들
           axios.get(`${import.meta.env.VITE_API_URL}/api/feedback/given/${user.uid}`, {
@@ -153,6 +158,12 @@ const FeedbackCamp = () => {
 
       // 데이터 설정
       const submissionsData = submissionsRes.data;
+      console.log('📊 API 응답 데이터:', {
+        searchQuery,
+        activeTab,
+        submissionsCount: submissionsData.submissions?.length || 0,
+        totalCount: submissionsData.totalCount || 0,
+      });
       setAllSubmissions(submissionsData.submissions || []);
       setSubmittedIds(
         (submissionsData.submissions || [])
@@ -246,7 +257,7 @@ const FeedbackCamp = () => {
     } finally {
       setLoading(false);
     }
-  }, [user?.uid]);
+  }, [user?.uid, searchQuery, activeTab]);
 
   // 🚀 단순화된 초기 로딩
   useEffect(() => {
@@ -279,13 +290,18 @@ const FeedbackCamp = () => {
     }
   }, [user]);
 
-  // 검색어 디바운싱
-  useEffect(() => {
-    const timeout = setTimeout(() => {
-      setSearchQuery(inputValue);
-    }, 300);
-    return () => clearTimeout(timeout);
-  }, [inputValue]);
+  // 엔터키로 검색 실행
+  const handleSearch = () => {
+    console.log('🔍 검색 실행:', { inputValue, currentSearchQuery: searchQuery });
+    setSearchQuery(inputValue);
+  };
+
+  // 엔터키 이벤트 핸들러
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleSearch();
+    }
+  };
 
   // 🚀 추가 데이터 로딩 (무한 스크롤)
   const fetchMoreData = useCallback(
@@ -338,7 +354,7 @@ const FeedbackCamp = () => {
     }
   }, [page, fetchMoreData]);
 
-  // 검색어나 탭 변경시 데이터 리셋
+  // 검색어나 탭 변경시 데이터 리셋 (검색어나 탭이 실제로 변경되었을 때만)
   useEffect(() => {
     setPage(1);
     setAllSubmissions([]);
@@ -346,7 +362,7 @@ const FeedbackCamp = () => {
     if (user) {
       fetchInitialData();
     }
-  }, [searchQuery, activeTab, user]);
+  }, [searchQuery, activeTab, user, fetchInitialData]);
 
   // 🚀 필터링된 데이터 계산 (useMemo 최적화)
   const filteredData = useMemo(() => {
@@ -355,22 +371,8 @@ const FeedbackCamp = () => {
       givenFeedbacks: [...givenFeedbacks],
     };
 
-    if (activeTab !== 'all') {
-      filtered.submissions = filtered.submissions.filter(sub => sub.mode === activeTab);
-      filtered.givenFeedbacks = filtered.givenFeedbacks.filter(fb => fb.mode === activeTab);
-    }
-
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      filtered.submissions = filtered.submissions.filter(
-        sub => sub.title?.toLowerCase()?.includes(query) || sub.text?.toLowerCase()?.includes(query)
-      );
-      filtered.givenFeedbacks = filtered.givenFeedbacks.filter(
-        fb =>
-          fb.submissionTitle?.toLowerCase()?.includes(query) ||
-          fb.content?.toLowerCase()?.includes(query)
-      );
-    }
+    // 검색과 모드 필터링은 서버에서 처리되므로 클라이언트에서는 제거
+    // 서버에서 이미 searchQuery와 activeTab으로 필터링된 데이터를 받아옴
 
     // 이미 피드백을 남긴 글은 제외
     filtered.submissions = filtered.submissions.filter(sub => !submittedIds.includes(sub._id));
@@ -936,6 +938,8 @@ const FeedbackCamp = () => {
           sortOrder={sortOrder}
           setSortOrder={setSortOrder}
           counts={counts}
+          onSearch={handleSearch}
+          onKeyPress={handleKeyPress}
         />
 
         {/* 내가 작성한 피드백(날짜 필터와 무관) */}
@@ -1019,9 +1023,21 @@ const FeedbackCamp = () => {
               </div>
             </>
           ) : filteredData.submissions.length === 0 ? (
-            <p className="text-center py-8 text-gray-700 bg-white dark:bg-gray-800 text-black dark:text-white/80 rounded-lg shadow-sm">
-              🔍 검색 결과가 없습니다.
-            </p>
+            <div className="text-center py-8 text-gray-700 bg-white dark:bg-gray-800 text-black dark:text-white/80 rounded-lg shadow-sm">
+              {searchQuery ? (
+                <>
+                  <p className="text-lg mb-2">🔍 검색 결과가 없습니다</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    "{searchQuery}"에 대한 검색 결과를 찾을 수 없습니다.
+                  </p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                    다른 검색어를 시도해보세요.
+                  </p>
+                </>
+              ) : (
+                <p className="text-lg">📝 피드백 가능한 글이 없습니다</p>
+              )}
+            </div>
           ) : (
             <DateRangeFilter
               items={filteredData.submissions}

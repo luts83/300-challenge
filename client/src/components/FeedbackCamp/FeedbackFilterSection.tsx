@@ -1,6 +1,30 @@
 // src/components/FeedbackCamp/FeedbackFilterSection.tsx
 import React, { useState } from 'react';
 
+interface FeedbackFilterSectionProps {
+  activeTab: 'all' | 'mode_300' | 'mode_1000';
+  setActiveTab: (tab: 'all' | 'mode_300' | 'mode_1000') => void;
+  viewMode: 'all' | 'written' | 'available';
+  setViewMode: (mode: 'all' | 'written' | 'available') => void;
+  searchQuery: string;
+  setSearchQuery: (query: string) => void;
+  sortBy: 'date' | 'feedback' | 'recent' | 'likes';
+  setSortBy: (sort: 'date' | 'feedback' | 'recent' | 'likes') => void;
+  sortOrder: 'asc' | 'desc';
+  setSortOrder: (order: 'asc' | 'desc') => void;
+  counts: {
+    all: number;
+    mode_300: number;
+    mode_1000: number;
+    written: number;
+    available: number;
+    available_300: number;
+    available_1000: number;
+  };
+  onSearch: () => void;
+  onKeyPress: (e: React.KeyboardEvent) => void;
+}
+
 export const FeedbackFilterSection: React.FC<FeedbackFilterSectionProps> = ({
   activeTab,
   setActiveTab,
@@ -13,6 +37,8 @@ export const FeedbackFilterSection: React.FC<FeedbackFilterSectionProps> = ({
   sortOrder,
   setSortOrder,
   counts,
+  onSearch,
+  onKeyPress,
 }) => {
   const [isMobileFilterExpanded, setIsMobileFilterExpanded] = useState(false);
 
@@ -120,10 +146,18 @@ export const FeedbackFilterSection: React.FC<FeedbackFilterSectionProps> = ({
             type="text"
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
-            placeholder="제목이나 내용으로 검색"
-            className="w-full h-full px-3 py-2 pl-9 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-300 dark:text-gray-700 dark:border-gray-600"
+            onKeyPress={onKeyPress}
+            placeholder="제목, 내용, 작성자명, 이메일로 검색"
+            className="w-full h-full px-3 py-2 pl-9 pr-12 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-300 dark:text-gray-700 dark:border-gray-600"
           />
           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">🔍</span>
+          <button
+            onClick={onSearch}
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+            title="검색 (Enter)"
+          >
+            ↵
+          </button>
         </div>
 
         {/* 드롭다운 - 모바일 2/5, 데스크탑 고정 폭 */}

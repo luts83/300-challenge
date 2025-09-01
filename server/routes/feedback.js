@@ -911,8 +911,13 @@ router.get("/all-submissions/:uid", async (req, res) => {
     // 2. 필터링된 쿼리 생성
     const filteredQuery = { ...baseQuery };
     if (search) {
-      // 업계 표준: 정규표현식 완전 제거, MongoDB $text 검색 사용 (성능 향상 + 안전성)
-      filteredQuery.$text = { $search: search };
+      // 한글 검색을 위한 정규식 검색 사용 (제목, 내용, 작성자명, 이메일 모두 검색)
+      filteredQuery.$or = [
+        { title: { $regex: search, $options: "i" } },
+        { text: { $regex: search, $options: "i" } },
+        { "user.displayName": { $regex: search, $options: "i" } },
+        { "user.email": { $regex: search, $options: "i" } },
+      ];
     }
     if (mode === "mode_300" || mode === "mode_1000") {
       filteredQuery.mode = mode;
