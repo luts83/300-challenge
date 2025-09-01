@@ -1168,6 +1168,97 @@ router.post("/unlock-dilating", async (req, res) => {
   }
 });
 
+// 오늘 피드백 현황 조회 (특정 유저가 작성한 피드백)
+router.get("/today/:uid", async (req, res) => {
+  try {
+    const { uid } = req.params;
+    const { timezone, offset } = req.query; // 사용자 시간대 정보 받기
+
+    // 사용자 정보 조회
+    const user = await User.findOne({ uid }).select("email displayName").lean();
+    if (!user) {
+      return res.status(404).json({ error: "사용자를 찾을 수 없습니다." });
+    }
+
+    // 사용자 시간대 기준으로 오늘 날짜 계산
+    let todayString;
+    if (offset !== undefined && timezone) {
+      // 사용자 시간대 정보가 있으면 사용자 기준으로 계산
+      const { getUserTodayDate } = require("../utils/timezoneUtils");
+      const userToday = getUserTodayDate(parseInt(offset));
+      // getUserTodayDate는 이미 YYYY-MM-DD 문자열을 반환함
+      todayString = userToday;
+      if (shouldLogWithTime(uid, "feedback_today_timezone_info", 10)) {
+        console.log(
+          `🌍 [오늘 피드백] 사용자 시간대 기준 날짜: ${timezone} (offset: ${offset}) -> ${todayString}`
+        );
+      }
+    } else {
+      // 기본값: 한국 시간 기준
+      const today = getTodayDateKoreaFinal();
+      todayString = today.toISOString().slice(0, 10);
+      if (shouldLogWithTime(uid, "feedback_today_korea_date", 10)) {
+        console.log(
+          `🇰🇷 [오늘 피드백] ${user.email} - 한국 시간 기준 날짜 (기본값): ${todayString}`
+        );
+      }
+    }
+
+    // 특정 유저가 오늘 작성한 피드백만 조회
+    const todayFeedbacks = await Feedback.find({
+      fromUid: uid, // 피드백 작성자
+      writtenDate: todayString,
+    })
+      .populate({
+        path: "toSubmissionId",
+        select: "mode title content",
+        model: "Submission",
+      })
+      .lean();
+
+    // 모드별 피드백 수 계산
+    const mode300Count = todayFeedbacks.filter(
+      (fb) => fb.toSubmissionId?.mode === "mode_300"
+    ).length;
+    const mode1000Count = todayFeedbacks.filter(
+      (fb) => fb.toSubmissionId?.mode === "mode_1000"
+    ).length;
+    const totalTodayCount = mode300Count + mode1000Count;
+
+    const dateKey = todayString;
+    const scopeKey = `user_today_${uid}_${dateKey}`;
+    if (
+      shouldLogOnChange(scopeKey, {
+        mode300: mode300Count,
+        mode1000: mode1000Count,
+        total: totalTodayCount,
+      }) ||
+      shouldLogWithTime(uid, "feedback_today_count_summary", 10)
+    ) {
+      console.log(
+        `📊 [오늘 피드백] ${user.email} - ${dateKey}: 300자(${mode300Count}), 1000자(${mode1000Count}), 총 ${totalTodayCount}개`
+      );
+    }
+
+    // 캐시 정리
+    cleanupLogCache();
+
+    res.json({
+      user: {
+        uid: uid,
+        email: user.email,
+        displayName: user.displayName,
+      },
+      mode_300: mode300Count,
+      mode_1000: mode1000Count,
+      total: totalTodayCount,
+    });
+  } catch (error) {
+    console.error("❌ [오늘 피드백] API 오류:", error);
+    res.status(500).json({ error: "오늘 피드백 현황 조회 실패" });
+  }
+});
+
 // 🧪 시간대 테스트용 디버깅 엔드포인트
 router.get("/debug/timezone", async (req, res) => {
   try {

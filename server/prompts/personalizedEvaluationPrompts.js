@@ -316,12 +316,8 @@ ${randomPerspective}
 - 사용자가 "이렇게 표현하면 더 좋겠구나!"라고 느낄 수 있는 실용적이면서도 영감을 주는 예시가 되도록 해주세요
 - 원본의 개성과 감정은 유지하되, 표현력만 한 단계 끌어올린 버전을 만들어주세요
 
-**중요: 위의 개인화 정보를 반드시 활용하여 이 사용자에게만 해당하는 맞춤형 피드백을 제공해주세요.**
-특히 ${
-    personalData.weaknessAreas.length > 0
-      ? personalData.weaknessAreas.join(", ") + " 영역의 개선점"
-      : "전반적인 글쓰기 능력 향상"
-  }에 집중해서 조언해주세요.
+**중요: 이 글에 대한 정확하고 구체적인 피드백을 제공해주세요.**
+특히 전반적인 글쓰기 능력 향상에 집중해서 조언해주세요.
 
 [응답 형식]
 {
@@ -348,28 +344,10 @@ ${randomPerspective}
     })으로 작성할 것. **중요: 원본에 없는 내용 추가 금지, 원본의 모든 구체적 세부사항 보존 필수, 원본의 톤과 어조 보존 필수**"
   },
   "personalization_evidence": {
-    "recent_titles_or_topics": ${
-      personalData.recentMeta && personalData.recentMeta.length
-        ? JSON.stringify(personalData.recentMeta.map((m) => m.title || m.topic))
-        : "[]"
-    },
-    "score_trend_note": ${
-      personalData.scoreTrend === "improving"
-        ? `"상승 중 (점수 개선 추세)"`
-        : personalData.scoreTrend === "declining"
-        ? `"하락 중 (점수 감소 추세)"`
-        : `"안정적 (점수 유지 추세)"`
-    },
-    "repeated_weaknesses": ${
-      personalData.weaknessAreas.length > 0
-        ? JSON.stringify(personalData.weaknessAreas)
-        : "[]"
-    },
-    "user_style_profile": ${
-      personalData.userStyleProfile
-        ? JSON.stringify(personalData.userStyleProfile)
-        : "null"
-    }
+    "recent_titles_or_topics": [],
+    "score_trend_note": "최초 사용자 (기준점 없음)",
+    "repeated_weaknesses": [],
+    "user_style_profile": null
   },
   "peer_learning": {
     "technique": "다른 사용자들의 강점에서 배울 수 있는 한 가지 구체적 기법",
@@ -585,24 +563,16 @@ const getFreeTopicCriteria = (mode) => {
 };
 
 // 모드별 평가 가이드라인
-function getModeSpecificGuidelines(mode, personalData) {
+function getModeSpecificGuidelines(mode) {
   if (mode === "mode_300") {
     return `
 [300자 모드 맞춤 가이드라인]
 - 핵심 메시지 전달력에 집중
 - 간결성과 명확성 평가
 - 압축된 표현력 중시
-- 사용자 평균: ${personalData.averageScore}점 (±8점 범위)
-- 강점 활용: ${
-      personalData.strengthAreas.length > 0
-        ? personalData.strengthAreas.join(", ") + " 영역에서 더욱 간결하게"
-        : "간결한 표현에 집중"
-    }
-- 개선 포인트: ${
-      personalData.weaknessAreas.length > 0
-        ? personalData.weaknessAreas.join(", ") + " 영역의 핵심 전달력 향상"
-        : "핵심 메시지 전달력 향상"
-    }
+- 기본 평가 기준: 70점 (±8점 범위)
+- 강점 활용: 간결한 표현에 집중
+- 개선 포인트: 핵심 메시지 전달력 향상
 `;
   } else if (mode === "mode_1000") {
     return `
@@ -610,17 +580,9 @@ function getModeSpecificGuidelines(mode, personalData) {
 - 내용의 깊이와 전개력 평가
 - 문단 구성과 논리적 흐름 중시
 - 상세한 설명력과 근거 제시
-- 사용자 평균: ${personalData.averageScore}점 (±10점 범위)
-- 강점 활용: ${
-      personalData.strengthAreas.length > 0
-        ? personalData.strengthAreas.join(", ") + " 영역에서 더욱 상세하게"
-        : "상세한 전개에 집중"
-    }
-- 개선 포인트: ${
-      personalData.weaknessAreas.length > 0
-        ? personalData.weaknessAreas.join(", ") + " 영역의 전개력 향상"
-        : "내용 전개력 향상"
-    }
+- 기본 평가 기준: 70점 (±10점 범위)
+- 강점 활용: 상세한 전개에 집중
+- 개선 포인트: 내용 전개력 향상
 `;
   }
 }
@@ -809,12 +771,8 @@ ${randomPerspective}
 - 사용자가 "이렇게 표현하면 더 좋겠구나!"라고 느낄 수 있는 실용적이면서도 영감을 주는 예시가 되도록 해주세요
 - 원본의 개성과 감정은 유지하되, 표현력만 한 단계 끌어올린 버전을 만들어주세요
 
-**중요: 위의 개인화 정보를 반드시 활용하여 이 사용자에게만 해당하는 맞춤형 피드백을 제공해주세요.**
-특히 ${
-    personalData.weaknessAreas.length > 0
-      ? personalData.weaknessAreas.join(", ") + " 영역의 개선점"
-      : "전반적인 글쓰기 능력 향상"
-  }에 집중해서 조언해주세요.
+**중요: 이 글에 대한 정확하고 구체적인 피드백을 제공해주세요.**
+특히 전반적인 글쓰기 능력 향상에 집중해서 조언해주세요.
 
 [응답 형식]
 {
@@ -841,28 +799,10 @@ ${randomPerspective}
     })으로 작성할 것. **중요: 원본에 없는 내용 추가 금지, 원본의 모든 구체적 세부사항 보존 필수, 원본의 톤과 어조 보존 필수**"
   },
   "personalization_evidence": {
-    "recent_titles_or_topics": ${
-      personalData.recentMeta && personalData.recentMeta.length
-        ? JSON.stringify(personalData.recentMeta.map((m) => m.title || m.topic))
-        : "[]"
-    },
-    "score_trend_note": ${
-      personalData.scoreTrend === "improving"
-        ? `"상승 중 (점수 개선 추세)"`
-        : personalData.scoreTrend === "declining"
-        ? `"하락 중 (점수 감소 추세)"`
-        : `"안정적 (점수 유지 추세)"`
-    },
-    "repeated_weaknesses": ${
-      personalData.weaknessAreas.length > 0
-        ? JSON.stringify(personalData.weaknessAreas)
-        : "[]"
-    },
-    "user_style_profile": ${
-      personalData.userStyleProfile
-        ? JSON.stringify(personalData.userStyleProfile)
-        : "null"
-    }
+    "recent_titles_or_topics": [],
+    "score_trend_note": "최초 사용자 (기준점 없음)",
+    "repeated_weaknesses": [],
+    "user_style_profile": null
   },
   "peer_learning": {
     "technique": "다른 사용자들의 강점에서 배울 수 있는 한 가지 구체적 기법",

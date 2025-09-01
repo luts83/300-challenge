@@ -167,7 +167,30 @@ router.get("/:uid", async (req, res) => {
     const today = getUserTodayDateString(offset);
     const monday = getUserMonday(offset);
 
-    // 주간 리셋 디버깅 로그 추가
+    // 주간 리셋 디버깅 로그는 finalTokenEntry 선언 후에 실행
+
+    // 간략화된 토큰 디버깅 (유저별 하루 한 번만)
+    const tokenDebugKey = `${uid}_token_${today}`;
+    if (
+      process.env.NODE_ENV === "development" &&
+      !debugLogCache.has(tokenDebugKey)
+    ) {
+      console.log(`[토큰] ${userRecord.email}: ${today} 기준`);
+      debugLogCache.add(tokenDebugKey);
+    }
+
+    // 캐시 크기 제한 (메모리 누수 방지)
+    if (debugLogCache.size > 1000) {
+      debugLogCache.clear();
+    }
+
+    // 로그 캐시 정리
+    cleanupLogCache();
+
+    // finalTokenEntry 변수를 먼저 선언
+    let finalTokenEntry = tokenEntry;
+
+    // 주간 리셋 디버깅 로그 추가 (finalTokenEntry 선언 후)
     if (process.env.NODE_ENV === "development") {
       const weekdays = ["일", "월", "화", "수", "목", "금", "토"];
       const userTime = new Date(now.getTime() - offset * 60 * 1000);
@@ -193,25 +216,6 @@ router.get("/:uid", async (req, res) => {
       }
     }
 
-    // 간략화된 토큰 디버깅 (유저별 하루 한 번만)
-    const tokenDebugKey = `${uid}_token_${today}`;
-    if (
-      process.env.NODE_ENV === "development" &&
-      !debugLogCache.has(tokenDebugKey)
-    ) {
-      console.log(`[토큰] ${userRecord.email}: ${today} 기준`);
-      debugLogCache.add(tokenDebugKey);
-    }
-
-    // 캐시 크기 제한 (메모리 누수 방지)
-    if (debugLogCache.size > 1000) {
-      debugLogCache.clear();
-    }
-
-    // 로그 캐시 정리
-    cleanupLogCache();
-
-    let finalTokenEntry = tokenEntry;
     if (!finalTokenEntry) {
       finalTokenEntry = new Token({
         uid,
