@@ -4,6 +4,7 @@ import { CONFIG } from '../../config';
 interface StructuredFeedbackFormProps {
   submissionId: string;
   onSubmit: (submissionId: string, feedback: StructuredFeedback) => void;
+  loading?: boolean;
 }
 
 interface StructuredFeedback {
@@ -15,6 +16,7 @@ interface StructuredFeedback {
 export const StructuredFeedbackForm: React.FC<StructuredFeedbackFormProps> = ({
   submissionId,
   onSubmit,
+  loading = false,
 }) => {
   const [feedback, setFeedback] = useState<StructuredFeedback>({
     strengths: '',
@@ -92,10 +94,17 @@ export const StructuredFeedbackForm: React.FC<StructuredFeedbackFormProps> = ({
       <div className="flex justify-end">
         <button
           onClick={handleSubmit}
-          disabled={!isValid()}
-          className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
+          disabled={!isValid() || loading}
+          className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-2"
         >
-          피드백 제출
+          {loading ? (
+            <>
+              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              <span>제출 중...</span>
+            </>
+          ) : (
+            '피드백 제출'
+          )}
         </button>
       </div>
     </div>

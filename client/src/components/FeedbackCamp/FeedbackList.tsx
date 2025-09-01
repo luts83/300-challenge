@@ -28,6 +28,7 @@ interface FeedbackListProps {
   totalAvailable: number;
   isLoadingMore: boolean;
   onStructuredFeedbackSubmit?: (submissionId: string, feedback: StructuredFeedback) => void;
+  isSubmittingFeedback?: boolean;
 }
 
 export const FeedbackList: React.FC<FeedbackListProps> = ({
@@ -43,6 +44,7 @@ export const FeedbackList: React.FC<FeedbackListProps> = ({
   totalAvailable,
   isLoadingMore,
   onStructuredFeedbackSubmit,
+  isSubmittingFeedback = false,
 }) => {
   const [isListExpanded, setIsListExpanded] = useState(true);
   const { user } = useUser();
@@ -153,7 +155,7 @@ export const FeedbackList: React.FC<FeedbackListProps> = ({
                               onStructuredFeedbackSubmit(submissionId, feedback);
                             }
                           }}
-                          loading={loading}
+                          loading={isSubmittingFeedback}
                         />
                       )}
 
