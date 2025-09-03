@@ -101,15 +101,7 @@ const canGiveFeedback = async (uid, userTimezone = null, userOffset = null) => {
       writtenDate: todayString, // writtenDate 기준으로 확인
     });
 
-    // 3. 피드백 제한 확인 (하루 최대 5개)
-    if (todayFeedbackCount >= 5) {
-      return {
-        canGive: false,
-        reason: "하루 최대 5개의 피드백을 작성할 수 있습니다.",
-        todayString,
-        todayFeedbackCount,
-      };
-    }
+    // 피드백 제한 제거 - 무제한으로 변경
 
     return {
       canGive: true,
@@ -166,14 +158,7 @@ const getAvailableSubmissions = async (req, res) => {
       writtenDate: todayString, // writtenDate 기준으로 확인
     });
 
-    // 3. 피드백 제한 확인 (하루 최대 5개)
-    if (todayFeedbackCount >= 5) {
-      return res.status(403).json({
-        message: "하루 최대 5개의 피드백을 작성할 수 있습니다.",
-        todayString,
-        todayFeedbackCount,
-      });
-    }
+    // 피드백 제한 제거 - 무제한으로 변경
 
     // 4. 피드백 가능한 글 찾기 (writtenDate 기준으로 필터링)
     const availableSubmissions = await Submission.find({
@@ -201,7 +186,7 @@ const getAvailableSubmissions = async (req, res) => {
       submissions: availableSubmissions,
       todayString,
       todayFeedbackCount,
-      maxFeedbackCount: 5,
+      maxFeedbackCount: null, // 무제한
     });
   } catch (error) {
     console.error("❌ [getAvailableSubmissions] 오류:", error);
