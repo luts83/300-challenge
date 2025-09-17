@@ -1247,11 +1247,22 @@ async function handleSubmit(req, res) {
       // 프로필 업데이트 실패는 전체 제출을 실패시키지 않음
     }
 
-    // 제출 완료 후 draft 삭제
+    // 제출 완료 후 draft 삭제 (모드별 구분)
     try {
       const Draft = require("../models/Draft");
-      await Draft.findOneAndDelete({ uid: user.uid });
-      console.log(`[Draft 삭제] ${user.email}: 제출 완료 후 draft 삭제됨`);
+
+      if (mode === "mode_300") {
+        // 300자 모드: Draft 삭제하지 않음 (1000자 Draft 보존)
+        console.log(
+          `[Draft 보존] ${user.email}: 300자 제출 완료, 1000자 Draft 보존`
+        );
+      } else if (mode === "mode_1000") {
+        // 1000자 모드: Draft 삭제
+        await Draft.findOneAndDelete({ uid: user.uid });
+        console.log(
+          `[Draft 삭제] ${user.email}: 1000자 제출 완료 후 draft 삭제됨`
+        );
+      }
     } catch (draftError) {
       console.warn(`[Draft 삭제 실패] ${user.email}:`, draftError.message);
       // draft 삭제 실패는 제출 성공에 영향을 주지 않음

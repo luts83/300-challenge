@@ -34,6 +34,10 @@ const draftSchema = new mongoose.Schema({
     },
   ],
   updatedAt: { type: Date, default: Date.now },
+  // ✅ 자동 초기화 방지를 위한 보존 기간 설정
+  createdAt: { type: Date, default: Date.now },
+  // 사용자가 직접 초기화하지 않는 한 영구 보존
+  autoResetDisabled: { type: Boolean, default: true },
 });
 
 module.exports = mongoose.model("Draft", draftSchema);

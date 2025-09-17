@@ -23,6 +23,12 @@ router.post("/save", async (req, res) => {
 
   try {
     const draft = (await Draft.findOne({ uid })) || new Draft({ uid });
+
+    // ✅ 자동 초기화 방지: 기존 내용이 있으면 보존
+    if (draft.title || draft.text) {
+      console.log(`[Draft 보존] ${user?.email || uid}: 기존 초안 내용 보존`);
+    }
+
     draft.title = title || "";
     draft.text = text || "";
     draft.sessionCount = sessionCount;
@@ -32,6 +38,7 @@ router.post("/save", async (req, res) => {
     draft.lastSavedAt = lastSavedAt;
     draft.updatedAt = new Date();
     draft.status = "active";
+    draft.autoResetDisabled = true; // 자동 초기화 비활성화
 
     // user 정보 설정 (필수 필드)
     if (user) {
@@ -50,6 +57,7 @@ router.post("/save", async (req, res) => {
     }
 
     await draft.save();
+    console.log(`[Draft 저장] ${user?.email || uid}: 초안 저장 완료`);
 
     res.json(draft);
   } catch (err) {
@@ -76,8 +84,16 @@ router.get("/:uid", async (req, res) => {
       return res.status(404).json({ error: "초안을 찾을 수 없습니다." });
     }
 
+    // ✅ 자동 초기화 방지: draft 상태와 관계없이 반환
+    console.log(
+      `[Draft 조회] ${draft.user?.email || uid}: 초안 조회 (상태: ${
+        draft.status
+      })`
+    );
+
     res.json(draft);
   } catch (err) {
+    console.error("Draft 조회 실패:", err);
     res.status(500).json({
       error: "불러오기 실패",
       details: err.message,
@@ -140,6 +156,11 @@ router.post("/:uid/reset", async (req, res) => {
       return res.status(404).json({ error: "초안이 존재하지 않습니다." });
     }
 
+    // ✅ 사용자 수동 초기화 로그
+    console.log(
+      `[Draft 초기화] ${draft.user?.email || uid}: 사용자 수동 초기화 실행`
+    );
+
     draft.title = "";
     draft.text = "";
     draft.sessionCount = 0;
@@ -149,6 +170,7 @@ router.post("/:uid/reset", async (req, res) => {
     draft.updatedAt = new Date();
     draft.resetCount = (draft.resetCount || 0) + 1;
     draft.status = "active";
+    draft.autoResetDisabled = true; // 자동 초기화 비활성화 유지
 
     await draft.save();
 
@@ -177,6 +199,11 @@ router.post("/:uid/complete", async (req, res) => {
     if (!deleted) {
       return res.status(404).json({ error: "초안을 찾을 수 없습니다." });
     }
+
+    // ✅ 제출 완료로 인한 draft 삭제 로그
+    console.log(
+      `[Draft 완료] ${deleted.user?.email || uid}: 제출 완료로 draft 삭제됨`
+    );
 
     res.json({
       success: true,

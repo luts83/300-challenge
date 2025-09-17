@@ -7,6 +7,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { logger } from '../utils/logger';
 import Layout from '../components/Layout';
 import ScrollToTop from '../components/ScrollToTop';
+import SpellCheckTextarea from '../components/SpellCheckTextarea';
 // 향후 고도화 예정 기능들
 // import SmartWritingGuide from '../components/SmartWritingGuide';
 // import EndingTemplateGuide from '../components/EndingTemplateGuide';
@@ -105,11 +106,12 @@ const resetWritingState = (
   if (setResetCount) setResetCount(0);
 };
 
-// utils: 로컬 스토리지 초기화
+// utils: 로컬 스토리지 초기화 (제출 완료 시에만 사용)
 const clearLocalDraft = () => {
   localStorage.setItem('write1000_submitted', 'true');
   localStorage.removeItem('write1000_draft');
   localStorage.removeItem('write1000_session');
+  console.log('✅ 제출 완료로 인한 localStorage 정리 완료');
 };
 
 const Write1000 = () => {
@@ -158,13 +160,17 @@ const Write1000 = () => {
   // 🛡️ 중복 제출 방지 강화
   const lastSubmissionRef = useRef<{ title: string; text: string; timestamp: number } | null>(null);
 
+  // 🛡️ 강화된 중복 제출 방지용 상태
+  const [isButtonDisabled, setIsButtonDisabled] = useState(false);
+  const submitTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   // 제출 데이터의 해시값 생성 (중복 감지용)
   const generateSubmissionHash = (title: string, text: string) => {
     const content = `${title.trim()}:${text.trim()}`;
     return btoa(content).slice(0, 16); // 간단한 해시
   };
 
-  // 중복 제출 감지
+  // 중복 제출 감지 (강화된 버전)
   const isDuplicateSubmission = (title: string, text: string) => {
     if (!lastSubmissionRef.current) return false;
 
@@ -174,9 +180,21 @@ const Write1000 = () => {
         ? generateSubmissionHash(lastSubmissionRef.current.title, lastSubmissionRef.current.text)
         : '';
 
-    // 같은 내용이고 5분 이내에 제출 시도한 경우 중복으로 간주
+    // 같은 내용이고 10분 이내에 제출 시도한 경우 중복으로 간주 (시간 증가)
     const timeDiff = Date.now() - lastSubmissionRef.current.timestamp;
-    return currentHash === lastHash && timeDiff < 5 * 60 * 1000; // 5분
+    return currentHash === lastHash && timeDiff < 10 * 60 * 1000; // 10분으로 증가
+  };
+
+  // 🛡️ 버튼 비활성화 함수
+  const disableSubmitButton = () => {
+    setIsButtonDisabled(true);
+    // 3초 후 버튼 재활성화
+    if (submitTimeoutRef.current) {
+      clearTimeout(submitTimeoutRef.current);
+    }
+    submitTimeoutRef.current = setTimeout(() => {
+      setIsButtonDisabled(false);
+    }, 3000);
   };
 
   useEffect(() => {
@@ -190,6 +208,15 @@ const Write1000 = () => {
     }
   }, [user, loading]); // loading을 의존성 배열에 추가
 
+  // 🛡️ cleanup 함수 추가 (메모리 누수 방지)
+  useEffect(() => {
+    return () => {
+      if (submitTimeoutRef.current) {
+        clearTimeout(submitTimeoutRef.current);
+      }
+    };
+  }, []);
+
   const fetchDraft = async () => {
     if (!user) return;
 
@@ -197,30 +224,44 @@ const Write1000 = () => {
       const res = await axiosInstance.get(`/api/drafts/${user.uid}`);
       const draft: Draft = res.data;
 
-      if (!draft || draft.status !== 'active') {
+      // ✅ 자동 초기화 방지: draft가 있으면 무조건 로드
+      if (draft && draft.status === 'active') {
+        setTitle(draft.title ?? '');
+        setText(draft.text ?? '');
+        setSessionCount(Number(draft.sessionCount) || 0);
+        setTotalDuration(Number(draft.totalDuration) || 0);
+        setResetCount(Number(draft.resetCount) || 0);
+        setLastSavedAt(draft.lastSavedAt || null);
+        setIsStarted(false);
+        setIsPageReentered(true);
+        console.log('📱 기존 초안을 불러왔습니다:', {
+          title: draft.title,
+          textLength: draft.text?.length,
+        });
+      } else if (draft && draft.status === 'submitted') {
+        // 제출된 draft는 보존하되 새로 시작
+        console.log('📱 제출된 초안이 있습니다. 새로 시작합니다.');
         setText('');
         setTitle('');
         setSessionCount(0);
         setTotalDuration(0);
         setIsStarted(false);
         setResetCount(0);
-        return;
+      } else {
+        // draft가 없으면 새로 시작
+        console.log('📱 초안이 없습니다. 새로 시작합니다.');
+        setText('');
+        setTitle('');
+        setSessionCount(0);
+        setTotalDuration(0);
+        setIsStarted(false);
+        setResetCount(0);
       }
-
-      setTitle(draft.title ?? '');
-      setText(draft.text ?? '');
-
-      setSessionCount(Number(draft.sessionCount) || 0);
-      setTotalDuration(Number(draft.totalDuration) || 0);
-      setResetCount(Number(draft.resetCount) || 0);
-      setLastSavedAt(draft.lastSavedAt || null);
-      setIsStarted(false);
-      setIsPageReentered(true);
     } catch (err) {
       console.error('📱 fetchDraft 에러:', err);
       if (axios.isAxiosError(err) && err.response?.status === 404) {
-        localStorage.removeItem('write1000_draft');
-        localStorage.removeItem('write1000_session');
+        // 404 에러 시에도 localStorage는 건드리지 않음 (자동 초기화 방지)
+        console.log('📱 초안을 찾을 수 없습니다. 새로 시작합니다.');
         setText('');
         setTitle('');
         setSessionCount(0);
@@ -397,8 +438,10 @@ const Write1000 = () => {
         autosaveRef.current = null;
       }
 
+      // ✅ 사용자 수동 초기화 시에만 localStorage 삭제
       localStorage.removeItem('write1000_draft');
       localStorage.removeItem('write1000_session');
+      console.log('✅ 사용자 수동 초기화로 인한 localStorage 정리 완료');
 
       alert('초기화되었습니다! 다시 글쓰기를 시작할 수 있습니다.');
     } catch (error) {
@@ -454,9 +497,9 @@ const Write1000 = () => {
   };
 
   const submitFinal = async () => {
-    // 🛡️ 중복 제출 방지 강화
-    if (submissionInProgress.current || isSubmitting) {
-      console.log('🚫 이미 제출 중입니다. 중복 요청 무시됨');
+    // 🛡️ 강화된 중복 제출 방지
+    if (submissionInProgress.current || isSubmitting || isButtonDisabled) {
+      console.log('🚫 제출 중단: 이미 제출 중이거나 버튼이 비활성화됨');
       return;
     }
 
@@ -467,6 +510,9 @@ const Write1000 = () => {
       alert('❌ 같은 내용을 너무 빠르게 다시 제출할 수 없습니다.\n\n잠시 후 다시 시도해주세요.');
       return;
     }
+
+    // 🛡️ 즉시 버튼 비활성화 (중복 클릭 방지)
+    disableSubmitButton();
 
     // ✅ 제목 검증 추가 (Config 값 사용)
     if (!title.trim() || title.trim().length < CONFIG.SUBMISSION.TITLE.MIN_LENGTH) {
@@ -746,7 +792,7 @@ const Write1000 = () => {
       if (autosaveRef.current) clearInterval(autosaveRef.current);
       if (inactivityRef.current) clearInterval(inactivityRef.current);
 
-      // 제출 완료 상태가 아니면 저장
+      // ✅ 자동 초기화 방지: 제출 완료 상태가 아니면 저장 (localStorage 삭제하지 않음)
       if (!isSubmitted) {
         saveDraft();
       }
@@ -788,6 +834,8 @@ const Write1000 = () => {
     inactivityRef.current = setInterval(async () => {
       if (Date.now() - lastInputTime >= INACTIVITY_THRESHOLD) {
         await saveDraft();
+        // ✅ 자동 초기화 방지: localStorage는 보존하고 메인 페이지로만 이동
+        console.log('장시간 비활동으로 저장 후 메인 페이지로 이동합니다.');
         alert('장시간 비활동으로 저장 후 메인 페이지로 이동합니다!');
         navigate('/');
       }
@@ -947,10 +995,15 @@ const Write1000 = () => {
                   submissionInProgress.current ||
                   isTokenDepleted ||
                   text.trim().length < MIN_LENGTH ||
-                  !title.trim()
+                  !title.trim() ||
+                  isButtonDisabled
                 }
               >
-                {isSubmitting || submissionInProgress.current ? '제출 중...' : '제출하기'}
+                {isSubmitting || submissionInProgress.current
+                  ? '제출 중...'
+                  : isButtonDisabled
+                    ? '잠시만요...'
+                    : '제출하기'}
               </button>
             </div>
           </div>

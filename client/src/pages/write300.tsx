@@ -40,13 +40,17 @@ const Write300 = () => {
   const [submissionHash, setSubmissionHash] = useState<string>('');
   const lastSubmissionRef = useRef<{ title: string; text: string; timestamp: number } | null>(null);
 
+  // 🛡️ 강화된 중복 제출 방지용 상태
+  const [isButtonDisabled, setIsButtonDisabled] = useState(false);
+  const submitTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   // 제출 데이터의 해시값 생성 (중복 감지용)
   const generateSubmissionHash = (title: string, text: string) => {
     const content = `${title.trim()}:${text.trim()}`;
     return btoa(content).slice(0, 16); // 간단한 해시
   };
 
-  // 중복 제출 감지
+  // 중복 제출 감지 (강화된 버전)
   const isDuplicateSubmission = (title: string, text: string) => {
     if (!lastSubmissionRef.current) return false;
 
@@ -56,9 +60,21 @@ const Write300 = () => {
         ? generateSubmissionHash(lastSubmissionRef.current.title, lastSubmissionRef.current.text)
         : '';
 
-    // 같은 내용이고 5분 이내에 제출 시도한 경우 중복으로 간주
+    // 같은 내용이고 10분 이내에 제출 시도한 경우 중복으로 간주 (시간 증가)
     const timeDiff = Date.now() - lastSubmissionRef.current.timestamp;
-    return currentHash === lastHash && timeDiff < 5 * 60 * 1000; // 5분
+    return currentHash === lastHash && timeDiff < 10 * 60 * 1000; // 10분으로 증가
+  };
+
+  // 🛡️ 버튼 비활성화 함수
+  const disableSubmitButton = () => {
+    setIsButtonDisabled(true);
+    // 3초 후 버튼 재활성화
+    if (submitTimeoutRef.current) {
+      clearTimeout(submitTimeoutRef.current);
+    }
+    submitTimeoutRef.current = setTimeout(() => {
+      setIsButtonDisabled(false);
+    }, 3000);
   };
 
   useEffect(() => {
@@ -71,6 +87,15 @@ const Write300 = () => {
       });
     }
   }, [user, loading]); // loading을 의존성 배열에 추가
+
+  // 🛡️ cleanup 함수 추가 (메모리 누수 방지)
+  useEffect(() => {
+    return () => {
+      if (submitTimeoutRef.current) {
+        clearTimeout(submitTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // 글자 수 계산 (공백 포함)
   const getCharCount = (str: string) => {
@@ -125,8 +150,9 @@ const Write300 = () => {
   };
 
   const handleSubmit = async (forceSubmit = false) => {
-    // 🛡️ 중복 제출 방지 강화
-    if (submissionInProgress.current || isSubmitting) {
+    // 🛡️ 강화된 중복 제출 방지
+    if (submissionInProgress.current || isSubmitting || isButtonDisabled) {
+      console.log('🚫 제출 중단: 이미 제출 중이거나 버튼이 비활성화됨');
       return;
     }
 
@@ -143,6 +169,9 @@ const Write300 = () => {
       alert('❌ 같은 내용을 너무 빠르게 다시 제출할 수 없습니다.\n\n잠시 후 다시 시도해주세요.');
       return;
     }
+
+    // 🛡️ 즉시 버튼 비활성화 (중복 클릭 방지)
+    disableSubmitButton();
 
     // ✅ 제출 직전 최종 검증 - 실시간 텍스트 상태 사용
     const finalText = text.trim();
@@ -582,7 +611,8 @@ const Write300 = () => {
                   submitted ||
                   isSubmitting ||
                   submissionInProgress.current ||
-                  !startTime // 타이머가 시작되지 않은 경우도 비활성화
+                  !startTime ||
+                  isButtonDisabled // 버튼 비활성화 상태
                 }
                 className={`px-3 py-1.5 text-sm rounded-lg ${
                   tokens === 0 ||
@@ -593,12 +623,17 @@ const Write300 = () => {
                   submitted ||
                   isSubmitting ||
                   submissionInProgress.current ||
-                  !startTime
+                  !startTime ||
+                  isButtonDisabled
                     ? 'bg-gray-300 text-gray-500 cursor-not-allowed dark:bg-gray-700 dark:text-gray-400'
                     : 'bg-blue-500 text-white hover:bg-blue-600 dark:bg-blue-800 dark:hover:bg-blue-900'
                 }`}
               >
-                {isSubmitting || submissionInProgress.current ? '제출 중...' : '제출하기'}
+                {isSubmitting || submissionInProgress.current
+                  ? '제출 중...'
+                  : isButtonDisabled
+                    ? '잠시만요...'
+                    : '제출하기'}
               </button>
             </div>
           </div>
