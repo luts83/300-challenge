@@ -12,7 +12,7 @@ import SpellCheckTextarea from '../components/SpellCheckTextarea';
 // import SmartWritingGuide from '../components/SmartWritingGuide';
 // import EndingTemplateGuide from '../components/EndingTemplateGuide';
 
-const AUTOSAVE_INTERVAL = 60_000; // 10초
+const AUTOSAVE_INTERVAL = 60_000; // 1분 (60초)
 const INACTIVITY_THRESHOLD = 600_000; // 10분 (600초)
 
 const formatDuration = (seconds: number) => {

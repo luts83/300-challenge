@@ -1064,10 +1064,11 @@ router.get("/all-dates/:uid", async (req, res) => {
     "createdAt mode submissionDate"
   );
 
-  // 날짜별로 모드 정보를 그룹화
+  // 날짜별로 모드 정보를 그룹화 (submissionDate 기준으로 변경)
   const dateModeMap = new Map();
   submissions.forEach((sub) => {
-    const date = sub.createdAt.toISOString().slice(0, 10);
+    // submissionDate를 기준으로 날짜 그룹화
+    const date = sub.submissionDate;
     if (!dateModeMap.has(date)) {
       dateModeMap.set(date, new Set());
     }
@@ -1077,8 +1078,9 @@ router.get("/all-dates/:uid", async (req, res) => {
   });
 
   const dates = Array.from(dateModeMap.keys());
-  const todayModes =
-    dateModeMap.get(new Date().toISOString().slice(0, 10)) || new Set();
+  // 오늘 날짜도 submissionDate 기준으로 계산
+  const todayString = new Date().toISOString().slice(0, 10);
+  const todayModes = dateModeMap.get(todayString) || new Set();
 
   // 사용자 정보 조회
   const user = await User.findOne({ uid }).select("email displayName").lean();
