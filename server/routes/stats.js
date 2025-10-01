@@ -91,10 +91,12 @@ router.get("/weekly-growth/:uid", async (req, res) => {
   const { uid } = req.params;
 
   try {
-    // 이번 주의 시작일과 끝일 계산
+    // 이번 주의 시작일과 끝일 계산 (월요일 기준)
     const now = new Date();
     const thisWeekStart = new Date(now);
-    thisWeekStart.setDate(now.getDate() - now.getDay() + 1); // 월요일
+    const dayOfWeek = now.getDay(); // 0=일요일, 1=월요일, ..., 6=토요일
+    const daysToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek; // 일요일이면 -6, 월요일이면 0
+    thisWeekStart.setDate(now.getDate() + daysToMonday);
     thisWeekStart.setHours(0, 0, 0, 0);
 
     const thisWeekEnd = new Date(now);

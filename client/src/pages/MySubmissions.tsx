@@ -12,7 +12,7 @@ import axios from 'axios';
 import { useUser } from '../context/UserContext';
 import { CONFIG } from '../config';
 // import FeedbackMissionPanel from '../components/FeedbackMissionPanel';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { logger } from '../utils/logger';
 import { format } from 'date-fns';
 
@@ -96,6 +96,7 @@ const MySubmissions = () => {
   const { user, loading: authLoading } = useUser();
   const navigate = useNavigate();
   const location = useLocation();
+  const { submissionId } = useParams<{ submissionId?: string }>();
   const [submissions, setSubmissions] = useState<any[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [stats, setStats] = useState<StatsData>({
@@ -439,6 +440,23 @@ const MySubmissions = () => {
       fetchNotificationSettings();
     }
   }, [user]);
+
+  // URL 파라미터로 특정 글 확장
+  useEffect(() => {
+    if (submissionId && submissions.length > 0) {
+      const targetSubmission = submissions.find(sub => sub._id === submissionId);
+      if (targetSubmission) {
+        setExpandedId(submissionId);
+        // 해당 글까지 스크롤
+        setTimeout(() => {
+          const element = document.getElementById(`submission-${submissionId}`);
+          if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }, 500);
+      }
+    }
+  }, [submissionId, submissions]);
 
   // 필터나 정렬 변경시 데이터 리셋
   useEffect(() => {

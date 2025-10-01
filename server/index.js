@@ -20,8 +20,14 @@ const recordsRoutes = require("./routes/records"); // 추가
 const streakRoute = require("./routes/streak");
 const logger = require("./utils/logger");
 const dashboardRouter = require("./routes/dashboard");
+const growthRouter = require("./routes/growth");
+const feedbackTrackingRouter = require("./routes/feedbackTracking");
+const growthIndicatorsRouter = require("./routes/growthIndicators");
+const weeklyReportRouter = require("./routes/weeklyReport");
 const authRoutes = require("./routes/auth");
 const landingRoutes = require("./routes/landing");
+const welcomeEmailRoutes = require("./routes/welcomeEmail");
+const devRoutes = require("./routes/dev");
 const { ACCESS_CONTROL } = require("./config");
 const fetchAllowedEmailsFromSheet = require("./utils/fetchAllowedEmails");
 const cookieParser = require("cookie-parser");
@@ -130,9 +136,15 @@ app.use("/api/feedback", feedbackRoute);
 app.use("/api/stats", statsRoute);
 app.use("/api/streak", streakRoute);
 app.use("/api/dashboard", dashboardRouter);
+app.use("/api/growth", growthRouter);
+app.use("/api/feedback-tracking", feedbackTrackingRouter);
+app.use("/api/growth-indicators", growthIndicatorsRouter);
+app.use("/api/weekly-report", weeklyReportRouter);
 app.use("/api/auth", authRoutes);
 app.use("/api/user", userRoutes);
 app.use("/api/landing", landingRoutes);
+app.use("/api/welcome-email", welcomeEmailRoutes);
+app.use("/api/dev", devRoutes);
 
 // MongoDB 연결
 mongoose

@@ -44,6 +44,7 @@ export const SubmissionItem = React.memo(
 
     return (
       <div
+        id={`submission-${submission._id}`}
         className={`bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 text-black dark:text-white rounded-lg shadow-sm overflow-hidden mb-3 sm:mb-4 
         ${hasFeedback ? 'border-l-8 border-green-500 dark:border-yellow-600' : ''}`}
       >

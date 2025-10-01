@@ -118,7 +118,10 @@ const Navbar = () => {
       );
 
       if (isAdmin(user.uid)) {
-        items.push({ path: '/dashboard', label: '관리자', icon: '🛠️' });
+        items.push(
+          { path: '/growth', label: '성장 대시보드', icon: '📈' },
+          { path: '/dashboard', label: '관리자', icon: '🛠️' }
+        );
       }
     }
 

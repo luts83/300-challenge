@@ -15,10 +15,12 @@
           regs.forEach(reg => reg.unregister());
         });
 
-        // 캐시 제거
-        caches?.keys().then(keys => {
-          keys.forEach(key => caches.delete(key));
-        });
+        // 캐시 제거 (브라우저 환경에서만)
+        if (typeof caches !== 'undefined') {
+          caches.keys().then(keys => {
+            keys.forEach(key => caches.delete(key));
+          });
+        }
 
         // 플래그 저장
         localStorage.setItem('sw_cleanup_done', 'true');

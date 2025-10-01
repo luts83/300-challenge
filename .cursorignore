@@ -1,0 +1,113 @@
+# Add directories or file patterns to ignore during indexing (e.g. foo/ or *.csv)
+
+# Dependencies
+node_modules/
+.pnp/
+.pnp.js
+
+# Build outputs
+build/
+dist/
+client/dist/
+client/build/
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.key
+*.key
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Firebase service account key
+firebase-service-account.json
+
+# User data and sensitive content
+server/wordclouds/
+server/essays/
+server/templates/
+server/cron/
+server/analysis_results/
+
+# Archive folders (old code)
+server/archive/
+client/archive/
+
+# Database files
+*.sql
+*.dump
+*.backup
+*.db
+*.sqlite
+*.sqlite3
+
+# Media files (large files)
+*.mp4
+*.avi
+*.mov
+*.wmv
+*.flv
+*.webm
+*.mkv
+
+# Data files
+*.csv
+*.xlsx
+*.xls
+*.json
+!package.json
+!package-lock.json
+!tsconfig.json
+!tailwind.config.js
+!vite.config.ts
+
+# Temporary files
+*.tmp
+*.temp
+temp/
+tmp/
+.cache/
+cache/
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# IDE files
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+*.code-workspace
+.history/
+
+# Compressed files
+*.zip
+*.tar.gz
+*.rar
+*.7z
+*.tar.bz2
+
+# Backup files
+*.bak
+*~
+*_backup/
+*_copy/
+*_old/
+*_bak/

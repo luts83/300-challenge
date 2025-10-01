@@ -11,6 +11,7 @@ import Write from './pages/Write';
 import Write300 from './pages/Write300';
 import Write1000 from './pages/Write1000';
 import Dashboard from './pages/Dashboard';
+import GrowthPage from './pages/GrowthPage';
 import LandingPage from './pages/LandingPage';
 import TermsOfService from './pages/TermsOfService';
 import PrivacyPolicy from './pages/PrivacyPolicy';
@@ -91,6 +92,14 @@ function App() {
                 }
               />
               <Route
+                path="/my/:submissionId"
+                element={
+                  <PrivateRoute>
+                    <MySubmissions />
+                  </PrivateRoute>
+                }
+              />
+              <Route
                 path="/feedback-camp"
                 element={
                   <PrivateRoute>
@@ -103,6 +112,14 @@ function App() {
                 element={
                   <PrivateRoute>
                     <Dashboard />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/growth"
+                element={
+                  <PrivateRoute>
+                    <GrowthPage />
                   </PrivateRoute>
                 }
               />

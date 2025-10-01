@@ -20,14 +20,26 @@ const getErrorMessage = (errorCode: string): string => {
       return '등록되지 않은 이메일입니다.';
     case 'auth/wrong-password':
       return '비밀번호가 잘못되었습니다.';
+    case 'auth/invalid-credential':
+      return '이메일 또는 비밀번호가 올바르지 않습니다.';
+    case 'auth/user-disabled':
+      return '비활성화된 계정입니다. 관리자에게 문의해주세요.';
     case 'auth/email-already-in-use':
       return '이미 사용 중인 이메일입니다.';
     case 'auth/weak-password':
       return '비밀번호는 6자 이상이어야 합니다.';
     case 'auth/too-many-requests':
       return '너무 많은 시도입니다. 잠시 후 다시 시도해주세요.';
+    case 'auth/network-request-failed':
+      return '네트워크 연결을 확인해주세요.';
+    case 'auth/popup-closed-by-user':
+      return '로그인 창이 닫혔습니다. 다시 시도해주세요.';
+    case 'auth/cancelled-popup-request':
+      return '로그인이 취소되었습니다.';
+    case 'auth/popup-blocked':
+      return '팝업이 차단되었습니다. 팝업을 허용해주세요.';
     default:
-      return '알 수 없는 오류가 발생했습니다. 다시 시도해주세요.';
+      return '로그인 중 문제가 발생했습니다. 이메일과 비밀번호를 확인해주세요.';
   }
 };
 
@@ -135,6 +147,36 @@ const Login = () => {
 
       // ✅ 여기까지 오면 서버 인증도 성공한 것
       setUser(userCred.user);
+
+      // 신규 가입자인 경우 웰컴 이메일 전송
+      if (isNewUser) {
+        try {
+          console.log('📧 신규 가입자 웰컴 이메일 전송 시작');
+          const welcomeResponse = await fetch(
+            `${import.meta.env.VITE_API_URL}/api/welcome-email/send`,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${idToken}`,
+              },
+              body: JSON.stringify({
+                email: userCred.user.email,
+                displayName: userCred.user.displayName || userCred.user.email?.split('@')[0],
+              }),
+            }
+          );
+
+          if (welcomeResponse.ok) {
+            console.log('✅ 웰컴 이메일 전송 성공');
+          } else {
+            console.error('❌ 웰컴 이메일 전송 실패:', welcomeResponse.status);
+          }
+        } catch (error) {
+          console.error('❌ 웰컴 이메일 전송 에러:', error);
+        }
+      }
+
       alert(`${isNewUser ? '회원가입' : '로그인'} 성공! 🎉`);
       navigate('/');
     } catch (err: any) {
